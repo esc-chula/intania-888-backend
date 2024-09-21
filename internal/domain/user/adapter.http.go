@@ -2,6 +2,7 @@ package user
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/wiraphatys/intania888/internal/domain/middleware"
 	"github.com/wiraphatys/intania888/internal/model"
 )
 
@@ -13,19 +14,19 @@ func NewUserHttpHandler(service UserService) *UserHttpHandler {
 	return &UserHttpHandler{service: service}
 }
 
-func (h *UserHttpHandler) RegisterRoutes(router fiber.Router) {
-	router = router.Group("/users")
+func (h *UserHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
+	router = router.Group("/users", mid.AuthMiddleware)
 
 	router.Post("/", h.CreateUser)
 	router.Get("/", h.GetAllUsers)
 	router.Get("/:id", h.GetUser)
-	router.Patch("/", h.UpdateUser)
+	router.Patch("/:id", h.UpdateUser)
 	router.Delete("/:id", h.DeleteUser)
 }
 
 // @Summary Create a new user
 // @Description Creates a new user and stores it in the system
-// @Tags Users
+// @Tags User
 // @Accept  json
 // @Produce  json
 // @Param   user  body      model.UserDto  true  "User information"
@@ -46,7 +47,7 @@ func (h *UserHttpHandler) CreateUser(c *fiber.Ctx) error {
 
 // @Summary Get user by ID
 // @Description Retrieves a single user by their ID
-// @Tags Users
+// @Tags User
 // @Produce  json
 // @Param   id    path      string  true  "User ID"
 // @Success 200    {object} model.UserDto
@@ -63,7 +64,7 @@ func (h *UserHttpHandler) GetUser(c *fiber.Ctx) error {
 
 // @Summary Get all users
 // @Description Retrieves a list of all users
-// @Tags Users
+// @Tags User
 // @Produce  json
 // @Success 200    {array}  model.UserDto
 // @Failure 500    {object} map[string]string  "internal server error"
@@ -78,7 +79,7 @@ func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
 
 // @Summary Update user
 // @Description Updates an existing user
-// @Tags Users
+// @Tags User
 // @Accept  json
 // @Produce  json
 // @Param   id    path      string  true  "User ID"
@@ -102,7 +103,7 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 
 // @Summary Delete user
 // @Description Deletes a user by their ID
-// @Tags Users
+// @Tags User
 // @Param   id    path      string  true  "User ID"
 // @Success 204
 // @Failure 500    {object} map[string]string  "internal server error"

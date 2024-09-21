@@ -16,7 +16,7 @@ func NewAuthHttpHandler(service AuthService) *AuthHttpHandler {
 	return &AuthHttpHandler{service: service}
 }
 
-func (h *AuthHttpHandler) RegisterRoutes(router fiber.Router, mid middleware.MiddlewareHttpHandler) {
+func (h *AuthHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
 	router = router.Group("/auth")
 
 	router.Get("/login", h.Login)

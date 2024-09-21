@@ -3,7 +3,6 @@ package middleware
 import (
 	"errors"
 
-	"github.com/wiraphatys/intania888/internal/domain/user"
 	"github.com/wiraphatys/intania888/internal/model"
 	"github.com/wiraphatys/intania888/pkg/cache"
 	"github.com/wiraphatys/intania888/pkg/config"
@@ -12,18 +11,18 @@ import (
 )
 
 type middlewareServiceImpl struct {
-	userRepo user.UserRepository
-	cache    *cache.RedisClient
-	log      *zap.Logger
-	cfg      config.Config
+	repo  MiddlewareRepository
+	cache *cache.RedisClient
+	log   *zap.Logger
+	cfg   config.Config
 }
 
-func NewMiddlewareService(userRepo user.UserRepository, cache *cache.RedisClient, log *zap.Logger, cfg config.Config) MiddlewareService {
+func NewMiddlewareService(repo MiddlewareRepository, cache *cache.RedisClient, log *zap.Logger, cfg config.Config) MiddlewareService {
 	return &middlewareServiceImpl{
-		userRepo: userRepo,
-		cache:    cache,
-		log:      log,
-		cfg:      cfg,
+		repo:  repo,
+		cache: cache,
+		log:   log,
+		cfg:   cfg,
 	}
 }
 
@@ -56,7 +55,7 @@ func (u *middlewareServiceImpl) VerifyToken(token string) (*string, error) {
 }
 
 func (s *middlewareServiceImpl) GetMe(userId string) (*model.UserDto, error) {
-	user, err := s.userRepo.GetById(userId)
+	user, err := s.repo.GetById(userId)
 	if err != nil {
 		s.log.Named("GetMe").Error("Get user by id: ", zap.Error(err))
 		return nil, err

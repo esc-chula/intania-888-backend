@@ -1,5 +1,249 @@
 basePath: /api/v1
 definitions:
+  bill.ErrorResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  model.BillHead:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      lines:
+        items:
+          $ref: '#/definitions/model.BillLine'
+        type: array
+      total:
+        type: number
+      updatedAt:
+        type: string
+      user:
+        $ref: '#/definitions/model.User'
+      userId:
+        type: string
+    type: object
+  model.BillHeadDto:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      lines:
+        description: Nested BillLine DTO
+        items:
+          $ref: '#/definitions/model.BillLineDto'
+        type: array
+      total:
+        type: number
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  model.BillLine:
+    properties:
+      bettingOn:
+        description: color
+        type: string
+      billId:
+        type: string
+      color:
+        $ref: '#/definitions/model.Color'
+      createdAt:
+        type: string
+      head:
+        $ref: '#/definitions/model.BillHead'
+      match:
+        $ref: '#/definitions/model.Match'
+      matchId:
+        type: string
+      rate:
+        type: number
+      updatedAt:
+        type: string
+    type: object
+  model.BillLineDto:
+    properties:
+      betting_on:
+        type: string
+      bill_id:
+        type: string
+      color:
+        allOf:
+        - $ref: '#/definitions/model.ColorDto'
+        description: For `BettingOn`
+      created_at:
+        type: string
+      match:
+        $ref: '#/definitions/model.MatchDto'
+      match_id:
+        type: string
+      rate:
+        type: number
+      updated_at:
+        type: string
+    type: object
+  model.Color:
+    properties:
+      billLines:
+        items:
+          $ref: '#/definitions/model.BillLine'
+        type: array
+      createdAt:
+        type: string
+      groupLines:
+        items:
+          $ref: '#/definitions/model.GroupLine'
+        type: array
+      id:
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/model.IntaniaGroup'
+        type: array
+      teamA:
+        items:
+          $ref: '#/definitions/model.Match'
+        type: array
+      teamB:
+        items:
+          $ref: '#/definitions/model.Match'
+        type: array
+      title:
+        type: string
+      updatedAt:
+        type: string
+      won:
+        items:
+          $ref: '#/definitions/model.Match'
+        type: array
+    type: object
+  model.ColorDto:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  model.GroupHead:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      lines:
+        items:
+          $ref: '#/definitions/model.GroupLine'
+        type: array
+      sportType:
+        $ref: '#/definitions/model.SportType'
+      title:
+        type: string
+      typeId:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  model.GroupLine:
+    properties:
+      createdAt:
+        type: string
+      groupId:
+        type: string
+      head:
+        $ref: '#/definitions/model.GroupHead'
+      team:
+        $ref: '#/definitions/model.Color'
+      teamId:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  model.IntaniaGroup:
+    properties:
+      color:
+        $ref: '#/definitions/model.Color'
+      colorId:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/model.User'
+        type: array
+      updatedAt:
+        type: string
+    type: object
+  model.Match:
+    properties:
+      billLines:
+        items:
+          $ref: '#/definitions/model.BillLine'
+        type: array
+      createdAt:
+        type: string
+      endTime:
+        type: string
+      id:
+        type: string
+      sportType:
+        $ref: '#/definitions/model.SportType'
+      startTime:
+        type: string
+      teamA:
+        $ref: '#/definitions/model.Color'
+      teamA_Id:
+        type: string
+      teamB:
+        $ref: '#/definitions/model.Color'
+      teamB_Id:
+        type: string
+      typeId:
+        type: string
+      updatedAt:
+        type: string
+      winner:
+        $ref: '#/definitions/model.Color'
+      winnerId:
+        type: string
+    type: object
+  model.MatchDto:
+    properties:
+      created_at:
+        type: string
+      end_time:
+        type: string
+      id:
+        type: string
+      sport_type:
+        $ref: '#/definitions/model.SportType'
+      start_time:
+        type: string
+      team_a:
+        $ref: '#/definitions/model.ColorDto'
+      team_a_id:
+        type: string
+      team_b:
+        $ref: '#/definitions/model.ColorDto'
+      team_b_id:
+        type: string
+      type_id:
+        type: string
+      updated_at:
+        type: string
+      winner:
+        $ref: '#/definitions/model.ColorDto'
+      winner_id:
+        type: string
+    type: object
   model.OAuthCodeDto:
     properties:
       code:
@@ -10,11 +254,70 @@ definitions:
       refresh_token:
         type: string
     type: object
+  model.Role:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      updatedAt:
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/model.User'
+        type: array
+    type: object
+  model.SportType:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      matches:
+        items:
+          $ref: '#/definitions/model.Match'
+        type: array
+      title:
+        type: string
+      tournamentGroup:
+        items:
+          $ref: '#/definitions/model.GroupHead'
+        type: array
+      updatedAt:
+        type: string
+    type: object
+  model.User:
+    properties:
+      bills:
+        items:
+          $ref: '#/definitions/model.BillHead'
+        type: array
+      createdAt:
+        type: string
+      email:
+        type: string
+      group:
+        $ref: '#/definitions/model.IntaniaGroup'
+      groupId:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        $ref: '#/definitions/model.Role'
+      roleId:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   model.UserDto:
     properties:
       created_at:
         type: string
       email:
+        type: string
+      group_id:
         type: string
       id:
         type: string
@@ -88,6 +391,27 @@ paths:
       summary: OAuth Login Callback
       tags:
       - Auth
+  /auth/me:
+    get:
+      description: Retrieves user profile data
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: profile
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: bad request error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: GetMe
+      tags:
+      - Auth
   /auth/refresh:
     post:
       consumes:
@@ -123,6 +447,149 @@ paths:
       summary: Refresh Token
       tags:
       - Auth
+  /bills:
+    get:
+      consumes:
+      - application/json
+      description: Get all bills
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.BillHeadDto'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+      summary: Get all bills
+      tags:
+      - Bill
+    post:
+      consumes:
+      - application/json
+      description: Create a new bill with the input payload
+      parameters:
+      - description: Create bill
+        in: body
+        name: bill
+        required: true
+        schema:
+          $ref: '#/definitions/model.BillHeadDto'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.BillHeadDto'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+      summary: Create a new bill
+      tags:
+      - Bill
+  /bills/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a bill by its ID
+      parameters:
+      - description: Bill ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+      summary: Delete a bill
+      tags:
+      - Bill
+    get:
+      consumes:
+      - application/json
+      description: Get a bill by its ID
+      parameters:
+      - description: Bill ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.BillHeadDto'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+      summary: Get a bill by ID
+      tags:
+      - Bill
+    put:
+      consumes:
+      - application/json
+      description: Update a bill with the input payload
+      parameters:
+      - description: Bill ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update bill
+        in: body
+        name: bill
+        required: true
+        schema:
+          $ref: '#/definitions/model.BillHeadDto'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.BillHeadDto'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+      summary: Update a bill
+      tags:
+      - Bill
   /users:
     get:
       description: Retrieves a list of all users
@@ -143,7 +610,7 @@ paths:
             type: object
       summary: Get all users
       tags:
-      - Users
+      - User
     post:
       consumes:
       - application/json
@@ -176,7 +643,7 @@ paths:
             type: object
       summary: Create a new user
       tags:
-      - Users
+      - User
   /users/{id}:
     delete:
       description: Deletes a user by their ID
@@ -197,7 +664,7 @@ paths:
             type: object
       summary: Delete user
       tags:
-      - Users
+      - User
     get:
       description: Retrieves a single user by their ID
       parameters:
@@ -221,7 +688,7 @@ paths:
             type: object
       summary: Get user by ID
       tags:
-      - Users
+      - User
     patch:
       consumes:
       - application/json
@@ -259,7 +726,7 @@ paths:
             type: object
       summary: Update user
       tags:
-      - Users
+      - User
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and the token
