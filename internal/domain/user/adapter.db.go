@@ -33,8 +33,8 @@ func (r *userRepositoryImpl) GetByEmail(email string) (*model.User, error) {
 	return &user, nil
 }
 
-func (r *userRepositoryImpl) GetAll() ([]model.User, error) {
-	var users []model.User
+func (r *userRepositoryImpl) GetAll() ([]*model.User, error) {
+	var users []*model.User
 	if err := r.db.Preload("Role").Find(&users).Error; err != nil {
 		return nil, err
 	}
