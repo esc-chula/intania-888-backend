@@ -13,7 +13,18 @@ func main() {
 	cfg := config.GetConfig()
 	db := database.NewGormDatabase(cfg)
 
-	if err := db.AutoMigrate(&model.User{}, &model.Role{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.User{},
+		&model.Role{},
+		&model.SportType{},
+		&model.Color{},
+		&model.IntaniaGroup{},
+		&model.BillHead{},
+		&model.BillLine{},
+		&model.Match{},
+		&model.GroupHead{},
+		&model.GroupLine{},
+	); err != nil {
 		log.Fatalf("Error during migration: %v", err)
 	}
 
