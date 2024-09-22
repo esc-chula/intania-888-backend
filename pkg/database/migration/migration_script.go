@@ -90,10 +90,54 @@ func main() {
 	colors := []model.Color{}
 	colors = append(colors, violet, blue, green, pink, orange, yellow)
 
+	sportTypes := []model.SportType{
+		{
+			Id:    "FOOTBALL_MALE_JR",
+			Title: "ฟุตบอล ชาย ปี1",
+		},
+		{
+			Id:    "FOOTBALL_MALE_SR",
+			Title: "ฟุตบอล ชาย ปี2-4",
+		},
+		{
+			Id:    "BASKETBALL_MALE_JR",
+			Title: "บาสเกตบอล ชาย ปี1",
+		},
+		{
+			Id:    "BASKETBALL_MALE_SR",
+			Title: "บาสเกตบอล ชาย ปี2-4",
+		},
+		{
+			Id:    "BASKETBALL_FEMALE_ALL",
+			Title: "บาสเกตบอล หญิง ทุกชั้นปี",
+		},
+		{
+			Id:    "VOLLEYBALL_MALE_JR",
+			Title: "วอลเลย์บอล ชาย ปี1",
+		},
+		{
+			Id:    "VOLLEYBALL_MALE_SR",
+			Title: "วอลเลย์บอล ชาย ปี2-4",
+		},
+		{
+			Id:    "VOLLEYBALL_FEMALE_ALL",
+			Title: "วอลเลย์บอล หญิง ทุกชั้นปี",
+		},
+		{
+			Id:    "CHAIRBALL_FEMALE_ALL",
+			Title: "แชร์บอล หญิง ทุกชั้นปี",
+		},
+	}
+
 	if err := db.Create(&roles).Error; err != nil {
 		log.Printf("Error creating roles: %v", err)
 	}
 	if err := db.Create(&colors).Error; err != nil {
 		log.Printf("Error creating colors: %v", err)
 	}
+	if err := db.Create(&sportTypes).Error; err != nil {
+		log.Printf("Error creating sport_types: %v", err)
+	}
+
+	log.Println("migration successful.")
 }
