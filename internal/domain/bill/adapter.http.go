@@ -71,9 +71,12 @@ func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 // @Failure 500 {object} ErrorResponse
 // @Router /bills/{id} [get]
 func (h *BillHttpHandler) GetBill(c *fiber.Ctx) error {
-	id := c.Params("id")
+	userProfile := utils.GetUserProfileFromCtx(c)
+	if userProfile == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+	}
 
-	bill, err := h.service.GetBill(id)
+	bill, err := h.service.GetBill(c.Params("id"), userProfile.Id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse{Message: "Bill not found"})
 	}

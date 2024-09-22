@@ -20,9 +20,9 @@ func (r *billRepositoryImpl) Create(bill *model.BillHead) error {
 }
 
 // GetById retrieves a bill by its ID
-func (r *billRepositoryImpl) GetById(id string) (*model.BillHead, error) {
+func (r *billRepositoryImpl) GetById(billId, userId string) (*model.BillHead, error) {
 	var bill model.BillHead
-	err := r.db.First(&bill, "id = ?", id).Preload("BillLine").Error
+	err := r.db.Preload("Lines").Preload("Lines.Match").Where("id = ? AND user_id = ?", billId, userId).First(&bill).Error
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func (r *billRepositoryImpl) GetById(id string) (*model.BillHead, error) {
 // GetAll retrieves all bills
 func (r *billRepositoryImpl) GetAll(userId string) ([]*model.BillHead, error) {
 	var bills []*model.BillHead
-	err := r.db.Preload("Lines").Preload("Lines.Color").Preload("Lines.Match.SportType").Where("user_id = ?", userId).Find(&bills).Error
+	err := r.db.Preload("Lines").Preload("Lines.Match").Where("user_id = ?", userId).Find(&bills).Error
 	if err != nil {
 		return nil, err
 	}

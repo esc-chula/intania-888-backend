@@ -38,20 +38,20 @@ func (s *billServiceImpl) CreateBill(billDto *model.BillHeadDto) error {
 }
 
 // GetBill returns a bill by id
-func (s *billServiceImpl) GetBill(id string) (*model.BillHeadDto, error) {
-	bill, err := s.repo.GetById(id)
+func (s *billServiceImpl) GetBill(billId, userId string) (*model.BillHeadDto, error) {
+	bill, err := s.repo.GetById(billId, userId)
 	if err != nil {
 		s.log.Named("GetBill").Error("GetById", zap.Error(err))
 		return nil, err
 	}
 
 	if bill == nil {
-		s.log.Named("GetBill").Error("Bill not found", zap.String("id", id))
+		s.log.Named("GetBill").Error("Bill not found", zap.String("id", billId))
 		return nil, errors.New("bill not found")
 	}
 
 	billDto := mapBillEntityToDto(bill)
-	s.log.Named("GetBill").Info("Retrieved bill successful", zap.String("id", id))
+	s.log.Named("GetBill").Info("Retrieved bill successful", zap.String("id", billId))
 	return billDto, nil
 }
 
