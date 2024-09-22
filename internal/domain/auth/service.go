@@ -61,7 +61,7 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 	if err != nil && err == gorm.ErrRecordNotFound {
 		s.log.Named("VerifyOAuthLogin").Info("User not found, creating new user")
 
-		role := "user"
+		role := "USER"
 		userToCreate := model.User{
 			Id:     userInfo.Id,
 			Email:  userInfo.Email,
