@@ -39,19 +39,19 @@ func (h *BillHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 // @Failure 500 {object} ErrorResponse
 // @Router /bills [post]
 func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
-	var billDto model.BillHeadDto
-	if err := c.BodyParser(&billDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
-	}
-
 	// get user from context
 	userProfile := utils.GetUserProfileFromCtx(c)
 	if userProfile == nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
 	}
-	billDto.UserId = userProfile.Id
 
-	err := h.service.CreateBill(&billDto)
+	var billDto model.BillHeadDto
+	if err := c.BodyParser(&billDto); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
+	}
+
+	billDto.UserId = userProfile.Id
+	err := h.service.CreateBill(userProfile, &billDto)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to create bill"})
 	}

@@ -11,7 +11,7 @@ type BillRepository interface {
 }
 
 type BillService interface {
-	CreateBill(billDto *model.BillHeadDto) error
+	CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error
 	GetBill(billId, userId string) (*model.BillHeadDto, error)
 	GetAllBills(userId string) ([]*model.BillHeadDto, error)
 	UpdateBill(billDto *model.BillHeadDto) error

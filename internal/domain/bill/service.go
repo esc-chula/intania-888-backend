@@ -19,9 +19,12 @@ func NewBillService(repo BillRepository, log *zap.Logger) BillService {
 }
 
 // CreateBill creates a new bill
-func (s *billServiceImpl) CreateBill(billDto *model.BillHeadDto) error {
-	bill := mapBillDtoToEntity(billDto)
+func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
+	if userProfile.RemainingCoin < billDto.Total {
+		return errors.New("user does not have enough coins to cover the total bill")
+	}
 
+	bill := mapBillDtoToEntity(billDto)
 	bill.Id = uuid.NewString()
 	for i := range bill.Lines {
 		bill.Lines[i].BillId = bill.Id
