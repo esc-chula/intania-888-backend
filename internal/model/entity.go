@@ -7,7 +7,7 @@ type User struct {
 	Email     string    `gorm:"type:varchar(100);not null"`
 	Name      string    `gorm:"type:varchar(100);not null"`
 	RoleId    string    `gorm:"type:varchar(100);not null"`
-	GroupId   string    `gorm:"type:varchar(100);not null"`
+	GroupId   *string   `gorm:"type:varchar(100);"`
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``
 
