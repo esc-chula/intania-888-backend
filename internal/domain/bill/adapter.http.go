@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/wiraphatys/intania888/internal/domain/middleware"
 	"github.com/wiraphatys/intania888/internal/model"
+	"github.com/wiraphatys/intania888/utils"
 )
 
 type BillHttpHandler struct {
@@ -44,8 +45,8 @@ func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 	}
 
 	// get user from context
-	userDto, ok := c.Locals("user").(*model.UserDto)
-	if !ok {
+	userDto := utils.GetUserProfileFromCtx(c)
+	if userDto == nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
 	}
 	billDto.UserId = userDto.Id
