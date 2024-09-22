@@ -4,10 +4,10 @@ import (
 	"log"
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/esc-chula/intania-888-backend/pkg/database"
 	"github.com/google/uuid"
-	"github.com/wiraphatys/intania888/internal/model"
-	"github.com/wiraphatys/intania888/pkg/config"
-	"github.com/wiraphatys/intania888/pkg/database"
 )
 
 func main() {

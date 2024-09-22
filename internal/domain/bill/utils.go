@@ -1,6 +1,6 @@
 package bill
 
-import "github.com/wiraphatys/intania888/internal/model"
+import "github.com/esc-chula/intania-888-backend/internal/model"
 
 // mapBillDtoToEntity maps a BillHeadDto to a BillHead entity
 func mapBillDtoToEntity(billDto *model.BillHeadDto) *model.BillHead {

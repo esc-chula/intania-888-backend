@@ -1,4 +1,4 @@
-module github.com/wiraphatys/intania888
+module github.com/esc-chula/intania-888-backend
 
 go 1.22.5
 

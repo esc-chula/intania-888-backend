@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/wiraphatys/intania888/pkg/config"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

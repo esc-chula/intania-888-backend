@@ -3,10 +3,10 @@ package middleware
 import (
 	"errors"
 
-	"github.com/wiraphatys/intania888/internal/model"
-	"github.com/wiraphatys/intania888/pkg/cache"
-	"github.com/wiraphatys/intania888/pkg/config"
-	"github.com/wiraphatys/intania888/utils"
+	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/pkg/cache"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/esc-chula/intania-888-backend/utils"
 	"go.uber.org/zap"
 )
 

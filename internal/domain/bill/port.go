@@ -1,6 +1,6 @@
 package bill
 
-import "github.com/wiraphatys/intania888/internal/model"
+import "github.com/esc-chula/intania-888-backend/internal/model"
 
 type BillRepository interface {
 	Create(bill *model.BillHead) error

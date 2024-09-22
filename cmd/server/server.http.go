@@ -8,12 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/wiraphatys/intania888/docs"
+	_ "github.com/esc-chula/intania-888-backend/docs"
 
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/wiraphatys/intania888/pkg/config"
 	"go.uber.org/zap"
 
 	swagger "github.com/arsmn/fiber-swagger/v2"

@@ -4,11 +4,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/wiraphatys/intania888/internal/domain/user"
-	"github.com/wiraphatys/intania888/internal/model"
-	"github.com/wiraphatys/intania888/pkg/config"
-	"github.com/wiraphatys/intania888/pkg/oauth"
-	"github.com/wiraphatys/intania888/utils"
+	"github.com/esc-chula/intania-888-backend/internal/domain/user"
+	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/esc-chula/intania-888-backend/pkg/oauth"
+	"github.com/esc-chula/intania-888-backend/utils"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

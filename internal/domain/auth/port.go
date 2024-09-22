@@ -1,6 +1,6 @@
 package auth
 
-import "github.com/wiraphatys/intania888/internal/model"
+import "github.com/esc-chula/intania-888-backend/internal/model"
 
 type AuthService interface {
 	GetOAuthUrl() (string, error)

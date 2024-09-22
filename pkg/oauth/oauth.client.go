@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/wiraphatys/intania888/pkg/config"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"

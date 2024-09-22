@@ -3,8 +3,8 @@ package bill
 import (
 	"errors"
 
+	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/google/uuid"
-	"github.com/wiraphatys/intania888/internal/model"
 	"go.uber.org/zap"
 )
 

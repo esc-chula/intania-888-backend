@@ -1,7 +1,7 @@
 package user
 
 import (
-	"github.com/wiraphatys/intania888/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/model"
 	"go.uber.org/zap"
 )
 

@@ -1,16 +1,16 @@
 package main
 
 import (
-	"github.com/wiraphatys/intania888/cmd/server"
-	"github.com/wiraphatys/intania888/internal/domain/auth"
-	"github.com/wiraphatys/intania888/internal/domain/bill"
-	"github.com/wiraphatys/intania888/internal/domain/middleware"
-	"github.com/wiraphatys/intania888/internal/domain/user"
-	"github.com/wiraphatys/intania888/pkg/cache"
-	"github.com/wiraphatys/intania888/pkg/config"
-	"github.com/wiraphatys/intania888/pkg/database"
-	"github.com/wiraphatys/intania888/pkg/logger"
-	"github.com/wiraphatys/intania888/pkg/oauth"
+	"github.com/esc-chula/intania-888-backend/cmd/server"
+	"github.com/esc-chula/intania-888-backend/internal/domain/auth"
+	"github.com/esc-chula/intania-888-backend/internal/domain/bill"
+	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/domain/user"
+	"github.com/esc-chula/intania-888-backend/pkg/cache"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/esc-chula/intania-888-backend/pkg/database"
+	"github.com/esc-chula/intania-888-backend/pkg/logger"
+	"github.com/esc-chula/intania-888-backend/pkg/oauth"
 )
 
 // @title Intania888 Backend - API

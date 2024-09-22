@@ -3,9 +3,9 @@ package auth
 import (
 	"errors"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/gofiber/fiber/v2"
-	"github.com/wiraphatys/intania888/internal/domain/middleware"
-	"github.com/wiraphatys/intania888/internal/model"
 )
 
 type AuthHttpHandler struct {

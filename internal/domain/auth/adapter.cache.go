@@ -1,6 +1,6 @@
 package auth
 
-import "github.com/wiraphatys/intania888/pkg/cache"
+import "github.com/esc-chula/intania-888-backend/pkg/cache"
 
 type authRepositoryImpl struct {
 	cache cache.RedisClient

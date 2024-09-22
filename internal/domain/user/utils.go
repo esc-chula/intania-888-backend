@@ -1,6 +1,6 @@
 package user
 
-import "github.com/wiraphatys/intania888/internal/model"
+import "github.com/esc-chula/intania-888-backend/internal/model"
 
 func ToUserEntity(userDto *model.UserDto) *model.User {
 	return &model.User{

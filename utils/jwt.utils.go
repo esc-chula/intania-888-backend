@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/wiraphatys/intania888/internal/model"
-	"github.com/wiraphatys/intania888/pkg/config"
 )
 
 func JwtParseToken(reqToken, secretKey string) (jwt.MapClaims, error) {

@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"github.com/wiraphatys/intania888/pkg/config"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"go.uber.org/zap"
 )
 

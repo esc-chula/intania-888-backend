@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/redis/go-redis/v9"
-	"github.com/wiraphatys/intania888/pkg/config"
 )
 
 type RedisClient struct {

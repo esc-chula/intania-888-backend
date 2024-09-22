@@ -1,6 +1,6 @@
 package middleware
 
-import "github.com/wiraphatys/intania888/internal/model"
+import "github.com/esc-chula/intania-888-backend/internal/model"
 
 type MiddlewareService interface {
 	VerifyToken(token string) (*string, error)
