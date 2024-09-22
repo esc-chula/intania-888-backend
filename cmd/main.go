@@ -34,19 +34,19 @@ func main() {
 
 	// init all layers
 	userRepo := user.NewUserRepository(db)
-	userSvc := user.NewUserService(userRepo, logger)
+	userSvc := user.NewUserService(userRepo, logger.Named("UserSvc"))
 	userHttp := user.NewUserHttpHandler(userSvc)
 
 	authRepo := auth.NewAuthRepository(*cache)
-	authSvc := auth.NewAuthService(authRepo, userRepo, cfg, logger, oauth.NewGoogleOAuthClient(oauthConfig, logger))
+	authSvc := auth.NewAuthService(authRepo, userRepo, cfg, logger.Named("AuthSvc"), oauth.NewGoogleOAuthClient(oauthConfig, logger))
 	authHttp := auth.NewAuthHttpHandler(authSvc)
 
 	midRepo := middleware.NewMiddlewareRepository(db)
-	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger, cfg)
+	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger.Named("MiddlewareSvc"), cfg)
 	midHttp := middleware.NewMiddlewareHttpHandler(midSvc, logger)
 
 	billRepo := bill.NewBillRepository(db)
-	billSvc := bill.NewBillService(billRepo, logger)
+	billSvc := bill.NewBillService(billRepo, logger.Named("BillSvc"))
 	billHttp := bill.NewBillHttpHandler(billSvc)
 
 	// init router
