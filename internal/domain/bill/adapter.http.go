@@ -1,6 +1,8 @@
 package bill
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/wiraphatys/intania888/internal/domain/middleware"
 	"github.com/wiraphatys/intania888/internal/model"
@@ -41,12 +43,19 @@ func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
 	}
 
+	// get user from context
+	userDto, ok := c.Locals("user").(*model.UserDto)
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+	}
+	billDto.UserId = userDto.Id
+
 	err := h.service.CreateBill(&billDto)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to create bill"})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(billDto)
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "created bill successful"})
 }
 
 // GetBill godoc

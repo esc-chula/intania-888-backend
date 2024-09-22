@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/wiraphatys/intania888/internal/model"
 	"github.com/wiraphatys/intania888/pkg/config"
 	"github.com/wiraphatys/intania888/pkg/database"
@@ -129,6 +130,25 @@ func main() {
 		},
 	}
 
+	matches := []model.Match{
+		{
+			Id:        uuid.NewString(),
+			TeamA_Id:  violet.Id,
+			TeamB_Id:  orange.Id,
+			TypeId:    sportTypes[0].Id, // football
+			StartTime: time.Date(2024, 9, 22, 19, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(2024, 9, 22, 21, 30, 0, 0, time.UTC), // 90 mins match + 15 mins half-time break
+		},
+		{
+			Id:        uuid.NewString(),
+			TeamA_Id:  blue.Id,
+			TeamB_Id:  pink.Id,
+			TypeId:    sportTypes[1].Id,
+			StartTime: time.Date(2024, 9, 26, 17, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(2024, 9, 26, 19, 0, 0, 0, time.UTC), // Default 2-hour match
+		},
+	}
+
 	if err := db.Create(&roles).Error; err != nil {
 		log.Printf("Error creating roles: %v", err)
 	}
@@ -137,6 +157,9 @@ func main() {
 	}
 	if err := db.Create(&sportTypes).Error; err != nil {
 		log.Printf("Error creating sport_types: %v", err)
+	}
+	if err := db.Create(&matches).Error; err != nil {
+		log.Printf("Error creating matches: %v", err)
 	}
 
 	log.Println("migration successful.")

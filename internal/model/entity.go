@@ -52,7 +52,7 @@ type Match struct {
 	Id        string    `gorm:"primaryKey;type:varchar(100)"`
 	TeamA_Id  string    `gorm:"type:varchar(100);not null"`
 	TeamB_Id  string    `gorm:"type:varchar(100);not null"`
-	WinnerId  string    `gorm:"type:varchar(100);not null"`
+	WinnerId  *string   `gorm:"type:varchar(100);"`
 	TypeId    string    `gorm:"type:varchar(100);not null"`
 	StartTime time.Time ``
 	EndTime   time.Time ``

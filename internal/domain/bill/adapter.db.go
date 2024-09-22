@@ -32,7 +32,7 @@ func (r *billRepositoryImpl) GetById(id string) (*model.BillHead, error) {
 // GetAll retrieves all bills
 func (r *billRepositoryImpl) GetAll() ([]*model.BillHead, error) {
 	var bills []*model.BillHead
-	err := r.db.Find(&bills).Preload("BillLine").Error
+	err := r.db.Preload("Lines").Preload("Lines.Color").Preload("Lines.Match.SportType").Find(&bills).Error
 	if err != nil {
 		return nil, err
 	}

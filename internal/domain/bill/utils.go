@@ -5,24 +5,20 @@ import "github.com/wiraphatys/intania888/internal/model"
 // mapBillDtoToEntity maps a BillHeadDto to a BillHead entity
 func mapBillDtoToEntity(billDto *model.BillHeadDto) *model.BillHead {
 	return &model.BillHead{
-		Id:        billDto.Id,
-		Total:     billDto.Total,
-		UserId:    billDto.UserId,
-		CreatedAt: billDto.CreatedAt,
-		UpdatedAt: billDto.UpdatedAt,
-		Lines:     mapBillLineDtoToEntity(billDto.Lines),
+		Id:     billDto.Id,
+		Total:  billDto.Total,
+		UserId: billDto.UserId,
+		Lines:  mapBillLineDtoToEntity(billDto.Lines),
 	}
 }
 
 // mapBillEntityToDto maps a BillHead entity to a BillHeadDto
 func mapBillEntityToDto(bill *model.BillHead) *model.BillHeadDto {
 	return &model.BillHeadDto{
-		Id:        bill.Id,
-		Total:     bill.Total,
-		UserId:    bill.UserId,
-		CreatedAt: bill.CreatedAt,
-		UpdatedAt: bill.UpdatedAt,
-		Lines:     mapBillLineEntityToDto(bill.Lines),
+		Id:     bill.Id,
+		Total:  bill.Total,
+		UserId: bill.UserId,
+		Lines:  mapBillLineEntityToDto(bill.Lines),
 	}
 }
 
@@ -58,19 +54,19 @@ func mapBillLineEntityToDto(lines []model.BillLine) []*model.BillLineDto {
 			MatchId:   line.MatchId,
 			Rate:      line.Rate,
 			BettingOn: line.BettingOn,
-			CreatedAt: line.CreatedAt,
-			UpdatedAt: line.UpdatedAt,
 			Match: model.MatchDto{
-				Id:        line.Match.Id,
-				TeamAId:   line.Match.TeamA_Id,
-				TeamBId:   line.Match.TeamB_Id,
-				WinnerId:  line.Match.WinnerId,
+				Id:      line.Match.Id,
+				TeamAId: line.Match.TeamA_Id,
+				TeamBId: line.Match.TeamB_Id,
+				WinnerId: func() string {
+					if line.Match.WinnerId != nil {
+						return *line.Match.WinnerId
+					}
+					return ""
+				}(),
 				TypeId:    line.Match.TypeId,
 				StartTime: line.Match.StartTime,
 				EndTime:   line.Match.EndTime,
-			},
-			Color: model.ColorDto{
-				Id: line.Color.Id,
 			},
 		}
 	}

@@ -3,6 +3,7 @@ package bill
 import (
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/wiraphatys/intania888/internal/model"
 	"go.uber.org/zap"
 )
@@ -20,6 +21,11 @@ func NewBillService(repo BillRepository, log *zap.Logger) BillService {
 // CreateBill creates a new bill
 func (s *billServiceImpl) CreateBill(billDto *model.BillHeadDto) error {
 	bill := mapBillDtoToEntity(billDto)
+
+	bill.Id = uuid.NewString()
+	for i := range bill.Lines {
+		bill.Lines[i].BillId = bill.Id
+	}
 
 	err := s.repo.Create(bill)
 	if err != nil {

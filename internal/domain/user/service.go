@@ -37,12 +37,10 @@ func (s *userServiceImpl) GetUser(id string) (*model.UserDto, error) {
 
 	s.log.Named("GetUser").Info("Successfully fetched user by id", zap.String("user_id", user.Id))
 	return &model.UserDto{
-		Id:        user.Id,
-		Email:     user.Email,
-		Name:      user.Name,
-		RoleId:    user.RoleId,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		Id:     user.Id,
+		Email:  user.Email,
+		Name:   user.Name,
+		RoleId: user.RoleId,
 	}, nil
 }
 
@@ -56,12 +54,10 @@ func (s *userServiceImpl) GetAllUsers() ([]*model.UserDto, error) {
 	usersDto := make([]*model.UserDto, len(users))
 	for i, user := range users {
 		usersDto[i] = &model.UserDto{
-			Id:        user.Id,
-			Email:     user.Email,
-			Name:      user.Name,
-			RoleId:    user.RoleId,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
+			Id:     user.Id,
+			Email:  user.Email,
+			Name:   user.Name,
+			RoleId: user.RoleId,
 		}
 	}
 
