@@ -30,9 +30,9 @@ func (r *billRepositoryImpl) GetById(id string) (*model.BillHead, error) {
 }
 
 // GetAll retrieves all bills
-func (r *billRepositoryImpl) GetAll() ([]*model.BillHead, error) {
+func (r *billRepositoryImpl) GetAll(userId string) ([]*model.BillHead, error) {
 	var bills []*model.BillHead
-	err := r.db.Preload("Lines").Preload("Lines.Color").Preload("Lines.Match.SportType").Find(&bills).Error
+	err := r.db.Preload("Lines").Preload("Lines.Color").Preload("Lines.Match.SportType").Where("user_id = ?", userId).Find(&bills).Error
 	if err != nil {
 		return nil, err
 	}

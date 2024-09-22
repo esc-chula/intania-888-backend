@@ -45,11 +45,11 @@ func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 	}
 
 	// get user from context
-	userDto := utils.GetUserProfileFromCtx(c)
-	if userDto == nil {
+	userProfile := utils.GetUserProfileFromCtx(c)
+	if userProfile == nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
 	}
-	billDto.UserId = userDto.Id
+	billDto.UserId = userProfile.Id
 
 	err := h.service.CreateBill(&billDto)
 	if err != nil {
@@ -91,7 +91,12 @@ func (h *BillHttpHandler) GetBill(c *fiber.Ctx) error {
 // @Failure 500 {object} ErrorResponse
 // @Router /bills [get]
 func (h *BillHttpHandler) GetAllBills(c *fiber.Ctx) error {
-	bills, err := h.service.GetAllBills()
+	userProfile := utils.GetUserProfileFromCtx(c)
+	if userProfile == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+	}
+
+	bills, err := h.service.GetAllBills(userProfile.Id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get bills"})
 	}

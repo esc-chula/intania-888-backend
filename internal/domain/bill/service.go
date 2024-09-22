@@ -56,8 +56,8 @@ func (s *billServiceImpl) GetBill(id string) (*model.BillHeadDto, error) {
 }
 
 // GetAllBills returns all bills
-func (s *billServiceImpl) GetAllBills() ([]*model.BillHeadDto, error) {
-	bills, err := s.repo.GetAll()
+func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, error) {
+	bills, err := s.repo.GetAll(userId)
 	if err != nil {
 		s.log.Named("GetAllBills").Error("GetAll", zap.Error(err))
 		return nil, err
