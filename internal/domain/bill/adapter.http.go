@@ -121,14 +121,19 @@ func (h *BillHttpHandler) GetAllBills(c *fiber.Ctx) error {
 // @Failure 500 {object} ErrorResponse
 // @Router /bills/{id} [put]
 func (h *BillHttpHandler) UpdateBill(c *fiber.Ctx) error {
-	id := c.Params("id")
+	userProfile := utils.GetUserProfileFromCtx(c)
+	if userProfile == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+	}
 
 	var billDto model.BillHeadDto
 	if err := c.BodyParser(&billDto); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
 	}
+	if billDto.UserId != userProfile.Id || billDto.Id != c.Params("id") {
+		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Message: "User is not allowed to access this bill"})
+	}
 
-	billDto.Id = id
 	err := h.service.UpdateBill(&billDto)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to update bill"})
