@@ -18,6 +18,7 @@ func NewUserService(repo UserRepository, log *zap.Logger) UserService {
 }
 
 func (s *userServiceImpl) CreateUser(userDto *model.UserDto) error {
+	userDto.RemainingCoin = 888.00
 	err := s.repo.Create(ToUserEntity(userDto))
 	if err != nil {
 		s.log.Named("CreateUser").Error("Failed to create user", zap.Error(err))
@@ -37,10 +38,11 @@ func (s *userServiceImpl) GetUser(id string) (*model.UserDto, error) {
 
 	s.log.Named("GetUser").Info("Successfully fetched user by id", zap.String("user_id", user.Id))
 	return &model.UserDto{
-		Id:     user.Id,
-		Email:  user.Email,
-		Name:   user.Name,
-		RoleId: user.RoleId,
+		Id:            user.Id,
+		Email:         user.Email,
+		Name:          user.Name,
+		RoleId:        user.RoleId,
+		RemainingCoin: user.RemainingCoin,
 	}, nil
 }
 
@@ -54,10 +56,11 @@ func (s *userServiceImpl) GetAllUsers() ([]*model.UserDto, error) {
 	usersDto := make([]*model.UserDto, len(users))
 	for i, user := range users {
 		usersDto[i] = &model.UserDto{
-			Id:     user.Id,
-			Email:  user.Email,
-			Name:   user.Name,
-			RoleId: user.RoleId,
+			Id:            user.Id,
+			Email:         user.Email,
+			Name:          user.Name,
+			RoleId:        user.RoleId,
+			RemainingCoin: user.RemainingCoin,
 		}
 	}
 

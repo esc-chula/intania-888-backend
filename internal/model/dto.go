@@ -3,11 +3,12 @@ package model
 import "time"
 
 type UserDto struct {
-	Id      string `json:"id"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	RoleId  string `json:"role_id"`
-	GroupId string `json:"group_id"`
+	Id            string  `json:"id"`
+	Email         string  `json:"email"`
+	Name          string  `json:"name"`
+	RoleId        string  `json:"role_id"`
+	GroupId       string  `json:"group_id"`
+	RemainingCoin float64 `json:"remaining_coin"`
 }
 
 type RoleDto struct {

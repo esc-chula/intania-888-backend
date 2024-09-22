@@ -62,9 +62,10 @@ func (s *middlewareServiceImpl) GetMe(userId string) (*model.UserDto, error) {
 	}
 
 	return &model.UserDto{
-		Id:     user.Id,
-		Name:   user.Name,
-		Email:  user.Email,
-		RoleId: user.RoleId,
+		Id:            user.Id,
+		Name:          user.Name,
+		Email:         user.Email,
+		RoleId:        user.RoleId,
+		RemainingCoin: user.RemainingCoin,
 	}, nil
 }

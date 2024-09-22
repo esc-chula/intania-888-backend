@@ -3,13 +3,14 @@ package model
 import "time"
 
 type User struct {
-	Id        string    `gorm:"primaryKey;type:varchar(100)"`
-	Email     string    `gorm:"type:varchar(100);not null"`
-	Name      string    `gorm:"type:varchar(100);not null"`
-	RoleId    string    `gorm:"type:varchar(100);not null"`
-	GroupId   *string   `gorm:"type:varchar(100);"`
-	CreatedAt time.Time ``
-	UpdatedAt time.Time ``
+	Id            string    `gorm:"primaryKey;type:varchar(100)"`
+	Email         string    `gorm:"type:varchar(100);not null"`
+	Name          string    `gorm:"type:varchar(100);not null"`
+	RoleId        string    `gorm:"type:varchar(100);not null"`
+	GroupId       *string   `gorm:"type:varchar(100);"`
+	RemainingCoin float64   `gorm:"type:decimal(10,2);"`
+	CreatedAt     time.Time ``
+	UpdatedAt     time.Time ``
 
 	Role  Role         `gorm:"foreignKey:RoleId"`
 	Group IntaniaGroup `gorm:"foreignKey:GroupId"`
