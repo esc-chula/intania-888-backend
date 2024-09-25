@@ -8,10 +8,10 @@ import (
 
 type matchServiceImpl struct {
 	repo MatchRepository
-	log  zap.Logger
+	log  *zap.Logger
 }
 
-func NewMatchService(repo MatchRepository, log zap.Logger) MatchService {
+func NewMatchService(repo MatchRepository, log *zap.Logger) MatchService {
 	return &matchServiceImpl{repo, log}
 }
 
