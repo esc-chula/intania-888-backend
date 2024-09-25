@@ -133,7 +133,7 @@ func main() {
 	matches := []model.Match{
 		{
 			Id:        uuid.NewString(),
-			TeamaId:   violet.Id,
+			TeamA_Id:  violet.Id,
 			TeamB_Id:  orange.Id,
 			TypeId:    sportTypes[0].Id, // football
 			StartTime: time.Date(2024, 9, 22, 19, 0, 0, 0, time.UTC),
@@ -141,7 +141,7 @@ func main() {
 		},
 		{
 			Id:        uuid.NewString(),
-			TeamaId:   blue.Id,
+			TeamA_Id:  blue.Id,
 			TeamB_Id:  pink.Id,
 			TypeId:    sportTypes[1].Id,
 			StartTime: time.Date(2024, 9, 26, 17, 0, 0, 0, time.UTC),
