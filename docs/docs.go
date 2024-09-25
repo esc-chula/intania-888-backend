@@ -410,6 +410,7 @@ const docTemplate = `{
                 "tags": [
                     "Match"
                 ],
+                "summary": "Retrieves a list of matches, optionally filtered by type and schedule",
                 "parameters": [
                     {
                         "type": "string",
@@ -465,6 +466,7 @@ const docTemplate = `{
                 "tags": [
                     "Match"
                 ],
+                "summary": "Creates a new match",
                 "parameters": [
                     {
                         "description": "Match information",
@@ -516,6 +518,7 @@ const docTemplate = `{
                 "tags": [
                     "Match"
                 ],
+                "summary": "Retrieves a single match by its ID",
                 "parameters": [
                     {
                         "type": "string",
@@ -548,6 +551,7 @@ const docTemplate = `{
                 "tags": [
                     "Match"
                 ],
+                "summary": "Deletes a match by its ID",
                 "parameters": [
                     {
                         "type": "string",
@@ -591,6 +595,7 @@ const docTemplate = `{
                 "tags": [
                     "Match"
                 ],
+                "summary": "Updates the score of a match",
                 "parameters": [
                     {
                         "type": "string",
@@ -649,6 +654,7 @@ const docTemplate = `{
                 "tags": [
                     "Match"
                 ],
+                "summary": "Updates the winner of a match",
                 "parameters": [
                     {
                         "type": "string",

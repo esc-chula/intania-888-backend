@@ -398,6 +398,7 @@ paths:
             additionalProperties:
               type: string
             type: object
+      summary: Retrieves a list of matches, optionally filtered by type and schedule
       tags:
       - Match
     post:
@@ -432,6 +433,7 @@ paths:
             additionalProperties:
               type: string
             type: object
+      summary: Creates a new match
       tags:
       - Match
   /matches/{id}:
@@ -456,6 +458,7 @@ paths:
             additionalProperties:
               type: string
             type: object
+      summary: Deletes a match by its ID
       tags:
       - Match
     get:
@@ -479,6 +482,7 @@ paths:
             additionalProperties:
               type: string
             type: object
+      summary: Retrieves a single match by its ID
       tags:
       - Match
   /matches/{id}/score:
@@ -519,6 +523,7 @@ paths:
             additionalProperties:
               type: string
             type: object
+      summary: Updates the score of a match
       tags:
       - Match
   /matches/{id}/winner/{winner_id}:
@@ -550,6 +555,7 @@ paths:
             additionalProperties:
               type: string
             type: object
+      summary: Updates the winner of a match
       tags:
       - Match
   /users:

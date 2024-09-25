@@ -26,6 +26,7 @@ func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 }
 
 // CreateMatch @Summary      Create a new match
+// @Summary      Creates a new match
 // @Description  Creates a new match and stores it in the system
 // @Tags         Match
 // @Accept       json
@@ -51,6 +52,7 @@ func (h *MatchHttpHandler) CreateMatch(c *fiber.Ctx) error {
 }
 
 // GetMatch @Summary      Get match by ID
+// @Summary      Retrieves a single match by its ID
 // @Description  Retrieves a single match by its ID
 // @Tags         Match
 // @Produce      json
@@ -68,6 +70,7 @@ func (h *MatchHttpHandler) GetMatch(c *fiber.Ctx) error {
 }
 
 // GetAllMatches @Summary      Get all matches
+// @Summary      Retrieves a list of matches, optionally filtered by type and schedule
 // @Description  Retrieves a list of matches, optionally filtered by type and schedule
 // @Tags         Match
 // @Produce      json
@@ -107,6 +110,7 @@ func (h *MatchHttpHandler) GetAllMatches(c *fiber.Ctx) error {
 }
 
 // UpdateMatchScore @Summary      Update match score
+// @Summary  Updates the score of a match
 // @Description  Updates the score of a match
 // @Tags         Match
 // @Accept       json
@@ -134,6 +138,7 @@ func (h *MatchHttpHandler) UpdateMatchScore(c *fiber.Ctx) error {
 }
 
 // UpdateMatchWinner @Summary      Update match winner
+// @Summary Updates the winner of a match
 // @Description  Updates the winner of a match
 // @Tags         Match
 // @Produce      json
@@ -155,6 +160,7 @@ func (h *MatchHttpHandler) UpdateMatchWinner(c *fiber.Ctx) error {
 }
 
 // DeleteMatch @Summary      Delete match
+// @Summary      Deletes a match by its ID
 // @Description  Deletes a match by its ID
 // @Tags         Match
 // @Param        id     path      string  true  "Match ID"
