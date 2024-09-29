@@ -401,6 +401,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/colors/leaderboards": {
+            "get": {
+                "description": "Get all colors with their leaderboard info",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Color"
+                ],
+                "summary": "Get all color leaderboards",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Type ID to filter",
+                        "name": "typeId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.ColorDto"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/color.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/color.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/matches": {
             "get": {
                 "description": "Retrieves a list of matches, optionally filtered by type and schedule",
@@ -910,6 +956,14 @@ const docTemplate = `{
                 }
             }
         },
+        "color.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "model.BillHeadDto": {
             "type": "object",
             "properties": {
@@ -948,6 +1002,23 @@ const docTemplate = `{
                 },
                 "rate": {
                     "type": "number"
+                }
+            }
+        },
+        "model.ColorDto": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "total_matches": {
+                    "type": "integer"
+                },
+                "won": {
+                    "type": "integer"
                 }
             }
         },

@@ -5,6 +5,11 @@ definitions:
       message:
         type: string
     type: object
+  color.ErrorResponse:
+    properties:
+      message:
+        type: string
+    type: object
   model.BillHeadDto:
     properties:
       id:
@@ -31,6 +36,17 @@ definitions:
         type: string
       rate:
         type: number
+    type: object
+  model.ColorDto:
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+      total_matches:
+        type: integer
+      won:
+        type: integer
     type: object
   model.MatchDto:
     properties:
@@ -365,6 +381,36 @@ paths:
       summary: Update a bill
       tags:
       - Bill
+  /colors/leaderboards:
+    get:
+      consumes:
+      - application/json
+      description: Get all colors with their leaderboard info
+      parameters:
+      - description: Type ID to filter
+        in: query
+        name: typeId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.ColorDto'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/color.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/color.ErrorResponse'
+      summary: Get all color leaderboards
+      tags:
+      - Color
   /matches:
     get:
       description: Retrieves a list of matches, optionally filtered by type and schedule

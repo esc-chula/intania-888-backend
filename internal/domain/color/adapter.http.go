@@ -34,8 +34,12 @@ func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 
 	colors, err := h.service.GetAllLeaderboards(typeId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get leaderboards"})
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get leaderboards"})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(colors)
+}
+
+type ErrorResponse struct {
+	Message string `json:"message"`
 }
