@@ -35,8 +35,10 @@ type RefreshCacheDto struct {
 }
 
 type ColorDto struct {
-	Id    string `json:"id"`
-	Title string `json:"title,omitempty"`
+	Id         string `json:"id"`
+	Title      string `json:"title,omitempty"`
+	Won        int64  `json:"won,omitempty"`
+	TotalMatch int64  `json:"total_matches,omitempty"`
 }
 
 type IntaniaGroupDto struct {

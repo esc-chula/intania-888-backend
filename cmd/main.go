@@ -4,6 +4,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/cmd/server"
 	"github.com/esc-chula/intania-888-backend/internal/domain/auth"
 	"github.com/esc-chula/intania-888-backend/internal/domain/bill"
+	"github.com/esc-chula/intania-888-backend/internal/domain/color"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
@@ -54,6 +55,10 @@ func main() {
 	matchSvc := match.NewMatchService(matchRepo, logger.Named("MatchSvc"))
 	matchHttp := match.NewMatchHttpHandler(matchSvc)
 
+	colorRepo := color.NewColorRepository(db)
+	colorSvc := color.NewColorService(colorRepo, logger.Named("ColorSvc"))
+	colorHttp := color.NewColorHttpHandler(colorSvc)
+
 	// init router
 	server := server.NewFiberHttpServer(cfg, logger)
 	router := server.InitHttpServer()
@@ -63,6 +68,7 @@ func main() {
 	authHttp.RegisterRoutes(router, midHttp)
 	billHttp.RegisterRoutes(router, midHttp)
 	matchHttp.RegisterRoutes(router, midHttp)
+	colorHttp.RegisterRoutes(router, midHttp)
 
 	// start server
 	server.Start()
