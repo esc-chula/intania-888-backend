@@ -5,29 +5,8 @@ definitions:
       message:
         type: string
     type: object
-  model.BillHead:
-    properties:
-      createdAt:
-        type: string
-      id:
-        type: string
-      lines:
-        items:
-          $ref: '#/definitions/model.BillLine'
-        type: array
-      total:
-        type: number
-      updatedAt:
-        type: string
-      user:
-        $ref: '#/definitions/model.User'
-      userId:
-        type: string
-    type: object
   model.BillHeadDto:
     properties:
-      created_at:
-        type: string
       id:
         type: string
       lines:
@@ -37,31 +16,7 @@ definitions:
         type: array
       total:
         type: number
-      updated_at:
-        type: string
       user_id:
-        type: string
-    type: object
-  model.BillLine:
-    properties:
-      bettingOn:
-        description: color
-        type: string
-      billId:
-        type: string
-      color:
-        $ref: '#/definitions/model.Color'
-      createdAt:
-        type: string
-      head:
-        $ref: '#/definitions/model.BillHead'
-      match:
-        $ref: '#/definitions/model.Match'
-      matchId:
-        type: string
-      rate:
-        type: number
-      updatedAt:
         type: string
     type: object
   model.BillLineDto:
@@ -70,178 +25,50 @@ definitions:
         type: string
       bill_id:
         type: string
-      color:
-        allOf:
-        - $ref: '#/definitions/model.ColorDto'
-        description: For `BettingOn`
-      created_at:
-        type: string
       match:
         $ref: '#/definitions/model.MatchDto'
       match_id:
         type: string
       rate:
         type: number
-      updated_at:
-        type: string
-    type: object
-  model.Color:
-    properties:
-      billLines:
-        items:
-          $ref: '#/definitions/model.BillLine'
-        type: array
-      createdAt:
-        type: string
-      groupLines:
-        items:
-          $ref: '#/definitions/model.GroupLine'
-        type: array
-      id:
-        type: string
-      members:
-        items:
-          $ref: '#/definitions/model.IntaniaGroup'
-        type: array
-      teamA:
-        items:
-          $ref: '#/definitions/model.Match'
-        type: array
-      teamB:
-        items:
-          $ref: '#/definitions/model.Match'
-        type: array
-      title:
-        type: string
-      updatedAt:
-        type: string
-      won:
-        items:
-          $ref: '#/definitions/model.Match'
-        type: array
-    type: object
-  model.ColorDto:
-    properties:
-      created_at:
-        type: string
-      id:
-        type: string
-      title:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  model.GroupHead:
-    properties:
-      createdAt:
-        type: string
-      id:
-        type: string
-      lines:
-        items:
-          $ref: '#/definitions/model.GroupLine'
-        type: array
-      sportType:
-        $ref: '#/definitions/model.SportType'
-      title:
-        type: string
-      typeId:
-        type: string
-      updatedAt:
-        type: string
-    type: object
-  model.GroupLine:
-    properties:
-      createdAt:
-        type: string
-      groupId:
-        type: string
-      head:
-        $ref: '#/definitions/model.GroupHead'
-      team:
-        $ref: '#/definitions/model.Color'
-      teamId:
-        type: string
-      updatedAt:
-        type: string
-    type: object
-  model.IntaniaGroup:
-    properties:
-      color:
-        $ref: '#/definitions/model.Color'
-      colorId:
-        type: string
-      createdAt:
-        type: string
-      id:
-        type: string
-      members:
-        items:
-          $ref: '#/definitions/model.User'
-        type: array
-      updatedAt:
-        type: string
-    type: object
-  model.Match:
-    properties:
-      billLines:
-        items:
-          $ref: '#/definitions/model.BillLine'
-        type: array
-      createdAt:
-        type: string
-      endTime:
-        type: string
-      id:
-        type: string
-      sportType:
-        $ref: '#/definitions/model.SportType'
-      startTime:
-        type: string
-      teamA:
-        $ref: '#/definitions/model.Color'
-      teamA_Id:
-        type: string
-      teamB:
-        $ref: '#/definitions/model.Color'
-      teamB_Id:
-        type: string
-      typeId:
-        type: string
-      updatedAt:
-        type: string
-      winner:
-        $ref: '#/definitions/model.Color'
-      winnerId:
-        type: string
     type: object
   model.MatchDto:
     properties:
-      created_at:
-        type: string
       end_time:
         type: string
       id:
         type: string
-      sport_type:
-        $ref: '#/definitions/model.SportType'
       start_time:
         type: string
       team_a:
-        $ref: '#/definitions/model.ColorDto'
-      team_a_id:
         type: string
+      team_a_score:
+        type: integer
       team_b:
-        $ref: '#/definitions/model.ColorDto'
-      team_b_id:
         type: string
-      type_id:
-        type: string
-      updated_at:
+      team_b_score:
+        type: integer
+      type:
         type: string
       winner:
-        $ref: '#/definitions/model.ColorDto'
-      winner_id:
+        type: string
+    type: object
+  model.MatchesByDate:
+    properties:
+      date:
+        type: string
+      types:
+        items:
+          $ref: '#/definitions/model.MatchesByType'
+        type: array
+    type: object
+  model.MatchesByType:
+    properties:
+      matches:
+        items:
+          $ref: '#/definitions/model.MatchDto'
+        type: array
+      sportType:
         type: string
     type: object
   model.OAuthCodeDto:
@@ -254,67 +81,15 @@ definitions:
       refresh_token:
         type: string
     type: object
-  model.Role:
+  model.ScoreDto:
     properties:
-      createdAt:
-        type: string
-      id:
-        type: string
-      updatedAt:
-        type: string
-      users:
-        items:
-          $ref: '#/definitions/model.User'
-        type: array
-    type: object
-  model.SportType:
-    properties:
-      createdAt:
-        type: string
-      id:
-        type: string
-      matches:
-        items:
-          $ref: '#/definitions/model.Match'
-        type: array
-      title:
-        type: string
-      tournamentGroup:
-        items:
-          $ref: '#/definitions/model.GroupHead'
-        type: array
-      updatedAt:
-        type: string
-    type: object
-  model.User:
-    properties:
-      bills:
-        items:
-          $ref: '#/definitions/model.BillHead'
-        type: array
-      createdAt:
-        type: string
-      email:
-        type: string
-      group:
-        $ref: '#/definitions/model.IntaniaGroup'
-      groupId:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      role:
-        $ref: '#/definitions/model.Role'
-      roleId:
-        type: string
-      updatedAt:
-        type: string
+      teamAScore:
+        type: integer
+      teamBScore:
+        type: integer
     type: object
   model.UserDto:
     properties:
-      created_at:
-        type: string
       email:
         type: string
       group_id:
@@ -323,9 +98,9 @@ definitions:
         type: string
       name:
         type: string
+      remaining_coin:
+        type: number
       role_id:
-        type: string
-      updated_at:
         type: string
     type: object
 host: localhost:8080
@@ -590,6 +365,199 @@ paths:
       summary: Update a bill
       tags:
       - Bill
+  /matches:
+    get:
+      description: Retrieves a list of matches, optionally filtered by type and schedule
+      parameters:
+      - description: Filter by sport type ID
+        in: query
+        name: typeId
+        type: string
+      - description: Filter by schedule (schedule or result)
+        in: query
+        name: schedule
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of matches grouped by date and sport type
+          schema:
+            items:
+              $ref: '#/definitions/model.MatchesByDate'
+            type: array
+        "400":
+          description: Invalid schedule parameter
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to fetch matches
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Retrieves a list of matches, optionally filtered by type and schedule
+      tags:
+      - Match
+    post:
+      consumes:
+      - application/json
+      description: Creates a new match and stores it in the system
+      parameters:
+      - description: Match information
+        in: body
+        name: match
+        required: true
+        schema:
+          $ref: '#/definitions/model.MatchDto'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created match successful
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to create match
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Creates a new match
+      tags:
+      - Match
+  /matches/{id}:
+    delete:
+      description: Deletes a match by its ID
+      parameters:
+      - description: Match ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Deleted match successful
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to delete match
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Deletes a match by its ID
+      tags:
+      - Match
+    get:
+      description: Retrieves a single match by its ID
+      parameters:
+      - description: Match ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.MatchDto'
+        "404":
+          description: Match not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Retrieves a single match by its ID
+      tags:
+      - Match
+  /matches/{id}/score:
+    patch:
+      consumes:
+      - application/json
+      description: Updates the score of a match
+      parameters:
+      - description: Match ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Score information
+        in: body
+        name: score
+        required: true
+        schema:
+          $ref: '#/definitions/model.ScoreDto'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated match score successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to update match score
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Updates the score of a match
+      tags:
+      - Match
+  /matches/{id}/winner/{winner_id}:
+    patch:
+      description: Updates the winner of a match
+      parameters:
+      - description: Match ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Winner Team ID
+        in: path
+        name: winner_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated match winner successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to update match winner
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Updates the winner of a match
+      tags:
+      - Match
   /users:
     get:
       description: Retrieves a list of all users

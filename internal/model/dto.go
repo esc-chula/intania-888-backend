@@ -47,13 +47,42 @@ type IntaniaGroupDto struct {
 }
 
 type MatchDto struct {
-	Id        string    `json:"id"`
-	TeamAId   string    `json:"team_a"`
-	TeamBId   string    `json:"team_b"`
-	WinnerId  string    `json:"winner"`
-	TypeId    string    `json:"type"`
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time"`
+	Id         string    `json:"id"`
+	TeamAId    string    `json:"team_a"`
+	TeamBId    string    `json:"team_b"`
+	TeamAScore *int      `json:"team_a_score"`
+	TeamBScore *int      `json:"team_b_score"`
+	WinnerId   string    `json:"winner"`
+	TypeId     string    `json:"type"`
+	StartTime  time.Time `json:"start_time"`
+	EndTime    time.Time `json:"end_time"`
+}
+
+type MatchesByType struct {
+	SportType string      `json:"sportType"`
+	Matches   []*MatchDto `json:"matches"`
+}
+
+type MatchesByDate struct {
+	Date  time.Time       `json:"date"`
+	Types []MatchesByType `json:"types"`
+}
+
+type ScoreDto struct {
+	TeamAScore int
+	TeamBScore int
+}
+
+type ScheduleFilter string
+
+const (
+	Schedule ScheduleFilter = "schedule"
+	Result   ScheduleFilter = "result"
+)
+
+type MatchFilter struct {
+	TypeId   string
+	Schedule ScheduleFilter
 }
 
 type BillHeadDto struct {

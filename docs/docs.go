@@ -401,6 +401,298 @@ const docTemplate = `{
                 }
             }
         },
+        "/matches": {
+            "get": {
+                "description": "Retrieves a list of matches, optionally filtered by type and schedule",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Retrieves a list of matches, optionally filtered by type and schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by sport type ID",
+                        "name": "typeId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by schedule (schedule or result)",
+                        "name": "schedule",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of matches grouped by date and sport type",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.MatchesByDate"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid schedule parameter",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to fetch matches",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new match and stores it in the system",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Creates a new match",
+                "parameters": [
+                    {
+                        "description": "Match information",
+                        "name": "match",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.MatchDto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created match successful",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request payload",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to create match",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/matches/{id}": {
+            "get": {
+                "description": "Retrieves a single match by its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Retrieves a single match by its ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MatchDto"
+                        }
+                    },
+                    "404": {
+                        "description": "Match not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a match by its ID",
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Deletes a match by its ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deleted match successful",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to delete match",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/matches/{id}/score": {
+            "patch": {
+                "description": "Updates the score of a match",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Updates the score of a match",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Score information",
+                        "name": "score",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ScoreDto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated match score successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request payload",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to update match score",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/matches/{id}/winner/{winner_id}": {
+            "patch": {
+                "description": "Updates the winner of a match",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Updates the winner of a match",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Winner Team ID",
+                        "name": "winner_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated match winner successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to update match winner",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "description": "Retrieves a list of all users",
@@ -618,41 +910,9 @@ const docTemplate = `{
                 }
             }
         },
-        "model.BillHead": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "lines": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.BillLine"
-                    }
-                },
-                "total": {
-                    "type": "number"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/model.User"
-                },
-                "userId": {
-                    "type": "string"
-                }
-            }
-        },
         "model.BillHeadDto": {
             "type": "object",
             "properties": {
-                "created_at": {
-                    "type": "string"
-                },
                 "id": {
                     "type": "string"
                 },
@@ -666,43 +926,7 @@ const docTemplate = `{
                 "total": {
                     "type": "number"
                 },
-                "updated_at": {
-                    "type": "string"
-                },
                 "user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.BillLine": {
-            "type": "object",
-            "properties": {
-                "bettingOn": {
-                    "description": "color",
-                    "type": "string"
-                },
-                "billId": {
-                    "type": "string"
-                },
-                "color": {
-                    "$ref": "#/definitions/model.Color"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "head": {
-                    "$ref": "#/definitions/model.BillHead"
-                },
-                "match": {
-                    "$ref": "#/definitions/model.Match"
-                },
-                "matchId": {
-                    "type": "string"
-                },
-                "rate": {
-                    "type": "number"
-                },
-                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -716,17 +940,6 @@ const docTemplate = `{
                 "bill_id": {
                     "type": "string"
                 },
-                "color": {
-                    "description": "For ` + "`" + `BettingOn` + "`" + `",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/model.ColorDto"
-                        }
-                    ]
-                },
-                "created_at": {
-                    "type": "string"
-                },
                 "match": {
                     "$ref": "#/definitions/model.MatchDto"
                 },
@@ -735,250 +948,65 @@ const docTemplate = `{
                 },
                 "rate": {
                     "type": "number"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.Color": {
-            "type": "object",
-            "properties": {
-                "billLines": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.BillLine"
-                    }
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "groupLines": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.GroupLine"
-                    }
-                },
-                "id": {
-                    "type": "string"
-                },
-                "members": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.IntaniaGroup"
-                    }
-                },
-                "teamA": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.Match"
-                    }
-                },
-                "teamB": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.Match"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "won": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.Match"
-                    }
-                }
-            }
-        },
-        "model.ColorDto": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.GroupHead": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "lines": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.GroupLine"
-                    }
-                },
-                "sportType": {
-                    "$ref": "#/definitions/model.SportType"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "typeId": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.GroupLine": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "groupId": {
-                    "type": "string"
-                },
-                "head": {
-                    "$ref": "#/definitions/model.GroupHead"
-                },
-                "team": {
-                    "$ref": "#/definitions/model.Color"
-                },
-                "teamId": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.IntaniaGroup": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "$ref": "#/definitions/model.Color"
-                },
-                "colorId": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "members": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.User"
-                    }
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.Match": {
-            "type": "object",
-            "properties": {
-                "billLines": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.BillLine"
-                    }
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "endTime": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "sportType": {
-                    "$ref": "#/definitions/model.SportType"
-                },
-                "startTime": {
-                    "type": "string"
-                },
-                "teamA": {
-                    "$ref": "#/definitions/model.Color"
-                },
-                "teamA_Id": {
-                    "type": "string"
-                },
-                "teamB": {
-                    "$ref": "#/definitions/model.Color"
-                },
-                "teamB_Id": {
-                    "type": "string"
-                },
-                "typeId": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "winner": {
-                    "$ref": "#/definitions/model.Color"
-                },
-                "winnerId": {
-                    "type": "string"
                 }
             }
         },
         "model.MatchDto": {
             "type": "object",
             "properties": {
-                "created_at": {
-                    "type": "string"
-                },
                 "end_time": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "sport_type": {
-                    "$ref": "#/definitions/model.SportType"
-                },
                 "start_time": {
                     "type": "string"
                 },
                 "team_a": {
-                    "$ref": "#/definitions/model.ColorDto"
-                },
-                "team_a_id": {
                     "type": "string"
+                },
+                "team_a_score": {
+                    "type": "integer"
                 },
                 "team_b": {
-                    "$ref": "#/definitions/model.ColorDto"
-                },
-                "team_b_id": {
                     "type": "string"
                 },
-                "type_id": {
-                    "type": "string"
+                "team_b_score": {
+                    "type": "integer"
                 },
-                "updated_at": {
+                "type": {
                     "type": "string"
                 },
                 "winner": {
-                    "$ref": "#/definitions/model.ColorDto"
+                    "type": "string"
+                }
+            }
+        },
+        "model.MatchesByDate": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
                 },
-                "winner_id": {
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MatchesByType"
+                    }
+                }
+            }
+        },
+        "model.MatchesByType": {
+            "type": "object",
+            "properties": {
+                "matches": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MatchDto"
+                    }
+                },
+                "sportType": {
                     "type": "string"
                 }
             }
@@ -999,99 +1027,20 @@ const docTemplate = `{
                 }
             }
         },
-        "model.Role": {
+        "model.ScoreDto": {
             "type": "object",
             "properties": {
-                "createdAt": {
-                    "type": "string"
+                "teamAScore": {
+                    "type": "integer"
                 },
-                "id": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                },
-                "users": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.User"
-                    }
-                }
-            }
-        },
-        "model.SportType": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "matches": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.Match"
-                    }
-                },
-                "title": {
-                    "type": "string"
-                },
-                "tournamentGroup": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.GroupHead"
-                    }
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.User": {
-            "type": "object",
-            "properties": {
-                "bills": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.BillHead"
-                    }
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "group": {
-                    "$ref": "#/definitions/model.IntaniaGroup"
-                },
-                "groupId": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "role": {
-                    "$ref": "#/definitions/model.Role"
-                },
-                "roleId": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
+                "teamBScore": {
+                    "type": "integer"
                 }
             }
         },
         "model.UserDto": {
             "type": "object",
             "properties": {
-                "created_at": {
-                    "type": "string"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -1104,10 +1053,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "role_id": {
-                    "type": "string"
+                "remaining_coin": {
+                    "type": "number"
                 },
-                "updated_at": {
+                "role_id": {
                     "type": "string"
                 }
             }
