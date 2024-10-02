@@ -120,3 +120,8 @@ type SportTypeDto struct {
 	Id    string `json:"id"`
 	Title string `json:"title"`
 }
+
+type DailyRewardCacheDto struct {
+	UserId string
+	Reward float64
+}

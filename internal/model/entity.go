@@ -126,3 +126,10 @@ type SportType struct {
 	Matches         []Match     `gorm:"foreignKey:TypeId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	TournamentGroup []GroupHead `gorm:"foreignKey:TypeId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
+
+type DailyReward struct {
+	Date      string    `gorm:"primaryKey;type:varchar(100)"` // DD-MM-YY eg. 31-10-24
+	Reward    float64   `gorm:"type:decimal(10,2);not null"`
+	CreatedAt time.Time ``
+	UpdatedAt time.Time ``
+}
