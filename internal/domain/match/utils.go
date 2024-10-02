@@ -1,35 +1,66 @@
 package match
 
 import (
-	"github.com/esc-chula/intania-888-backend/internal/model"
 	"time"
+
+	"github.com/esc-chula/intania-888-backend/internal/model"
 )
 
 func mapMatchDtoToEntity(matchDto *model.MatchDto) *model.Match {
 	return &model.Match{
-		Id:          matchDto.Id,
-		TeamA_Id:    matchDto.TeamAId,
-		TeamB_Id:    matchDto.TeamBId,
+		Id: matchDto.Id,
+		TeamA_Id: func() *string {
+			if matchDto.TeamAId != "" {
+				return &matchDto.TeamAId
+			}
+			return nil
+		}(),
+		TeamB_Id: func() *string {
+			if matchDto.TeamBId != "" {
+				return &matchDto.TeamBId
+			}
+			return nil
+		}(),
 		TeamA_Score: matchDto.TeamAScore,
 		TeamB_Score: matchDto.TeamBScore,
-		WinnerId:    &matchDto.WinnerId,
-		TypeId:      matchDto.TypeId,
-		StartTime:   matchDto.StartTime,
-		EndTime:     matchDto.EndTime,
+		WinnerId: func() *string {
+			if matchDto.WinnerId != "" {
+				return &matchDto.WinnerId
+			}
+			return nil
+		}(),
+		TypeId:    matchDto.TypeId,
+		StartTime: matchDto.StartTime,
+		EndTime:   matchDto.EndTime,
 	}
 }
 
 func mapMatchEntityToDto(match *model.Match) *model.MatchDto {
 	return &model.MatchDto{
-		Id:         match.Id,
-		TeamAId:    match.TeamA_Id,
-		TeamBId:    match.TeamB_Id,
+		Id: match.Id,
+		TeamAId: func() string {
+			if match.TeamA_Id != nil {
+				return *match.TeamA_Id
+			}
+			return ""
+		}(),
+		TeamBId: func() string {
+			if match.TeamB_Id != nil {
+				return *match.TeamB_Id
+			}
+			return ""
+		}(),
 		TeamAScore: match.TeamA_Score,
 		TeamBScore: match.TeamB_Score,
-		WinnerId:   *match.WinnerId,
-		TypeId:     match.TypeId,
-		StartTime:  match.StartTime,
-		EndTime:    match.EndTime,
+		WinnerId: func() string {
+			if match.WinnerId != nil {
+				return *match.WinnerId
+			}
+			return ""
+		}(),
+		TypeId:    match.TypeId,
+		StartTime: match.StartTime,
+		EndTime:   match.EndTime,
 	}
 }
 

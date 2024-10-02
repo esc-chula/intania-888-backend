@@ -52,11 +52,11 @@ type IntaniaGroup struct {
 }
 
 type Match struct {
-	Id          string `gorm:"primaryKey;type:varchar(100)"`
-	TeamA_Id    string `gorm:"type:varchar(100);not null"`
-	TeamB_Id    string `gorm:"type:varchar(100);not null"`
-	TeamA_Score *int   `gorm:"type:int;"`
-	TeamB_Score *int   `gorm:"type:int;"`
+	Id          string  `gorm:"primaryKey;type:varchar(100)"`
+	TeamA_Id    *string `gorm:"type:varchar(100);"`
+	TeamB_Id    *string `gorm:"type:varchar(100);"`
+	TeamA_Score *int    `gorm:"type:int;"`
+	TeamB_Score *int    `gorm:"type:int;"`
 
 	WinnerId  *string   `gorm:"type:varchar(100);"`
 	TypeId    string    `gorm:"type:varchar(100);not null"`

@@ -7,8 +7,15 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/pkg/database"
+	"github.com/esc-chula/intania-888-backend/utils/constant"
 	"github.com/google/uuid"
 )
+
+type matchInfo struct {
+	teamA, teamB, sportType string
+	startTime               string
+	duration                time.Duration
+}
 
 func main() {
 	cfg := config.GetConfig()
@@ -93,60 +100,193 @@ func main() {
 
 	sportTypes := []model.SportType{
 		{
-			Id:    "FOOTBALL_MALE_JR",
+			Id:    constant.FOOTBALL_MALE_JR,
 			Title: "ฟุตบอล ชาย ปี1",
 		},
 		{
-			Id:    "FOOTBALL_MALE_SR",
+			Id:    constant.FOOTBALL_MALE_SR,
 			Title: "ฟุตบอล ชาย ปี2-4",
 		},
 		{
-			Id:    "BASKETBALL_MALE_JR",
+			Id:    constant.BASKETBALL_MALE_JR,
 			Title: "บาสเกตบอล ชาย ปี1",
 		},
 		{
-			Id:    "BASKETBALL_MALE_SR",
+			Id:    constant.BASKETBALL_MALE_SR,
 			Title: "บาสเกตบอล ชาย ปี2-4",
 		},
 		{
-			Id:    "BASKETBALL_FEMALE_ALL",
+			Id:    constant.BASKETBALL_FEMALE_ALL,
 			Title: "บาสเกตบอล หญิง ทุกชั้นปี",
 		},
 		{
-			Id:    "VOLLEYBALL_MALE_JR",
-			Title: "วอลเลย์บอล ชาย ปี1",
+			Id:    constant.VOLLEYBALL_MALE_ALL,
+			Title: "วอลเลย์บอล ชาย ทุกชั้นปี",
 		},
 		{
-			Id:    "VOLLEYBALL_MALE_SR",
-			Title: "วอลเลย์บอล ชาย ปี2-4",
-		},
-		{
-			Id:    "VOLLEYBALL_FEMALE_ALL",
+			Id:    constant.VOLLEYBALL_FEMALE_ALL,
 			Title: "วอลเลย์บอล หญิง ทุกชั้นปี",
 		},
 		{
-			Id:    "CHAIRBALL_FEMALE_ALL",
-			Title: "แชร์บอล หญิง ทุกชั้นปี",
+			Id:    constant.CHAIRBALL_FEMALE_JR,
+			Title: "แชร์บอล หญิง ปี1",
+		},
+		{
+			Id:    constant.CHAIRBALL_FEMALE_SR,
+			Title: "แชร์บอล หญิง ปี2-4",
 		},
 	}
 
-	matches := []model.Match{
+	// Define color teams
+	colorTeams := map[string]model.Color{
+		"VIOLET": {Id: "VIOLET", Title: "สีม่วง"},
+		"BLUE":   {Id: "BLUE", Title: "สีน้ำเงิน"},
+		"GREEN":  {Id: "GREEN", Title: "สีเขียว"},
+		"PINK":   {Id: "PINK", Title: "สีชมพู"},
+		"ORANGE": {Id: "ORANGE", Title: "สีส้ม"},
+		"YELLOW": {Id: "YELLOW", Title: "สีเหลือง"},
+	}
+
+	// Define match schedule for the entire month
+	matchSchedule := []struct {
+		Date    time.Time
+		Matches []matchInfo
+	}{
 		{
-			Id:        uuid.NewString(),
-			TeamA_Id:  violet.Id,
-			TeamB_Id:  orange.Id,
-			TypeId:    sportTypes[0].Id, // football
-			StartTime: time.Date(2024, 9, 22, 19, 0, 0, 0, time.UTC),
-			EndTime:   time.Date(2024, 9, 22, 21, 30, 0, 0, time.UTC), // 90 mins match + 15 mins half-time break
+			Date: time.Date(2024, 10, 10, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+			},
 		},
 		{
-			Id:        uuid.NewString(),
-			TeamA_Id:  blue.Id,
-			TeamB_Id:  pink.Id,
-			TypeId:    sportTypes[1].Id,
-			StartTime: time.Date(2024, 9, 26, 17, 0, 0, 0, time.UTC),
-			EndTime:   time.Date(2024, 9, 26, 19, 0, 0, 0, time.UTC), // Default 2-hour match
+			Date: time.Date(2024, 10, 11, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.FOOTBALL_MALE_JR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.FOOTBALL_MALE_SR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.BASKETBALL_FEMALE_ALL, startTime: "17:30", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.BASKETBALL_MALE_JR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.BASKETBALL_MALE_SR, startTime: "18:30", duration: 2 * time.Hour},
+			},
 		},
+		{
+			Date: time.Date(2024, 10, 15, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.FOOTBALL_MALE_JR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.FOOTBALL_MALE_SR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.BASKETBALL_FEMALE_ALL, startTime: "17:30", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.BASKETBALL_MALE_JR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.BASKETBALL_MALE_SR, startTime: "18:30", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 16, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 17, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.FOOTBALL_MALE_JR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.FOOTBALL_MALE_SR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.BASKETBALL_FEMALE_ALL, startTime: "17:30", duration: 2 * time.Hour},
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.BASKETBALL_MALE_JR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.BASKETBALL_MALE_SR, startTime: "18:30", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 18, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "ORANGE", teamB: "GREEN", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "GREEN", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 21, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.FOOTBALL_MALE_JR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.FOOTBALL_MALE_SR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.BASKETBALL_FEMALE_ALL, startTime: "17:30", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.BASKETBALL_MALE_JR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.BASKETBALL_MALE_SR, startTime: "18:30", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "VIOLET", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "VIOLET", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 22, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 24, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.FOOTBALL_MALE_JR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.FOOTBALL_MALE_SR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.BASKETBALL_FEMALE_ALL, startTime: "17:30", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.BASKETBALL_MALE_JR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.BASKETBALL_MALE_SR, startTime: "18:30", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 28, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "GREEN", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 29, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "ORANGE", teamB: "BLUE", sportType: constant.FOOTBALL_MALE_JR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "BLUE", sportType: constant.FOOTBALL_MALE_SR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.BASKETBALL_FEMALE_ALL, startTime: "17:30", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.BASKETBALL_MALE_JR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.BASKETBALL_MALE_SR, startTime: "18:30", duration: 2 * time.Hour},
+			},
+		},
+		{
+			Date: time.Date(2024, 10, 30, 0, 0, 0, 0, time.UTC),
+			Matches: []matchInfo{
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+			},
+		},
+	}
+
+	// Generate matches
+	var matchesMock []model.Match
+	for _, day := range matchSchedule {
+		for _, m := range day.Matches {
+			startTime, _ := time.Parse("15:04", m.startTime)
+			matchDateTime := time.Date(day.Date.Year(), day.Date.Month(), day.Date.Day(),
+				startTime.Hour(), startTime.Minute(), 0, 0, time.UTC)
+			teamA := colorTeams[m.teamA].Id
+			teamB := colorTeams[m.teamB].Id
+			match := model.Match{
+				Id:        uuid.NewString(),
+				TeamA_Id:  &teamA,
+				TeamB_Id:  &teamB,
+				TypeId:    m.sportType,
+				StartTime: matchDateTime,
+				EndTime:   matchDateTime.Add(m.duration),
+			}
+			matchesMock = append(matchesMock, match)
+		}
 	}
 
 	if err := db.Create(&roles).Error; err != nil {
@@ -158,7 +298,7 @@ func main() {
 	if err := db.Create(&sportTypes).Error; err != nil {
 		log.Printf("Error creating sport_types: %v", err)
 	}
-	if err := db.Create(&matches).Error; err != nil {
+	if err := db.Create(&matchesMock).Error; err != nil {
 		log.Printf("Error creating matches: %v", err)
 	}
 

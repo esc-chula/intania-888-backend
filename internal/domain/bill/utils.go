@@ -55,9 +55,19 @@ func mapBillLineEntityToDto(lines []model.BillLine) []*model.BillLineDto {
 			Rate:      line.Rate,
 			BettingOn: line.BettingOn,
 			Match: model.MatchDto{
-				Id:      line.Match.Id,
-				TeamAId: line.Match.TeamA_Id,
-				TeamBId: line.Match.TeamB_Id,
+				Id: line.Match.Id,
+				TeamAId: func() string {
+					if line.Match.TeamA_Id != nil {
+						return *line.Match.TeamA_Id
+					}
+					return ""
+				}(),
+				TeamBId: func() string {
+					if line.Match.TeamB_Id != nil {
+						return *line.Match.TeamB_Id
+					}
+					return ""
+				}(),
 				WinnerId: func() string {
 					if line.Match.WinnerId != nil {
 						return *line.Match.WinnerId
