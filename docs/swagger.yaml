@@ -58,10 +58,14 @@ definitions:
         type: string
       team_a:
         type: string
+      team_a_rate:
+        type: number
       team_a_score:
         type: integer
       team_b:
         type: string
+      team_b_rate:
+        type: number
       team_b_score:
         type: integer
       type:
@@ -113,6 +117,8 @@ definitions:
       id:
         type: string
       name:
+        type: string
+      nick_name:
         type: string
       remaining_coin:
         type: number
@@ -411,6 +417,35 @@ paths:
       summary: Get all color leaderboards
       tags:
       - Color
+  /events/redeem/daily:
+    get:
+      consumes:
+      - application/json
+      description: Redeem daily reward for the logged-in user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: redeemed daily reward successful
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: not found user profile in context
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Redeem daily reward
+      tags:
+      - Event
   /matches:
     get:
       description: Retrieves a list of matches, optionally filtered by type and schedule

@@ -447,6 +447,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/redeem/daily": {
+            "get": {
+                "description": "Redeem daily reward for the logged-in user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Event"
+                ],
+                "summary": "Redeem daily reward",
+                "responses": {
+                    "200": {
+                        "description": "redeemed daily reward successful",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "not found user profile in context",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/matches": {
             "get": {
                 "description": "Retrieves a list of matches, optionally filtered by type and schedule",
@@ -1037,11 +1081,17 @@ const docTemplate = `{
                 "team_a": {
                     "type": "string"
                 },
+                "team_a_rate": {
+                    "type": "number"
+                },
                 "team_a_score": {
                     "type": "integer"
                 },
                 "team_b": {
                     "type": "string"
+                },
+                "team_b_rate": {
+                    "type": "number"
                 },
                 "team_b_score": {
                     "type": "integer"
@@ -1122,6 +1172,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "nick_name": {
                     "type": "string"
                 },
                 "remaining_coin": {

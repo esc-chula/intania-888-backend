@@ -24,6 +24,16 @@ func (h *EventHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 	router.Get("/redeem/daily", h.RedeemDailyReward)
 }
 
+// RedeemDailyReward handles the daily reward redemption
+// @Summary Redeem daily reward
+// @Description Redeem daily reward for the logged-in user
+// @Tags Event
+// @Accept  json
+// @Produce  json
+// @Success 200 {object} map[string]string "redeemed daily reward successful"
+// @Failure 400 {object} map[string]string "not found user profile in context"
+// @Failure 500 {object} map[string]string "internal server error"
+// @Router /events/redeem/daily [get]
 func (h *EventHttpHandler) RedeemDailyReward(c *fiber.Ctx) error {
 	// get user from context
 	userProfile := utils.GetUserProfileFromCtx(c)
