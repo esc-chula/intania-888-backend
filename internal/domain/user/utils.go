@@ -8,6 +8,8 @@ func ToUserEntity(userDto *model.UserDto) *model.User {
 		Email:         userDto.Email,
 		Name:          userDto.Name,
 		RoleId:        userDto.RoleId,
+		GroupId:       &userDto.GroupId,
+		NickName:      &userDto.NickName,
 		RemainingCoin: userDto.RemainingCoin,
 	}
 }

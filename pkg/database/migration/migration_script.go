@@ -32,6 +32,7 @@ func main() {
 		&model.Match{},
 		&model.GroupHead{},
 		&model.GroupLine{},
+		&model.DailyReward{},
 	); err != nil {
 		log.Fatalf("Error during migration: %v", err)
 	}
