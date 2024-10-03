@@ -39,7 +39,7 @@ type Color struct {
 	Won        []Match        `gorm:"foreignKey:WinnerId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	GroupLines []GroupLine    `gorm:"foreignKey:TeamId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 
-	TotalMatches int `gorm:"-"`
+	TotalMatches int `gorm:"type:int;"`
 }
 
 type IntaniaGroup struct {

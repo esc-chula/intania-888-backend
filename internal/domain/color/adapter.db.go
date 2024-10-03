@@ -20,7 +20,7 @@ func (r *colorRepository) GetAllColors(typeId string) ([]*model.Color, error) {
 	query := r.db.Preload("Won").
 		Table("colors").
 		Select("colors.*, COUNT(matches.id) as total_matches").
-		Joins("LEFT JOIN matches ON matches.teama_id = colors.id OR matches.teamb_id = colors.id").
+		Joins("LEFT JOIN matches ON matches.winner_id IS NOT NULL AND (colors.id = matches.teama_id OR colors.id = matches.teamb_id)").
 		Group("colors.id")
 
 	if typeId != "" {
