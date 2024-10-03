@@ -3,25 +3,35 @@ package bill
 import (
 	"errors"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 type billServiceImpl struct {
-	repo BillRepository
-	log  *zap.Logger
+	repo     BillRepository
+	userRepo user.UserRepository
+	log      *zap.Logger
 }
 
 // Create a new instance of BillService
-func NewBillService(repo BillRepository, log *zap.Logger) BillService {
-	return &billServiceImpl{repo, log}
+func NewBillService(repo BillRepository, userRepo user.UserRepository, log *zap.Logger) BillService {
+	return &billServiceImpl{repo, userRepo, log}
 }
 
 // CreateBill creates a new bill
 func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
-	if userProfile.RemainingCoin < billDto.Total {
-		return errors.New("user does not have enough coins to cover the total bill")
+	user, err := s.userRepo.GetById(userProfile.Id)
+	if err != nil {
+		s.log.Named("CreateBill").Error("Get user by Id", zap.Error(err))
+		return err
+	}
+
+	if user.RemainingCoin < billDto.Total {
+		err := errors.New("user does not have enough coins to cover the total bill")
+		s.log.Named("CreateBill").Error("Check for balance", zap.Error(err))
+		return err
 	}
 
 	bill := mapBillDtoToEntity(billDto)
@@ -30,9 +40,16 @@ func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.
 		bill.Lines[i].BillId = bill.Id
 	}
 
-	err := s.repo.Create(bill)
+	err = s.repo.Create(bill)
 	if err != nil {
 		s.log.Named("CreateBill").Error("Create", zap.Error(err))
+		return err
+	}
+
+	user.RemainingCoin -= bill.Total
+	err = s.userRepo.Update(user)
+	if err != nil {
+		s.log.Named("CreateBill").Error("Update user", zap.Error(err))
 		return err
 	}
 
