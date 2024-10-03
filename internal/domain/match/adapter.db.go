@@ -5,7 +5,6 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"gorm.io/gorm"
-	
 )
 
 type matchRepositoryImpl struct {
@@ -68,8 +67,8 @@ func (r *matchRepositoryImpl) UpdateScore(match *model.Match) error {
 	return r.db.Model(&model.Match{}).
 		Where("id = ?", match.Id).
 		Updates(map[string]interface{}{
-			"team_a_score": match.TeamA_Score,
-			"team_b_score": match.TeamB_Score,
+			"teama_score": match.TeamA_Score,
+			"teamb_score": match.TeamB_Score,
 		}).Error
 }
 
