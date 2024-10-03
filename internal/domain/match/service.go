@@ -2,6 +2,7 @@ package match
 
 import (
 	"errors"
+
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"go.uber.org/zap"
 )
@@ -39,7 +40,25 @@ func (s *matchServiceImpl) GetMatch(matchId string) (*model.MatchDto, error) {
 		return nil, errors.New("match not found")
 	}
 
+	// Count the bet for each team
+	teamACount, err := s.repo.CountBetsForTeam(matchId, *match.TeamA_Id)
+	if err != nil {
+		s.log.Named("GetMatch").Error("CountBetsForTeam", zap.Error(err))
+		return nil, err
+	}
+	teamBCount, err := s.repo.CountBetsForTeam(matchId, *match.TeamB_Id)
+	if err != nil {
+		s.log.Named("GetMatch").Error("CountBetsForTeam", zap.Error(err))
+		return nil, err
+	}
+
+	// Calculate the odds rate for each team
+	rateA := calculateOddsRate("A", float64(teamACount), float64(teamBCount))
+	rateB := calculateOddsRate("B", float64(teamACount), float64(teamBCount))
+
 	matchDto := mapMatchEntityToDto(match)
+	matchDto.TeamARate = rateA
+	matchDto.TeamBRate = rateB
 	s.log.Named("GetMatch").Info("Retrieved match successful", zap.String("id", matchId))
 	return matchDto, nil
 }
@@ -53,9 +72,28 @@ func (s *matchServiceImpl) GetAllMatches(filter *model.MatchFilter) ([]*model.Ma
 
 	matchesDto := make([]*model.MatchDto, len(matches))
 	for i, match := range matches {
-		matchesDto[i] = mapMatchEntityToDto(match)
-	}
+		// Count bets for both teams
+		teamACount, err := s.repo.CountBetsForTeam(match.Id, *match.TeamA_Id)
+		if err != nil {
+			return nil, err
+		}
 
+		teamBCount, err := s.repo.CountBetsForTeam(match.Id, *match.TeamB_Id)
+		if err != nil {
+			return nil, err
+		}
+
+		// Calculate odds
+		rateA := calculateOddsRate("A", float64(teamACount), float64(teamBCount))
+		rateB := calculateOddsRate("B", float64(teamACount), float64(teamBCount))
+
+		matchDto := mapMatchEntityToDto(match)
+		matchDto.TeamARate = rateA
+		matchDto.TeamBRate = rateB
+
+		matchesDto[i] = matchDto
+	}
+	
 	s.log.Named("GetAllMatches").Info("Retrieved all matches successfully")
 	return matchesDto, nil
 }

@@ -54,6 +54,8 @@ type MatchDto struct {
 	TeamBId    string    `json:"team_b"`
 	TeamAScore *int      `json:"team_a_score"`
 	TeamBScore *int      `json:"team_b_score"`
+	TeamARate  float64   `json:"team_a_rate"`
+	TeamBRate  float64   `json:"team_b_rate"`
 	WinnerId   string    `json:"winner"`
 	TypeId     string    `json:"type"`
 	StartTime  time.Time `json:"start_time"`

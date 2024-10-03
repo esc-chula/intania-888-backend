@@ -17,6 +17,7 @@ type MatchRepository interface {
 	Create(match *model.Match) error
 	GetById(matchId string) (*model.Match, error)
 	GetAll(filter *model.MatchFilter) ([]*model.Match, error)
+	CountBetsForTeam(matchId string, teamId string) (int64, error)
 	UpdateScore(match *model.Match) error
 	UpdateWinner(match *model.Match) error
 	Delete(id string) error

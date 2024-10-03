@@ -99,3 +99,17 @@ func groupMatchesByDateAndType(matches []*model.MatchDto) []model.MatchesByDate 
 
 	return response
 }
+
+func calculateOddsRate(betOn string, totalBetOnA float64, totalBetOnB float64) float64 {
+
+	total := totalBetOnA + totalBetOnB
+
+	switch betOn {
+	case "A":
+		return total / totalBetOnA
+	case "B":
+		return total / totalBetOnB
+	default:
+		return 0
+	}
+}
