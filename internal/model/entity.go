@@ -6,6 +6,7 @@ type User struct {
 	Id            string    `gorm:"primaryKey;type:varchar(100)"`
 	Email         string    `gorm:"type:varchar(100);not null"`
 	Name          string    `gorm:"type:varchar(100);not null"`
+	NickName      *string   `gorm:"type:varchar(100);"`
 	RoleId        string    `gorm:"type:varchar(100);not null"`
 	GroupId       *string   `gorm:"type:varchar(100);"`
 	RemainingCoin float64   `gorm:"type:decimal(10,2);"`
