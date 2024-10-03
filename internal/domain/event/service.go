@@ -8,6 +8,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -32,24 +33,34 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 	currentTime := time.Now()
 	date := currentTime.Format("02-01-2006")
 	key := fmt.Sprintf("%v/%v", date, req.Id)
+
 	var dailyRewardCache model.DailyRewardCacheDto
-	var emptyCache model.DailyRewardCacheDto
-	if err := s.eventRepo.GetDailyRewardCache(key, &dailyRewardCache); err != nil {
-		s.log.Named("RedeemDailyReward").Error("Get daily reward cache: ", zap.Error(err))
-		return err
-	} else if dailyRewardCache != emptyCache {
-		s.log.Named("RedeemDailyReward").Info("Compare with empty cache: already redeem daily reward")
-		return errors.New("already redeem daily reward")
+
+	// Check if user has already redeemed the reward for today
+	err := s.eventRepo.GetDailyRewardCache(key, &dailyRewardCache)
+	if err != nil {
+		if err == redis.Nil {
+			// First-time redemption for today: proceed with reward
+			s.log.Named("RedeemDailyReward").Info("First-time redemption for today", zap.String("user_id", req.Id))
+		} else {
+			// Handle other Redis errors
+			s.log.Named("RedeemDailyReward").Error("Get daily reward cache: ", zap.Error(err))
+			return err
+		}
+	} else {
+		// User has already redeemed the reward today
+		s.log.Named("RedeemDailyReward").Info("Already redeemed daily reward", zap.String("user_id", req.Id))
+		return errors.New("already redeemed daily reward")
 	}
 
-	// if not redeem yet, find today reward cache
+	// Fetch today's reward from the database
 	todayReward, err := s.eventRepo.GetReward(date)
 	if err != nil {
 		s.log.Named("RedeemDailyReward").Error("Get daily reward: ", zap.Error(err))
 		return err
 	}
 
-	// update user balance
+	// Update the user's coin balance
 	user, err := s.userRepo.GetById(req.Id)
 	if err != nil {
 		s.log.Named("RedeemDailyReward").Error("Get user by Id: ", zap.Error(err))
@@ -63,7 +74,7 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 		return err
 	}
 
-	// set cache
+	// Set the cache for daily reward redemption
 	dailyRewardCache = model.DailyRewardCacheDto{UserId: req.Id, Reward: todayReward.Reward}
 	if err := s.eventRepo.SetDailyRewardCache(key, dailyRewardCache, s.cfg.GetJwt().RefreshTokenExpiration); err != nil {
 		s.log.Named("RedeemDailyReward").Error("Set daily reward cache: ", zap.Error(err))

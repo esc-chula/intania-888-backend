@@ -1,9 +1,10 @@
 package match
 
 import (
+	"time"
+
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"gorm.io/gorm"
-	"time"
 )
 
 type matchRepositoryImpl struct {
@@ -53,12 +54,21 @@ func (r *matchRepositoryImpl) GetAll(filter *model.MatchFilter) ([]*model.Match,
 	return matches, nil
 }
 
+func (r *matchRepositoryImpl) CountBetsForTeam(matchId string, teamId string) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.BillLine{}).Where("match_id = ? AND betting_on = ?", matchId, teamId).Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *matchRepositoryImpl) UpdateScore(match *model.Match) error {
 	return r.db.Model(&model.Match{}).
 		Where("id = ?", match.Id).
 		Updates(map[string]interface{}{
-			"team_a_score": match.TeamA_Score,
-			"team_b_score": match.TeamB_Score,
+			"teama_score": match.TeamA_Score,
+			"teamb_score": match.TeamB_Score,
 		}).Error
 }
 
