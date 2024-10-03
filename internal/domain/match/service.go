@@ -93,7 +93,6 @@ func (s *matchServiceImpl) GetAllMatches(filter *model.MatchFilter) ([]*model.Ma
 
 		matchesDto[i] = matchDto
 	}
-	
 	s.log.Named("GetAllMatches").Info("Retrieved all matches successfully")
 	return matchesDto, nil
 }

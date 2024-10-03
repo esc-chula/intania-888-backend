@@ -1,6 +1,7 @@
 package match
 
 import (
+
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/gofiber/fiber/v2"
@@ -105,7 +106,7 @@ func (h *MatchHttpHandler) GetAllMatches(c *fiber.Ctx) error {
 
 	// Group matches by date and sport type
 	groupedMatches := groupMatchesByDateAndType(matches)
-
+	
 	return c.Status(fiber.StatusOK).JSON(groupedMatches)
 }
 
