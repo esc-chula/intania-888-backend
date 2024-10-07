@@ -39,14 +39,14 @@ type ColorDto struct {
 	Id         string `json:"id"`
 	Title      string `json:"title,omitempty"`
 	Won        int64  `json:"won"`
+	Drawn      int64  `json:"drawn"`
+	Lost       int64  `json:"lost"`
 	TotalMatch int64  `json:"total_matches"`
 }
 
 type IntaniaGroupDto struct {
 	Id      string `json:"id"`
 	ColorId string `json:"color_id"`
-	// CreatedAt time.Time `json:"created_at"`
-	// UpdatedAt time.Time `json:"updated_at"`
 }
 
 type MatchDto struct {
@@ -59,6 +59,7 @@ type MatchDto struct {
 	TeamBRate  float64   `json:"team_b_rate"`
 	WinnerId   string    `json:"winner"`
 	TypeId     string    `json:"type"`
+	IsDraw     bool      `json:"is_draw"`
 	StartTime  time.Time `json:"start_time"`
 	EndTime    time.Time `json:"end_time"`
 }

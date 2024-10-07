@@ -6,7 +6,9 @@ func ConvertColorToDto(color *model.Color) *model.ColorDto {
 	return &model.ColorDto{
 		Id:         color.Id,
 		Title:      color.Title,
-		Won:        int64(len(color.Won)),
+		Won:        int64(color.Won),
+		Drawn:      int64(color.Drawn),
+		Lost:       int64(color.TotalMatches - (color.Won + color.Drawn)),
 		TotalMatch: int64(color.TotalMatches),
 	}
 }

@@ -32,14 +32,16 @@ type Color struct {
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``
 
-	Members    []IntaniaGroup `gorm:"foreignKey:ColorId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	BillLines  []BillLine     `gorm:"foreignKey:BettingOn;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TeamA      []Match        `gorm:"foreignKey:TeamA_Id;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TeamB      []Match        `gorm:"foreignKey:TeamB_Id;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	Won        []Match        `gorm:"foreignKey:WinnerId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	GroupLines []GroupLine    `gorm:"foreignKey:TeamId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Members   []IntaniaGroup `gorm:"foreignKey:ColorId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	BillLines []BillLine     `gorm:"foreignKey:BettingOn;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TeamA     []Match        `gorm:"foreignKey:TeamA_Id;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TeamB     []Match        `gorm:"foreignKey:TeamB_Id;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	// Won        []Match        `gorm:"foreignKey:WinnerId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	GroupLines []GroupLine `gorm:"foreignKey:TeamId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 
 	TotalMatches int `gorm:"type:int;"`
+	Won          int `gorm:"type:int;"`
+	Drawn        int `gorm:"type:int;"`
 }
 
 type IntaniaGroup struct {
@@ -61,6 +63,7 @@ type Match struct {
 
 	WinnerId  *string   `gorm:"type:varchar(100);"`
 	TypeId    string    `gorm:"type:varchar(100);not null"`
+	IsDraw    bool      `gorm:"type:boolean;default:false"`
 	StartTime time.Time ``
 	EndTime   time.Time ``
 	CreatedAt time.Time ``

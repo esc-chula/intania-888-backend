@@ -30,7 +30,7 @@ func (h *ColorHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 // @Failure 500 {object} ErrorResponse
 // @Router /colors/leaderboards [get]
 func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
-	typeId := c.Query("typeId", "")
+	typeId := c.Query("type_id", "")
 
 	colors, err := h.service.GetAllLeaderboards(typeId)
 	if err != nil {

@@ -30,6 +30,7 @@ func mapMatchDtoToEntity(matchDto *model.MatchDto) *model.Match {
 			return nil
 		}(),
 		TypeId:    matchDto.TypeId,
+		IsDraw:    matchDto.IsDraw,
 		StartTime: matchDto.StartTime,
 		EndTime:   matchDto.EndTime,
 	}
@@ -59,6 +60,7 @@ func mapMatchEntityToDto(match *model.Match) *model.MatchDto {
 			return ""
 		}(),
 		TypeId:    match.TypeId,
+		IsDraw:    match.IsDraw,
 		StartTime: match.StartTime,
 		EndTime:   match.EndTime,
 	}
