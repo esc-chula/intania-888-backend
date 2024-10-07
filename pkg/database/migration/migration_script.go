@@ -156,10 +156,10 @@ func main() {
 		{
 			Date: time.Date(2024, 10, 10, 0, 0, 0, 0, time.UTC),
 			Matches: []matchInfo{
-				{teamA: "ORANGE", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
-				{teamA: "ORANGE", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
-				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
-				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "17:30", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "18:45", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "20:00", duration: 2 * time.Hour},
 			},
 		},
 		{
@@ -185,10 +185,10 @@ func main() {
 		{
 			Date: time.Date(2024, 10, 16, 0, 0, 0, 0, time.UTC),
 			Matches: []matchInfo{
-				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:30", duration: 2 * time.Hour},
 				{teamA: "BLUE", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
-				{teamA: "ORANGE", teamB: "PINK", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
-				{teamA: "ORANGE", teamB: "PINK", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:45", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "PINK", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "19:00", duration: 2 * time.Hour},
 			},
 		},
 		{
@@ -204,7 +204,7 @@ func main() {
 		{
 			Date: time.Date(2024, 10, 18, 0, 0, 0, 0, time.UTC),
 			Matches: []matchInfo{
-				{teamA: "ORANGE", teamB: "GREEN", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "ORANGE", teamB: "GREEN", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:30", duration: 2 * time.Hour},
 				{teamA: "ORANGE", teamB: "GREEN", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
 			},
 		},
@@ -216,17 +216,17 @@ func main() {
 				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.BASKETBALL_FEMALE_ALL, startTime: "17:30", duration: 2 * time.Hour},
 				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.BASKETBALL_MALE_JR, startTime: "18:00", duration: 2 * time.Hour},
 				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.BASKETBALL_MALE_SR, startTime: "18:30", duration: 2 * time.Hour},
-				{teamA: "BLUE", teamB: "VIOLET", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
-				{teamA: "BLUE", teamB: "VIOLET", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "VIOLET", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "16:45", duration: 2 * time.Hour},
+				{teamA: "BLUE", teamB: "VIOLET", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "17:00", duration: 2 * time.Hour},
 			},
 		},
 		{
 			Date: time.Date(2024, 10, 22, 0, 0, 0, 0, time.UTC),
 			Matches: []matchInfo{
-				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
-				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
-				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
-				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "17:30", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "BLUE", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "18:00", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "18:45", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "ORANGE", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "20:00", duration: 2 * time.Hour},
 			},
 		},
 		{
@@ -242,10 +242,10 @@ func main() {
 		{
 			Date: time.Date(2024, 10, 28, 0, 0, 0, 0, time.UTC),
 			Matches: []matchInfo{
-				{teamA: "GREEN", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "GREEN", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:30", duration: 2 * time.Hour},
 				{teamA: "GREEN", teamB: "PINK", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
-				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
-				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:45", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "19:00", duration: 2 * time.Hour},
 			},
 		},
 		{
@@ -261,10 +261,10 @@ func main() {
 		{
 			Date: time.Date(2024, 10, 30, 0, 0, 0, 0, time.UTC),
 			Matches: []matchInfo{
-				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:00", duration: 2 * time.Hour},
+				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_JR, startTime: "16:30", duration: 2 * time.Hour},
 				{teamA: "VIOLET", teamB: "YELLOW", sportType: constant.CHAIRBALL_FEMALE_SR, startTime: "17:00", duration: 2 * time.Hour},
-				{teamA: "PINK", teamB: "GREEN", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:40", duration: 2 * time.Hour},
-				{teamA: "PINK", teamB: "GREEN", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "18:40", duration: 2 * time.Hour},
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.VOLLEYBALL_FEMALE_ALL, startTime: "17:45", duration: 2 * time.Hour},
+				{teamA: "PINK", teamB: "GREEN", sportType: constant.VOLLEYBALL_MALE_ALL, startTime: "19:00", duration: 2 * time.Hour},
 			},
 		},
 	}
