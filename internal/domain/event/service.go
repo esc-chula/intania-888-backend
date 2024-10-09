@@ -8,6 +8,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -82,4 +83,59 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 	}
 
 	return nil
+}
+
+func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) (map[string]interface{}, error) {
+	// Check if the user has enough coins
+	user, err := s.userRepo.GetById(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	if user.RemainingCoin < spendAmount {
+		return nil, errors.New("insufficient coins")
+	}
+
+	user.RemainingCoin -= spendAmount
+	err = s.userRepo.Update(user)
+	if err != nil {
+		return nil, err
+	}
+
+	// Spin the slots
+	slot1 := utils.GetRandomSlot()
+	slot2 := utils.GetRandomSlot()
+	slot3 := utils.GetRandomSlot()
+
+	// Calculate reward
+	var reward float64
+	switch {
+	// 3 gold
+	case slot1 == "💰" && slot2 == "💰" && slot3 == "💰":
+		reward = spendAmount * 10
+	// 1 gold and 2 matching fruits
+	case (slot1 == slot2 && slot1 != "💰" && slot3 == "💰") || (slot2 == slot3 && slot2 != "💰" && slot1 == "💰") || (slot1 == slot3 && slot1 != "💰" && slot2 == "💰"):
+		reward = spendAmount * 2
+	// 2 golds
+	case (slot1 == "💰" && slot2 == "💰") || (slot2 == "💰" && slot3 == "💰") || (slot1 == "💰" && slot3 == "💰"):
+		reward = spendAmount * 5
+	// 1 gold
+	case slot1 == "💰" || slot2 == "💰" || slot3 == "💰":
+		reward = spendAmount * 1
+	default:
+		reward = 0
+	}
+
+	// Add reward to user's balance
+	user.RemainingCoin += reward
+	err = s.userRepo.Update(user)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return result to frontend
+	return map[string]interface{}{
+		"slots":  []string{slot1, slot2, slot3},
+		"reward": reward,
+	}, nil
 }

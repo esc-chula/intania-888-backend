@@ -2,6 +2,7 @@ package event
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/utils"
@@ -22,6 +23,7 @@ func (h *EventHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 	router = router.Group("/events", mid.AuthMiddleware)
 
 	router.Get("/redeem/daily", h.RedeemDailyReward)
+	router.Post("/spin/slot", h.SpinSlotMachine)
 }
 
 // RedeemDailyReward handles the daily reward redemption
@@ -47,4 +49,26 @@ func (h *EventHttpHandler) RedeemDailyReward(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "redeemed daily reward successful"})
+}
+
+func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
+	// Get user from context
+	userProfile := utils.GetUserProfileFromCtx(c)
+	if userProfile == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "User profile not found"})
+	}
+
+	// Get spending amount from query or body
+	spendAmount, err := strconv.ParseFloat(c.Query("spendAmount"), 64)
+	if err != nil || (spendAmount != 100 && spendAmount != 500 && spendAmount != 1000) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid spend amount"})
+	}
+
+	// Call the service to spin the slot machine with the selected spending amount
+	result, err := h.eventService.SpinSlotMachine(userProfile, spendAmount)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(result)
 }

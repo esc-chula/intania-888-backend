@@ -10,4 +10,5 @@ type EventRepository interface {
 
 type EventService interface {
 	RedeemDailyReward(req *model.UserDto) error
+	SpinSlotMachine(req *model.UserDto, spendAmount float64) (map[string]interface{}, error)
 }
