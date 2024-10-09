@@ -67,5 +67,7 @@ func (s *middlewareServiceImpl) GetMe(userId string) (*model.UserDto, error) {
 		Email:         user.Email,
 		RoleId:        user.RoleId,
 		RemainingCoin: user.RemainingCoin,
+		GroupId:       *user.GroupId,
+		NickName:      *user.NickName,
 	}, nil
 }
