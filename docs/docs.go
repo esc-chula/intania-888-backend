@@ -401,6 +401,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/colors/group-stage": {
+            "get": {
+                "description": "Get group stage table with group id and sport type",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Color"
+                ],
+                "summary": "Get group stage table",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Type ID to filter",
+                        "name": "typeId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group ID to filter",
+                        "name": "groupId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.ColorDto"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/color.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/color.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/colors/leaderboards": {
             "get": {
                 "description": "Get all colors with their leaderboard info",
@@ -1052,8 +1104,14 @@ const docTemplate = `{
         "model.ColorDto": {
             "type": "object",
             "properties": {
+                "drawn": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
+                },
+                "lost": {
+                    "type": "integer"
                 },
                 "title": {
                     "type": "string"
@@ -1074,6 +1132,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "is_draw": {
+                    "type": "boolean"
                 },
                 "start_time": {
                     "type": "string"

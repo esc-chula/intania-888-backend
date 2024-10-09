@@ -39,8 +39,12 @@ definitions:
     type: object
   model.ColorDto:
     properties:
+      drawn:
+        type: integer
       id:
         type: string
+      lost:
+        type: integer
       title:
         type: string
       total_matches:
@@ -54,6 +58,8 @@ definitions:
         type: string
       id:
         type: string
+      is_draw:
+        type: boolean
       start_time:
         type: string
       team_a:
@@ -387,6 +393,40 @@ paths:
       summary: Update a bill
       tags:
       - Bill
+  /colors/group-stage:
+    get:
+      consumes:
+      - application/json
+      description: Get group stage table with group id and sport type
+      parameters:
+      - description: Type ID to filter
+        in: query
+        name: typeId
+        type: string
+      - description: Group ID to filter
+        in: query
+        name: groupId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.ColorDto'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/color.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/color.ErrorResponse'
+      summary: Get group stage table
+      tags:
+      - Color
   /colors/leaderboards:
     get:
       consumes:
