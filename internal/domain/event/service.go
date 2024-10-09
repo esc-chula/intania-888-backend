@@ -54,12 +54,8 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 		return errors.New("already redeemed daily reward")
 	}
 
-	// Fetch today's reward from the database
-	todayReward, err := s.eventRepo.GetReward(date)
-	if err != nil {
-		s.log.Named("RedeemDailyReward").Error("Get daily reward: ", zap.Error(err))
-		return err
-	}
+	// Set value of daily reward to 300 coins
+	dailyReward := 300.00
 
 	// Update the user's coin balance
 	user, err := s.userRepo.GetById(req.Id)
@@ -67,7 +63,7 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 		s.log.Named("RedeemDailyReward").Error("Get user by Id: ", zap.Error(err))
 		return err
 	}
-	user.RemainingCoin += todayReward.Reward
+	user.RemainingCoin += dailyReward
 
 	err = s.userRepo.Update(user)
 	if err != nil {
@@ -76,7 +72,7 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 	}
 
 	// Set the cache for daily reward redemption
-	dailyRewardCache = model.DailyRewardCacheDto{UserId: req.Id, Reward: todayReward.Reward}
+	dailyRewardCache = model.DailyRewardCacheDto{UserId: req.Id, Reward: dailyReward}
 	if err := s.eventRepo.SetDailyRewardCache(key, dailyRewardCache, s.cfg.GetJwt().RefreshTokenExpiration); err != nil {
 		s.log.Named("RedeemDailyReward").Error("Set daily reward cache: ", zap.Error(err))
 		return err
