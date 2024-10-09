@@ -22,6 +22,7 @@ func (h *EventHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 	router = router.Group("/events", mid.AuthMiddleware)
 
 	router.Get("/redeem/daily", h.RedeemDailyReward)
+	router.Post("/spin/slot", h.SpinSlotMachine)
 }
 
 // RedeemDailyReward handles the daily reward redemption
@@ -47,4 +48,20 @@ func (h *EventHttpHandler) RedeemDailyReward(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "redeemed daily reward successful"})
+}
+
+func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
+	// Get user from context
+	userProfile := utils.GetUserProfileFromCtx(c)
+	if userProfile == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "User profile not found"})
+	}
+
+	// Call the service to spin the slot machine
+	result, err := h.eventService.SpinSlotMachine(userProfile)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(result)
 }

@@ -83,3 +83,55 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 
 	return nil
 }
+
+func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) (map[string]interface{}, error) {
+	// Check if the user has enough coins
+	user, err := s.userRepo.GetById(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	if user.RemainingCoin < spendAmount {
+		return nil, errors.New("insufficient coins")
+	}
+
+	// Deduct the chosen amount of coins for the spin
+	user.RemainingCoin -= spendAmount
+	err = s.userRepo.Update(user)
+	if err != nil {
+		return nil, err
+	}
+
+	// Spin the slots
+	slot1 := utils.getRandomSlot()
+	slot2 := utils.getRandomSlot()
+	slot3 := utils.getRandomSlot()
+
+	// Calculate reward (scaled by spending amount)
+	var reward int
+	switch {
+	case slot1 == "💰" && slot2 == "💰" && slot3 == "💰":
+		reward = 1000 * (spendAmount / 100) // 3 golds
+	case (slot1 == slot2 && slot1 != "💰" && slot3 == "💰") || (slot2 == slot3 && slot2 != "💰" && slot1 == "💰") || (slot1 == slot3 && slot1 != "💰" && slot2 == "💰"):
+		reward = 200 * (spendAmount / 100) // 1 gold and 2 matching fruits
+	case (slot1 == "💰" && slot2 == "💰") || (slot2 == "💰" && slot3 == "💰") || (slot1 == "💰" && slot3 == "💰"):
+		reward = 500 * (spendAmount / 100) // 2 golds
+	case slot1 == "💰" || slot2 == "💰" || slot3 == "💰":
+		reward = 100 * (spendAmount / 100) // 1 gold
+	default:
+		reward = 0 // No reward
+	}
+
+	// Add reward to user's balance
+	user.RemainingCoin += reward
+	err = s.userRepo.Update(user)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return result to frontend
+	return map[string]interface{}{
+		"slots":  []string{slot1, slot2, slot3},
+		"reward": reward,
+	}, nil
+}
