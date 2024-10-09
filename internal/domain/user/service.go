@@ -43,8 +43,8 @@ func (s *userServiceImpl) GetUser(id string) (*model.UserDto, error) {
 		Name:          user.Name,
 		RoleId:        user.RoleId,
 		RemainingCoin: user.RemainingCoin,
-		NickName:      *user.NickName,
-		GroupId:       *user.GroupId,
+		NickName:      user.NickName,
+		GroupId:       user.GroupId,
 	}, nil
 }
 
@@ -63,8 +63,8 @@ func (s *userServiceImpl) GetAllUsers() ([]*model.UserDto, error) {
 			Name:          user.Name,
 			RoleId:        user.RoleId,
 			RemainingCoin: user.RemainingCoin,
-			NickName:      *user.NickName,
-			GroupId:       *user.GroupId,
+			NickName:      user.NickName,
+			GroupId:       user.GroupId,
 		}
 	}
 
