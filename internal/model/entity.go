@@ -121,6 +121,17 @@ type GroupLine struct {
 	Team Color     `gorm:"foreignKey:TeamId"`
 }
 
+type GroupStage struct {
+	Id        string    `gorm:"primaryKey;type:varchar(100)"`
+	TypeId    string    `gorm:"primaryKey;type:varchar(100)"`
+	ColorId   string    `gorm:"primaryKey;type:varchar(100)"`
+	CreatedAt time.Time ``
+	UpdatedAt time.Time ``
+
+	SportType SportType `gorm:"foreignKey:TypeId"`
+	Color     Color     `gorm:"foreignKey:ColorId"`
+}
+
 type SportType struct {
 	Id        string    `gorm:"primaryKey;type:varchar(100)"`
 	Title     string    `gorm:"type:varchar(100);not null"`

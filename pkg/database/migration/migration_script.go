@@ -33,6 +33,7 @@ func main() {
 		&model.GroupHead{},
 		&model.GroupLine{},
 		&model.DailyReward{},
+		&model.GroupStage{},
 	); err != nil {
 		log.Fatalf("Error during migration: %v", err)
 	}
@@ -290,6 +291,31 @@ func main() {
 		}
 	}
 
+	groupA := []model.Color{violet, blue, yellow}
+	groupB := []model.Color{green, pink, orange}
+
+	groupStages := []model.GroupStage{}
+	// loop for group A
+	for _, sport := range sportTypes {
+		for _, color := range groupA {
+			group := model.GroupStage{
+				Id:      "A",
+				TypeId:  sport.Id,
+				ColorId: color.Id,
+			}
+			groupStages = append(groupStages, group)
+		}
+
+		for _, color := range groupB {
+			group := model.GroupStage{
+				Id:      "B",
+				TypeId:  sport.Id,
+				ColorId: color.Id,
+			}
+			groupStages = append(groupStages, group)
+		}
+	}
+
 	if err := db.Create(&roles).Error; err != nil {
 		log.Printf("Error creating roles: %v", err)
 	}
@@ -301,6 +327,9 @@ func main() {
 	}
 	if err := db.Create(&matchesMock).Error; err != nil {
 		log.Printf("Error creating matches: %v", err)
+	}
+	if err := db.Create(&groupStages).Error; err != nil {
+		log.Printf("Error creating group stages: %v", err)
 	}
 
 	log.Println("migration successful.")

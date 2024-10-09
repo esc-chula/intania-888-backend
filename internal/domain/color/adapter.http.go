@@ -17,6 +17,7 @@ func (h *ColorHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 	router = router.Group("/colors", mid.AuthMiddleware)
 
 	router.Get("/leaderboards", h.GetAllLeaderboards)
+	router.Get("/group-stage", h.GetGroupStageTable)
 }
 
 // @Summary Get all color leaderboards
@@ -35,6 +36,29 @@ func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 	colors, err := h.service.GetAllLeaderboards(typeId)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get leaderboards"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(colors)
+}
+
+// @Summary Get group stage table
+// @Description Get group stage table with group id and sport type
+// @Tags Color
+// @Accept json
+// @Produce json
+// @Param typeId query string false "Type ID to filter"
+// @Param groupId query string false "Group ID to filter"
+// @Success 200 {object} []model.ColorDto
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /colors/group-stage [get]
+func (h *ColorHttpHandler) GetGroupStageTable(c *fiber.Ctx) error {
+	typeId := c.Query("type_id", "")
+	groupId := c.Query("group_id", "")
+
+	colors, err := h.service.GetGroupStageTable(typeId, groupId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get group stage table"})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(colors)
