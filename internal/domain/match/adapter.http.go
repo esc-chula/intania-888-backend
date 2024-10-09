@@ -1,7 +1,6 @@
 package match
 
 import (
-
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/gofiber/fiber/v2"
@@ -21,6 +20,7 @@ func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 	router.Post("/", h.CreateMatch)
 	router.Get("/", h.GetAllMatches)
 	router.Get("/:id", h.GetMatch)
+	router.Get("/current/time", h.GetTime)
 	router.Patch("/:id/winner/:winner_id", h.UpdateMatchWinner)
 	router.Patch("/:id/score", h.UpdateMatchScore)
 	router.Delete("/:id", h.DeleteMatch)
@@ -106,7 +106,7 @@ func (h *MatchHttpHandler) GetAllMatches(c *fiber.Ctx) error {
 
 	// Group matches by date and sport type
 	groupedMatches := groupMatchesByDateAndType(matches)
-	
+
 	return c.Status(fiber.StatusOK).JSON(groupedMatches)
 }
 
@@ -175,4 +175,13 @@ func (h *MatchHttpHandler) DeleteMatch(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Deleted match successful"})
+}
+
+func (h *MatchHttpHandler) GetTime(c *fiber.Ctx) error {
+	time, err := h.matchService.GetTime()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get time"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"currentTime": time})
 }

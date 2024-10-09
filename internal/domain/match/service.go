@@ -2,6 +2,7 @@ package match
 
 import (
 	"errors"
+	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"go.uber.org/zap"
@@ -155,4 +156,8 @@ func (s *matchServiceImpl) DeleteMatch(id string) error {
 
 	s.log.Named("DeleteMatch").Info("Deleted match successful", zap.String("id", id))
 	return nil
+}
+
+func (s *matchServiceImpl) GetTime() (string, error) {
+	return time.Now().Format("2006-01-02 15:04:05"), nil
 }
