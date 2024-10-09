@@ -2,6 +2,7 @@ package event
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/utils"
@@ -57,8 +58,14 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "User profile not found"})
 	}
 
-	// Call the service to spin the slot machine
-	result, err := h.eventService.SpinSlotMachine(userProfile)
+	// Get spending amount from query or body
+	spendAmount, err := strconv.ParseFloat(c.Query("spendAmount"), 64)
+	if err != nil || (spendAmount != 100 && spendAmount != 500 && spendAmount != 1000) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid spend amount"})
+	}
+
+	// Call the service to spin the slot machine with the selected spending amount
+	result, err := h.eventService.SpinSlotMachine(userProfile, spendAmount)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
