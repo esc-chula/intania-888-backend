@@ -23,6 +23,7 @@ type MatchRepository interface {
 	UpdateScore(match *model.Match) error
 	UpdateWinner(match *model.Match) error
 	GetBillHeadsForMatch(matchId string) ([]*model.BillHead, error)
+	MarkBillLineAsPaid(billLineId string, matchId string) error
 	PayoutToUser(userId string, amount float64) error
 	Delete(id string) error
 }

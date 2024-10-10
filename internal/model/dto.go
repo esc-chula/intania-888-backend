@@ -104,6 +104,7 @@ type BillLineDto struct {
 	Rate      float64  `json:"rate"`
 	BettingOn string   `json:"betting_on"`
 	Match     MatchDto `json:"match"`
+	IsPaid    bool     `json:"is_paid"`
 }
 
 type GroupHeadDto struct {

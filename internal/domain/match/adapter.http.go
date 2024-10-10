@@ -15,7 +15,7 @@ func NewMatchHttpHandler(matchService MatchService) *MatchHttpHandler {
 }
 
 func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/matches", mid.AuthMiddleware)
+	router = router.Group("/matches")
 
 	router.Post("/", h.CreateMatch)
 	router.Get("/", h.GetAllMatches)

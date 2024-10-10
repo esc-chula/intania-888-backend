@@ -190,6 +190,12 @@ func (s *matchServiceImpl) processPayoutsForMatch(matchId string) error {
 				return err
 			}
 
+			// Skip already paid lines
+			if billLine.IsPaid {
+				s.log.Info("Skipping already paid bill line", zap.String("bill_id", billLine.BillId))
+				continue
+			}
+
 			// Check if the match is a draw
 			if match.IsDraw {
 				sumOfRates += 1 // Use a rate of 1 for draw matches
@@ -209,6 +215,16 @@ func (s *matchServiceImpl) processPayoutsForMatch(matchId string) error {
 				s.log.Error("Failed to process payout for user", zap.Error(err))
 				return err
 			}
+
+			// Mark all bill lines as paid
+			for _, billLine := range billHead.Lines {
+				err = s.repo.MarkBillLineAsPaid(billLine.BillId, billLine.MatchId)
+				if err != nil {
+					s.log.Error("Failed to mark bill line as paid", zap.Error(err))
+					return err
+				}
+			}
+
 			s.log.Info("Processed payout for user", zap.String("user_id", billHead.UserId))
 		}
 	}
