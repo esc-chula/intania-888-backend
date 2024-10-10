@@ -81,3 +81,35 @@ func (r *matchRepositoryImpl) UpdateWinner(match *model.Match) error {
 func (r *matchRepositoryImpl) Delete(id string) error {
 	return r.db.Delete(&model.Match{}, "id = ?", id).Error
 }
+
+func (r *matchRepositoryImpl) GetBillHeadsForMatch(matchId string) ([]*model.BillHead, error) {
+	var billHeads []*model.BillHead
+	err := r.db.Table("bill_heads").Preload("Lines").Preload("Lines.Match").
+		Joins("JOIN bill_lines ON bill_heads.id = bill_lines.bill_id").
+		Where("bill_lines.match_id = ?", matchId).
+		Find(&billHeads).Error
+	if err != nil {
+		return nil, err
+	}
+	return billHeads, nil
+}
+
+func (r *matchRepositoryImpl) PayoutToUser(userId string, amount float64) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userId).
+		Update("remaining_coin", gorm.Expr("remaining_coin + ?", amount)).Error
+}
+
+func (r *matchRepositoryImpl) MarkBillLineAsPaid(billId string, matchId string) error {
+	return r.db.Model(&model.BillLine{}).
+		Where("bill_id = ? AND match_id = ?", billId, matchId).
+		Update("is_paid", true).Error
+}
+
+func (r *matchRepositoryImpl) UpdateMatch(match *model.Match) error {
+	return r.db.Model(&model.Match{}).
+		Where("id = ?", match.Id).
+		Updates(map[string]interface{}{
+			"is_draw":    match.IsDraw,
+			"updated_at": time.Now(),
+		}).Error
+}

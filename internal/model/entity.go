@@ -91,6 +91,7 @@ type BillLine struct {
 	BillId    string    `gorm:"primaryKey;type:varchar(100)"`
 	MatchId   string    `gorm:"primaryKey;type:varchar(100)"`
 	Rate      float64   `gorm:"type:decimal(10,2);not null"`
+	IsPaid    bool      `gorm:"type:boolean;default:false"`
 	BettingOn string    `gorm:"type:varchar(100);not null"` // color
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``

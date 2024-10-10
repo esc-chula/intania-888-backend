@@ -123,27 +123,112 @@ func (s *matchServiceImpl) UpdateMatchScore(matchId string, scoreDto *model.Scor
 	return nil
 }
 
+// Helper method to fetch match by ID
+func (s *matchServiceImpl) getMatchById(matchId string) (*model.Match, error) {
+	match, err := s.repo.GetById(matchId)
+	if err != nil {
+		s.log.Error("Failed to fetch match by ID", zap.Error(err))
+		return nil, err
+	}
+
+	if match == nil {
+		s.log.Warn("Match not found", zap.String("match_id", matchId))
+		return nil, errors.New("match not found")
+	}
+
+	return match, nil
+}
+
 func (s *matchServiceImpl) UpdateMatchWinner(matchId string, winnerId string) error {
-	existingMatch, err := s.repo.GetById(matchId)
+	// Fetch the match by ID
+	existingMatch, err := s.getMatchById(matchId)
 	if err != nil {
-		s.log.Named("UpdateMatchWinner").Error("GetById", zap.Error(err))
 		return err
 	}
 
-	if existingMatch == nil {
-		s.log.Named("UpdateMatchWinner").Error("Match not found", zap.String("id", matchId))
-		return errors.New("match not found")
-	}
-
-	existingMatch.WinnerId = &winnerId
-
-	err = s.repo.UpdateWinner(existingMatch)
-	if err != nil {
-		s.log.Named("UpdateMatchWinner").Error("UpdateWinner", zap.Error(err))
+	// Set the match winner
+	if err := s.setMatchWinner(existingMatch, winnerId); err != nil {
 		return err
 	}
 
-	s.log.Named("UpdateMatchWinner").Info("Updated match winner successfully", zap.String("id", matchId))
+	// Process payouts for users who bet on the winner
+	if err := s.processPayoutsForMatch(matchId); err != nil {
+		return err
+	}
+
+	s.log.Info("Updated match winner and processed payouts", zap.String("match_id", matchId))
+	return nil
+}
+
+func (s *matchServiceImpl) setMatchWinner(match *model.Match, winnerId string) error {
+	match.WinnerId = &winnerId
+	err := s.repo.UpdateWinner(match)
+	if err != nil {
+		s.log.Error("Failed to update match winner", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (s *matchServiceImpl) processPayoutsForMatch(matchId string) error {
+	// Fetch all bill heads associated with the match
+	billHeads, err := s.repo.GetBillHeadsForMatch(matchId)
+	if err != nil {
+		s.log.Error("Failed to fetch bill heads for match", zap.Error(err))
+		return err
+	}
+
+	// Process each bill head
+	for _, billHead := range billHeads {
+		allLinesResolved := true
+		var sumOfRates float64
+		numberOfBets := len(billHead.Lines)
+
+		for _, billLine := range billHead.Lines {
+			match, err := s.repo.GetById(billLine.MatchId)
+			if err != nil {
+				return err
+			}
+
+			// Skip already paid lines
+			if billLine.IsPaid {
+				s.log.Info("Skipping already paid bill line", zap.String("bill_id", billLine.BillId))
+				continue
+			}
+
+			// Check if the match is a draw
+			if match.IsDraw {
+				sumOfRates += 1 // Use a rate of 1 for draw matches
+			} else if match.WinnerId == nil {
+				allLinesResolved = false
+				break
+			} else if *match.WinnerId == billLine.BettingOn {
+				sumOfRates += billLine.Rate // Normal rate for winning bets
+			}
+		}
+
+		// If all bill lines are resolved, calculate the payout
+		if allLinesResolved {
+			payout := calculatePayout(sumOfRates, numberOfBets, billHead.Total)
+			err := s.repo.PayoutToUser(billHead.UserId, payout)
+			if err != nil {
+				s.log.Error("Failed to process payout for user", zap.Error(err))
+				return err
+			}
+
+			// Mark all bill lines as paid
+			for _, billLine := range billHead.Lines {
+				err = s.repo.MarkBillLineAsPaid(billLine.BillId, billLine.MatchId)
+				if err != nil {
+					s.log.Error("Failed to mark bill line as paid", zap.Error(err))
+					return err
+				}
+			}
+
+			s.log.Info("Processed payout for user", zap.String("user_id", billHead.UserId))
+		}
+	}
+
 	return nil
 }
 
@@ -160,4 +245,30 @@ func (s *matchServiceImpl) DeleteMatch(id string) error {
 
 func (s *matchServiceImpl) GetTime() (string, error) {
 	return time.Now().Format("2006-01-02 15:04:05"), nil
+}
+
+func (s *matchServiceImpl) UpdateMatchDraw(matchId string) error {
+	// Fetch the match by ID
+	match, err := s.getMatchById(matchId)
+	if err != nil {
+		return err
+	}
+
+	// Set the match as a draw
+	match.IsDraw = true
+	err = s.repo.UpdateMatch(match)
+	if err != nil {
+		s.log.Error("Failed to update match as draw", zap.Error(err))
+		return err
+	}
+
+	// Process payouts with draw logic
+	err = s.processPayoutsForMatch(matchId)
+	if err != nil {
+		s.log.Error("Failed to process payouts for draw match", zap.Error(err))
+		return err
+	}
+
+	s.log.Info("Updated match as draw and processed payouts", zap.String("match_id", matchId))
+	return nil
 }
