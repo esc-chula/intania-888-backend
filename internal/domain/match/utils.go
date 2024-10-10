@@ -124,3 +124,8 @@ func calculateOddsRate(betOn string, totalBetOnA float64, totalBetOnB float64) f
 		return 0
 	}
 }
+
+func calculatePayout(sumOfRates float64, numberOfBets int, amount float64) float64 {
+	multiplier := 1 + 0.25*float64(numberOfBets)
+	return multiplier * sumOfRates * amount
+}
