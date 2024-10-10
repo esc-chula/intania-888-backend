@@ -81,3 +81,14 @@ func (r *matchRepositoryImpl) UpdateWinner(match *model.Match) error {
 func (r *matchRepositoryImpl) Delete(id string) error {
 	return r.db.Delete(&model.Match{}, "id = ?", id).Error
 }
+
+func (r *matchRepositoryImpl) GetBillHeadsForMatch(matchId string) ([]*model.BillHead, error) {
+	var billHeads []*model.BillHead
+	err := r.db.Preload("Lines").Where("match_id = ?", matchId).Find(&billHeads).Error
+	return billHeads, err
+}
+
+func (r *matchRepositoryImpl) PayoutToUser(userId string, amount float64) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userId).
+		Update("remaining_coin", gorm.Expr("remaining_coin + ?", amount)).Error
+}

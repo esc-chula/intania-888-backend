@@ -11,6 +11,7 @@ type MatchService interface {
 	GetAllMatches(filters *model.MatchFilter) ([]*model.MatchDto, error)
 	UpdateMatchScore(matchId string, score *model.ScoreDto) error
 	UpdateMatchWinner(matchId string, winnerId string) error
+	processPayoutsForMatch(matchId string) error
 	DeleteMatch(id string) error
 }
 
@@ -21,5 +22,7 @@ type MatchRepository interface {
 	CountBetsForTeam(matchId string, teamId string) (int64, error)
 	UpdateScore(match *model.Match) error
 	UpdateWinner(match *model.Match) error
+	GetBillHeadsForMatch(matchId string) ([]*model.BillHead, error)
+	PayoutToUser(userId string, amount float64) error
 	Delete(id string) error
 }
