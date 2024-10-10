@@ -15,7 +15,7 @@ func NewMatchHttpHandler(matchService MatchService) *MatchHttpHandler {
 }
 
 func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/matches", mid.AuthMiddleware)
+	router = router.Group("/matches")
 
 	router.Post("/", h.CreateMatch)
 	router.Get("/", h.GetAllMatches)
@@ -23,6 +23,7 @@ func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 	router.Get("/current/time", h.GetTime)
 	router.Patch("/:id/winner/:winner_id", h.UpdateMatchWinner)
 	router.Patch("/:id/score", h.UpdateMatchScore)
+	router.Patch("/:id/draw", h.UpdateMatchDraw)
 	router.Delete("/:id", h.DeleteMatch)
 }
 
@@ -184,4 +185,15 @@ func (h *MatchHttpHandler) GetTime(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"currentTime": time})
+}
+
+func (h *MatchHttpHandler) UpdateMatchDraw(c *fiber.Ctx) error {
+	matchId := c.Params("id")
+
+	err := h.matchService.UpdateMatchDraw(matchId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update match as draw"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Updated match as draw successfully"})
 }

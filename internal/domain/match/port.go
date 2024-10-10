@@ -12,6 +12,7 @@ type MatchService interface {
 	UpdateMatchScore(matchId string, score *model.ScoreDto) error
 	UpdateMatchWinner(matchId string, winnerId string) error
 	processPayoutsForMatch(matchId string) error
+	UpdateMatchDraw(matchId string) error
 	DeleteMatch(id string) error
 }
 
@@ -22,6 +23,7 @@ type MatchRepository interface {
 	CountBetsForTeam(matchId string, teamId string) (int64, error)
 	UpdateScore(match *model.Match) error
 	UpdateWinner(match *model.Match) error
+	UpdateMatch(match *model.Match) error
 	GetBillHeadsForMatch(matchId string) ([]*model.BillHead, error)
 	MarkBillLineAsPaid(billLineId string, matchId string) error
 	PayoutToUser(userId string, amount float64) error

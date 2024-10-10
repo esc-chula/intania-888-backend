@@ -246,3 +246,29 @@ func (s *matchServiceImpl) DeleteMatch(id string) error {
 func (s *matchServiceImpl) GetTime() (string, error) {
 	return time.Now().Format("2006-01-02 15:04:05"), nil
 }
+
+func (s *matchServiceImpl) UpdateMatchDraw(matchId string) error {
+	// Fetch the match by ID
+	match, err := s.getMatchById(matchId)
+	if err != nil {
+		return err
+	}
+
+	// Set the match as a draw
+	match.IsDraw = true
+	err = s.repo.UpdateMatch(match)
+	if err != nil {
+		s.log.Error("Failed to update match as draw", zap.Error(err))
+		return err
+	}
+
+	// Process payouts with draw logic
+	err = s.processPayoutsForMatch(matchId)
+	if err != nil {
+		s.log.Error("Failed to process payouts for draw match", zap.Error(err))
+		return err
+	}
+
+	s.log.Info("Updated match as draw and processed payouts", zap.String("match_id", matchId))
+	return nil
+}

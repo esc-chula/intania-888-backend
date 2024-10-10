@@ -102,5 +102,14 @@ func (r *matchRepositoryImpl) PayoutToUser(userId string, amount float64) error 
 func (r *matchRepositoryImpl) MarkBillLineAsPaid(billId string, matchId string) error {
 	return r.db.Model(&model.BillLine{}).
 		Where("bill_id = ? AND match_id = ?", billId, matchId).
-		Update("isPaid", true).Error
+		Update("is_paid", true).Error
+}
+
+func (r *matchRepositoryImpl) UpdateMatch(match *model.Match) error {
+	return r.db.Model(&model.Match{}).
+		Where("id = ?", match.Id).
+		Updates(map[string]interface{}{
+			"is_draw":    match.IsDraw,
+			"updated_at": time.Now(),
+		}).Error
 }
