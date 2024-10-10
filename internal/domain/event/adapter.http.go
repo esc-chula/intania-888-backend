@@ -58,9 +58,20 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "User profile not found"})
 	}
 
-	// Get spending amount from query or body
-	spendAmount, err := strconv.ParseFloat(c.Query("spendAmount"), 64)
-	if err != nil || (spendAmount != 100 && spendAmount != 500 && spendAmount != 1000) {
+	// Get spending amount from query
+	spendAmountStr := c.Query("spendAmount")
+	if spendAmountStr == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "spendAmount is required"})
+	}
+
+	// Parse the spend amount from the query
+	spendAmount, err := strconv.ParseFloat(spendAmountStr, 64)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid spend amount"})
+	}
+
+	// Check that the spend amount is exactly 50, 100, or 500
+	if spendAmount != 50 && spendAmount != 100 && spendAmount != 500 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid spend amount"})
 	}
 
