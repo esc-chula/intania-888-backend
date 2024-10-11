@@ -29,7 +29,7 @@ func NewViperConfig() Config {
 
 		switch appEnv {
 		case "prod":
-			v.SetConfigFile("/bin/.env")
+			v.SetConfigFile("./bin/.env")
 		case "dev":
 			v.SetConfigFile("./.env")
 		default:
