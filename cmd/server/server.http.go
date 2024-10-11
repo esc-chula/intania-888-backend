@@ -12,6 +12,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"go.uber.org/zap"
@@ -85,6 +86,17 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 		Format:     "${time} ${status} - ${method} ${path}\n",
 		TimeFormat: "2006/01/02 15:04:05",
 		TimeZone:   "Asia/Bangkok",
+	}))
+
+	// basic authentication for swagger
+	router.Use("/swagger/*", basicauth.New(basicauth.Config{
+		Users: map[string]string{
+			s.cfg.GetSwagger().Username: s.cfg.GetSwagger().Password,
+		},
+		Unauthorized: func(c *fiber.Ctx) error {
+			c.Set(fiber.HeaderWWWAuthenticate, `Basic realm="Restricted"`)
+			return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
+		},
 	}))
 
 	// swagger

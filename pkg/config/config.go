@@ -6,6 +6,7 @@ type Config interface {
 	GetCache() Cache
 	GetJwt() Jwt
 	GetOAuth() OAuth
+	GetSwagger() Swagger
 }
 
 type Server struct {
@@ -43,4 +44,9 @@ type OAuth struct {
 	ClientId     string `mapstructure:"oauth_client_id"`
 	ClientSecret string `mapstructure:"oauth_client_secret"`
 	RedirectUrl  string `mapstructure:"oauth_redirect_uri"`
+}
+
+type Swagger struct {
+	Username string `mapstructure:"swagger_username"`
+	Password string `mapstructure:"swagger_password"`
 }
