@@ -24,17 +24,15 @@ var (
 
 func NewViperConfig() Config {
 	once.Do(func() {
-		if len(os.Args) < 2 {
-			panic("Error: app env is required")
-		}
-		appEnv := os.Args[1]
-
+		appEnv := getEnv()
 		v := viper.New()
-		if appEnv == "prod" {
-			v.SetConfigFile("./bin/.env")
-		} else if appEnv == "dev" {
+
+		switch appEnv {
+		case "prod":
+			v.SetConfigFile("/bin/.env")
+		case "dev":
 			v.SetConfigFile("./.env")
-		} else {
+		default:
 			panic("Error: invalid app env")
 		}
 		v.AutomaticEnv()
@@ -54,6 +52,14 @@ func NewViperConfig() Config {
 	})
 
 	return instance
+}
+
+func getEnv() string {
+	if len(os.Args) >= 2 {
+		return "dev"
+	}
+
+	return "prod"
 }
 
 func GetConfig() Config {

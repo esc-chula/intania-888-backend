@@ -20,7 +20,7 @@ import (
 // @version 0.0.0
 // @description  This is an Intania888 Backend API in Intania888 project.
 
-// @host      localhost:8080
+// @host      https://888api.chula.engineering
 // @BasePath  /api/v1
 
 // @securityDefinitions.apikey BearerAuth
