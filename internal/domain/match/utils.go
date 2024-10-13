@@ -102,7 +102,7 @@ func groupMatchesByDateAndType(matches []*model.MatchDto) []model.MatchesByDate 
 	return response
 }
 
-func calculateOddsRate(betOn string, totalBetOnA float64, totalBetOnB float64) float64 {
+func calculateOddsRate(betOn string, totalBetOnA, totalBetOnB float64) float64 {
 	total := totalBetOnA + totalBetOnB
 
 	if total == 0 {
@@ -125,7 +125,6 @@ func calculateOddsRate(betOn string, totalBetOnA float64, totalBetOnB float64) f
 	}
 }
 
-func calculatePayout(sumOfRates float64, numberOfBets int, amount float64) float64 {
-	multiplier := 1 + 0.25*float64(numberOfBets)
-	return multiplier * sumOfRates * amount
+func calculatePayout(totalRates, amount float64) float64 {
+	return totalRates * amount
 }

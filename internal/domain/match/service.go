@@ -181,8 +181,7 @@ func (s *matchServiceImpl) processPayoutsForMatch(matchId string) error {
 	// Process each bill head
 	for _, billHead := range billHeads {
 		allLinesResolved := true
-		var sumOfRates float64
-		numberOfBets := len(billHead.Lines)
+		var totalRates float64 = 1.0
 
 		for _, billLine := range billHead.Lines {
 			match, err := s.repo.GetById(billLine.MatchId)
@@ -198,18 +197,20 @@ func (s *matchServiceImpl) processPayoutsForMatch(matchId string) error {
 
 			// Check if the match is a draw
 			if match.IsDraw {
-				sumOfRates += 1 // Use a rate of 1 for draw matches
+				totalRates *= 1 // Use a rate of 1 for draw matches
 			} else if match.WinnerId == nil {
 				allLinesResolved = false
 				break
-			} else if *match.WinnerId == billLine.BettingOn {
-				sumOfRates += billLine.Rate // Normal rate for winning bets
+			} else if match.WinnerId != nil && *match.WinnerId == billLine.BettingOn {
+				totalRates *= billLine.Rate // Normal rate for winning bets
+			} else {
+				totalRates *= 0
 			}
 		}
 
 		// If all bill lines are resolved, calculate the payout
 		if allLinesResolved {
-			payout := calculatePayout(sumOfRates, numberOfBets, billHead.Total)
+			payout := calculatePayout(totalRates, billHead.Total)
 			err := s.repo.PayoutToUser(billHead.UserId, payout)
 			if err != nil {
 				s.log.Error("Failed to process payout for user", zap.Error(err))
