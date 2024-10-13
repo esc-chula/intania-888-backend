@@ -204,7 +204,10 @@ func (s *matchServiceImpl) processPayoutsForMatch(matchId string) error {
 			} else if match.WinnerId != nil && *match.WinnerId == billLine.BettingOn {
 				totalRates *= billLine.Rate // Normal rate for winning bets
 			} else {
+				// you are already lost your money :P
 				totalRates *= 0
+				allLinesResolved = true
+				break
 			}
 		}
 
