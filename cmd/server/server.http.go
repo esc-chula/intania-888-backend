@@ -14,7 +14,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/limiter" // Import the limiter middleware
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"go.uber.org/zap"
 
@@ -109,18 +108,18 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 	})
 
 	// Add rate limiting
-	router.Use(limiter.New(limiter.Config{
-		Max:        100,              // Maximum number of requests
-		Expiration: 60 * time.Second, // Time window (60 seconds)
-		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP() // Use IP as the key to track the number of requests
-		},
-		LimitReached: func(c *fiber.Ctx) error {
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error": "Too many requests. Please try again later.",
-			})
-		},
-	}))
+	// router.Use(limiter.New(limiter.Config{
+	// 	Max:        100,              // Maximum number of requests
+	// 	Expiration: 60 * time.Second, // Time window (60 seconds)
+	// 	KeyGenerator: func(c *fiber.Ctx) string {
+	// 		return c.IP() // Use IP as the key to track the number of requests
+	// 	},
+	// 	LimitReached: func(c *fiber.Ctx) error {
+	// 		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+	// 			"error": "Too many requests. Please try again later.",
+	// 		})
+	// 	},
+	// }))
 
 	return router
 }
