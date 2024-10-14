@@ -3,6 +3,7 @@ package user
 import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -21,7 +22,7 @@ func (h *UserHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 	router.Get("/", h.GetAllUsers)
 	router.Get("/:id", h.GetUser)
 	router.Patch("/:id", h.UpdateUser)
-	router.Delete("/:id", h.DeleteUser)
+	// router.Delete("/:id", h.DeleteUser)
 }
 
 // @Summary Create a new user
@@ -89,12 +90,13 @@ func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
 // @Failure 500    {object} map[string]string  "internal server error"
 // @Router  /users/{id} [patch]
 func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
-	id := c.Params("id")
+	profile := utils.GetUserProfileFromCtx(c)
+
 	user := new(model.UserDto)
 	if err := c.BodyParser(user); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
 	}
-	user.Id = id
+	user.Id = profile.Id
 	if err := h.service.UpdateUser(user); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
