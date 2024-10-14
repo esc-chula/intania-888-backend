@@ -26,7 +26,7 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 	if isNonBrowserRequest(userAgent) {
 		h.log.Named("AuthMiddleware").Error("Request from non-browser blocked", zap.String("User-Agent", userAgent))
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Requests from non-browser tools are not allowed",
+			"error": "Idiot",
 		})
 	}
 
@@ -34,7 +34,7 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 	if !isBrowserHeadersValid(c) {
 		h.log.Named("AuthMiddleware").Error("Invalid browser headers")
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Invalid browser headers",
+			"error": "Idiot",
 		})
 	}
 
