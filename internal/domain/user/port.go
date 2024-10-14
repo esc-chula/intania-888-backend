@@ -8,7 +8,6 @@ type UserRepository interface {
 	GetByEmail(email string) (*model.User, error)
 	GetAll() ([]*model.User, error)
 	Update(user *model.User) error
-	Delete(id string) error
 }
 
 type UserService interface {
@@ -16,5 +15,4 @@ type UserService interface {
 	GetUser(id string) (*model.UserDto, error)
 	GetAllUsers() ([]*model.UserDto, error)
 	UpdateUser(userDto *model.UserDto) error
-	DeleteUser(id string) error
 }

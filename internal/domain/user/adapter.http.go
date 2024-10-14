@@ -18,11 +18,9 @@ func NewUserHttpHandler(service UserService) *UserHttpHandler {
 func (h *UserHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
 	router = router.Group("/users", mid.AuthMiddleware)
 
-	router.Post("/", h.CreateUser)
 	router.Get("/", h.GetAllUsers)
 	router.Get("/:id", h.GetUser)
 	router.Patch("/:id", h.UpdateUser)
-	// router.Delete("/:id", h.DeleteUser)
 }
 
 // @Summary Create a new user
@@ -101,19 +99,4 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(user)
-}
-
-// @Summary Delete user
-// @Description Deletes a user by their ID
-// @Tags User
-// @Param   id    path      string  true  "User ID"
-// @Success 204
-// @Failure 500    {object} map[string]string  "internal server error"
-// @Router  /users/{id} [delete]
-func (h *UserHttpHandler) DeleteUser(c *fiber.Ctx) error {
-	id := c.Params("id")
-	if err := h.service.DeleteUser(id); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.SendStatus(fiber.StatusNoContent)
 }

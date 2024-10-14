@@ -95,14 +95,3 @@ func (s *userServiceImpl) UpdateUser(userDto *model.UserDto) error {
 	s.log.Named("UpdateUser").Info("User updated successfully", zap.String("user_id", userDto.Id))
 	return nil
 }
-
-func (s *userServiceImpl) DeleteUser(id string) error {
-	err := s.repo.Delete(id)
-	if err != nil {
-		s.log.Named("DeleteUser").Error("Failed to delete user", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("DeleteUser").Info("User deleted successfully", zap.String("user_id", id))
-	return nil
-}
