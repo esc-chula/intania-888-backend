@@ -20,8 +20,16 @@ func NewMiddlewareHttpHandler(service MiddlewareService, log *zap.Logger) *Middl
 	}
 }
 
-// AuthMiddleware checks the token validity and retrieves the user information.
 func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
+	// Check if the request is coming from Postman
+	userAgent := c.Get("User-Agent")
+	if strings.Contains(strings.ToLower(userAgent), "postman") {
+		h.log.Named("AuthMiddleware").Error("Request from Postman blocked", zap.String("User-Agent", userAgent))
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Requests from Postman are not allowed",
+		})
+	}
+
 	// Extract token from the header
 	header := c.Get("Authorization")
 	if header == "" {
