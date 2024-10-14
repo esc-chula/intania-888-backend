@@ -90,12 +90,20 @@ func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
 func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 	profile := utils.GetUserProfileFromCtx(c)
 
-	user := new(model.UserDto)
-	if err := c.BodyParser(user); err != nil {
+	updateUserDto := new(model.UpdateUserDto)
+	if err := c.BodyParser(updateUserDto); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
 	}
-	user.Id = profile.Id
-	if err := h.service.UpdateUser(user); err != nil {
+	user := model.UserDto{
+		Id:            profile.Id,
+		Email:         updateUserDto.Email,
+		Name:          updateUserDto.Name,
+		NickName:      updateUserDto.NickName,
+		RoleId:        updateUserDto.RoleId,
+		GroupId:       updateUserDto.GroupId,
+		RemainingCoin: 0.00,
+	}
+	if err := h.service.UpdateUser(&user); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(user)

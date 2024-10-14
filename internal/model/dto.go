@@ -130,3 +130,12 @@ type DailyRewardCacheDto struct {
 	UserId string
 	Reward float64
 }
+
+type UpdateUserDto struct {
+	Id       string  `json:"id"`
+	Email    string  `json:"email"`
+	Name     string  `json:"name"`
+	NickName *string `json:"nick_name"`
+	RoleId   string  `json:"role_id"`
+	GroupId  *string `json:"group_id"`
+}

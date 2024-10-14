@@ -1,8 +1,6 @@
 package user
 
 import (
-	"errors"
-
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"go.uber.org/zap"
 )
@@ -80,11 +78,7 @@ func (s *userServiceImpl) UpdateUser(userDto *model.UserDto) error {
 		s.log.Named("UpdateUser").Error("Failed to get existed user", zap.Error(err))
 		return err
 	}
-
-	if existed.RemainingCoin != userDto.RemainingCoin {
-		s.log.Named("UpdateUser").Error("user trying to change their coin", zap.Error(err))
-		return errors.New("internal server error")
-	}
+	userDto.RemainingCoin = existed.RemainingCoin
 
 	err = s.repo.Update(ToUserEntity(userDto))
 	if err != nil {
