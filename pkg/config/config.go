@@ -10,11 +10,12 @@ type Config interface {
 }
 
 type Server struct {
-	Name string `mapstructure:"server_name"`
-	Env  string `mapstructure:"server_env"`
-	Url  string `mapstructure:"server_url"`
-	Host string `mapstructure:"server_host"`
-	Port int    `mapstructure:"server_port"`
+	Origin string `mapstructure:"server_origin"`
+	Name   string `mapstructure:"server_name"`
+	Env    string `mapstructure:"server_env"`
+	Url    string `mapstructure:"server_url"`
+	Host   string `mapstructure:"server_host"`
+	Port   int    `mapstructure:"server_port"`
 }
 
 type Db struct {

@@ -71,6 +71,9 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 	// set global prefix
 	router := s.app.Group("/api/v1")
 
+	// apply origin guard
+	router.Use(s.OriginGuard())
+
 	// enable cors
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     "https://888.chula.engineering",
@@ -107,19 +110,20 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 		return c.SendString("server is running !")
 	})
 
-	// Add rate limiting
-	// router.Use(limiter.New(limiter.Config{
-	// 	Max:        100,              // Maximum number of requests
-	// 	Expiration: 60 * time.Second, // Time window (60 seconds)
-	// 	KeyGenerator: func(c *fiber.Ctx) string {
-	// 		return c.IP() // Use IP as the key to track the number of requests
-	// 	},
-	// 	LimitReached: func(c *fiber.Ctx) error {
-	// 		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-	// 			"error": "Too many requests. Please try again later.",
-	// 		})
-	// 	},
-	// }))
-
 	return router
+}
+
+func (s *FiberHttpServer) OriginGuard() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		origin := c.Get("Origin")
+		s.logger.Info("OriginGuard", zap.String("origin", origin))
+
+		if origin != s.cfg.GetServer().Origin {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Unauthorized",
+			})
+		}
+
+		return c.Next()
+	}
 }
