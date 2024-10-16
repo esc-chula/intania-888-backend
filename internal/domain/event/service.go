@@ -99,42 +99,42 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 	}
 
 	// Spin the slots
-	slot1 := utils.GetRandomSlot()
-	slot2 := utils.GetRandomSlot()
-	slot3 := utils.GetRandomSlot()
+	slot1 := utils.GetRandomSlot(req)
+	slot2 := utils.GetRandomSlot(req)
+	slot3 := utils.GetRandomSlot(req)
 
 	// Calculate reward based on new rules
 	var reward float64
 	switch {
 	// 3 matching gold symbols
 	case slot1 == "💰" && slot2 == "💰" && slot3 == "💰":
-		reward = spendAmount * 10.0 // Return 10x (500 coins)
+		reward = spendAmount * 5.0
 
 	// 3 matching fruit symbols
 	case slot1 == slot2 && slot2 == slot3:
-		reward = spendAmount * 4.0 // Return 4x (200 coins)
+		reward = spendAmount * 2.0
 
 	// 2 gold + 1 different symbol
 	case (slot1 == "💰" && slot2 == "💰" && slot3 != "💰") ||
 		(slot1 == "💰" && slot3 == "💰" && slot2 != "💰") ||
 		(slot2 == "💰" && slot3 == "💰" && slot1 != "💰"):
-		reward = spendAmount * 3.0 // Return 3x (150 coins)
+		reward = spendAmount * 1.5
 
 	// 1 gold + 2 matching symbols
 	case (slot1 == "💰" && slot2 == slot3 && slot2 != "💰") ||
 		(slot2 == "💰" && slot1 == slot3 && slot1 != "💰") ||
 		(slot3 == "💰" && slot1 == slot2 && slot1 != "💰"):
-		reward = spendAmount * 2 // Return 2.0x (100 coins)
+		reward = spendAmount * 1.2
 
 	// 1 gold + 2 different symbols
 	case (slot1 == "💰" && slot2 != "💰" && slot3 != "💰") ||
 		(slot2 == "💰" && slot1 != "💰" && slot3 != "💰") ||
 		(slot3 == "💰" && slot1 != "💰" && slot2 != "💰"):
-		reward = spendAmount * 1.5 // Return 1.5x (75 coins)
+		reward = spendAmount * 1.1
 
 	// 2 matching fruit symbols
 	case slot1 == slot2 || slot1 == slot3 || slot2 == slot3:
-		reward = spendAmount * 0.75 // Return 0.75x (37.5 coins)
+		reward = spendAmount * 0.6
 
 	default:
 		reward = 0
