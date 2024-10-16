@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"errors"
+	"slices"
 	"strings"
 
+	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
@@ -73,6 +75,12 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 		})
 	}
 
+	if isInBlacklists(userDto) {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "missing authorization header",
+		})
+	}
+
 	// Store user in context for downstream handlers
 	c.Locals("user", userDto)
 
@@ -100,4 +108,17 @@ func isBrowserHeadersValid(c *fiber.Ctx) bool {
 
 	// Check if common browser headers are present
 	return acceptLanguage != "" && acceptEncoding != "" && secFetchMode != ""
+}
+
+func isInBlacklists(user *model.UserDto) bool {
+	blacklists := []string{
+		"6530162621@student.chula.ac.th",
+		"6633129621@student.chula.ac.th",
+	}
+
+	if found := slices.Contains(blacklists, user.Email); found {
+		return true
+	}
+
+	return false
 }
