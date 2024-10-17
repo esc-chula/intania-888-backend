@@ -96,10 +96,10 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 	}
 	user := model.UserDto{
 		Id:            profile.Id,
-		Email:         updateUserDto.Email,
+		Email:         profile.Email,
 		Name:          updateUserDto.Name,
 		NickName:      updateUserDto.NickName,
-		RoleId:        updateUserDto.RoleId,
+		RoleId:        profile.RoleId,
 		GroupId:       updateUserDto.GroupId,
 		RemainingCoin: 0.00,
 	}

@@ -111,14 +111,23 @@ func isBrowserHeadersValid(c *fiber.Ctx) bool {
 }
 
 func isInBlacklists(user *model.UserDto) bool {
-	blacklists := []string{
+	blacklistEmail := []string{
 		"6530162621@student.chula.ac.th",
 		"6633129621@student.chula.ac.th",
 		"6733023821@student.chula.ac.th",
 		"6630054621@student.chula.ac.th",
 	}
 
-	if found := slices.Contains(blacklists, user.Email); found {
+	blacklistId := []string{
+		"115982048644097094953",
+		"101935624102444830754",
+	}
+
+	if found := slices.Contains(blacklistEmail, user.Email); found {
+		return true
+	}
+
+	if found := slices.Contains(blacklistId, user.Id); found {
 		return true
 	}
 
