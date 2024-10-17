@@ -116,6 +116,9 @@ func isInBlacklists(user *model.UserDto) bool {
 		"6633129621@student.chula.ac.th",
 		"6733023821@student.chula.ac.th",
 		"6630054621@student.chula.ac.th",
+		"6538004621@student.chula.ac.th",
+		"6733291621@student.chula.ac.th",
+		"6430039021@student.chula.ac.th",
 	}
 
 	blacklistId := []string{
