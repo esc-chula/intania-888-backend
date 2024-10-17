@@ -2,7 +2,6 @@ package bill
 
 import (
 	"errors"
-	"math"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
@@ -51,7 +50,10 @@ func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
 	}
 
-	billDto.Total = math.Abs(billDto.Total)
+	if billDto.Total <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
+	}
+
 	billDto.UserId = userProfile.Id
 	err := h.service.CreateBill(userProfile, &billDto)
 	if err != nil {

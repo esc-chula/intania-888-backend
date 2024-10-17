@@ -114,6 +114,8 @@ func isInBlacklists(user *model.UserDto) bool {
 	blacklists := []string{
 		"6530162621@student.chula.ac.th",
 		"6633129621@student.chula.ac.th",
+		"6733023821@student.chula.ac.th",
+		"6630054621@student.chula.ac.th",
 	}
 
 	if found := slices.Contains(blacklists, user.Email); found {
