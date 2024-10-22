@@ -9,14 +9,32 @@ import (
 func GetRandomSlot(userDto *model.UserDto) string {
 	var probabilities map[string]float64
 
-	if userDto.RemainingCoin > 50000.00 {
+	if userDto.RemainingCoin > 100000.00 {
 		probabilities = map[string]float64{
-			"🍇": 1.0 / 5.8,
-			"🍋": 1.0 / 5.8,
-			"🍎": 1.0 / 5.8,
-			"🍐": 1.0 / 5.8,
-			"🍊": 1.0 / 5.8,
-			"💰": 1.0 / 30.0,
+			"🍇": 1.0 / 6.0,
+			"🍋": 1.0 / 6.0,
+			"🍎": 1.0 / 6.0,
+			"🍐": 1.0 / 6.0,
+			"🍊": 1.0 / 6.0,
+			"💰": 1.0 / 20.0,
+		}
+	} else if userDto.RemainingCoin > 50000.00 {
+		probabilities = map[string]float64{
+			"🍇": 1.0 / 6.0,
+			"🍋": 1.0 / 6.0,
+			"🍎": 1.0 / 6.0,
+			"🍐": 1.0 / 6.0,
+			"🍊": 1.0 / 6.0,
+			"💰": 1.0 / 10.0,
+		}
+	} else if userDto.RemainingCoin > 25000.00 {
+		probabilities = map[string]float64{
+			"🍇": 1.0 / 6.0,
+			"🍋": 1.0 / 6.0,
+			"🍎": 1.0 / 6.0,
+			"🍐": 1.0 / 6.0,
+			"🍊": 1.0 / 6.0,
+			"💰": 1.0 / 8.0,
 		}
 	} else {
 		probabilities = map[string]float64{
