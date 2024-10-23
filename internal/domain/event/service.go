@@ -108,33 +108,33 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 	switch {
 	// 3 matching gold symbols
 	case slot1 == "💰" && slot2 == "💰" && slot3 == "💰":
-		reward = spendAmount * 5.0
+		reward = spendAmount * 10.0
 
 	// 3 matching fruit symbols
 	case slot1 == slot2 && slot2 == slot3:
-		reward = spendAmount * 2.0
+		reward = spendAmount * 4.0
 
 	// 2 gold + 1 different symbol
 	case (slot1 == "💰" && slot2 == "💰" && slot3 != "💰") ||
 		(slot1 == "💰" && slot3 == "💰" && slot2 != "💰") ||
 		(slot2 == "💰" && slot3 == "💰" && slot1 != "💰"):
-		reward = spendAmount * 1.5
+		reward = spendAmount * 3.0
 
 	// 1 gold + 2 matching symbols
 	case (slot1 == "💰" && slot2 == slot3 && slot2 != "💰") ||
 		(slot2 == "💰" && slot1 == slot3 && slot1 != "💰") ||
 		(slot3 == "💰" && slot1 == slot2 && slot1 != "💰"):
-		reward = spendAmount * 1.2
+		reward = spendAmount * 2.0
 
 	// 1 gold + 2 different symbols
 	case (slot1 == "💰" && slot2 != "💰" && slot3 != "💰") ||
 		(slot2 == "💰" && slot1 != "💰" && slot3 != "💰") ||
 		(slot3 == "💰" && slot1 != "💰" && slot2 != "💰"):
-		reward = spendAmount * 1.1
+		reward = spendAmount * 1.5
 
 	// 2 matching fruit symbols
 	case slot1 == slot2 || slot1 == slot3 || slot2 == slot3:
-		reward = spendAmount * 0.6
+		reward = spendAmount * 0.75
 
 	default:
 		reward = 0
