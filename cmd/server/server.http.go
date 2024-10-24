@@ -14,6 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"go.uber.org/zap"
 
@@ -89,6 +90,16 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 		Format:     "${time} ${status} - ${method} ${path}\n",
 		TimeFormat: "2006/01/02 15:04:05",
 		TimeZone:   "Asia/Bangkok",
+	}))
+
+	router.Use(limiter.New(limiter.Config{
+		Max:        100,
+		Expiration: 60 * time.Second,
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"message": "Too many requests, please try again later.",
+			})
+		},
 	}))
 
 	// basic authentication for swagger
