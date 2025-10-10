@@ -15,6 +15,7 @@ type viperConfig struct {
 	Jwt     `mapstructure:",squash"`
 	OAuth   `mapstructure:",squash"`
 	Swagger `mapstructure:",squash"`
+	Cors    `mapstructure:",squash"`
 }
 
 var (
@@ -91,4 +92,8 @@ func (c *viperConfig) GetOAuth() OAuth {
 
 func (c *viperConfig) GetSwagger() Swagger {
 	return c.Swagger
+}
+
+func (c *viperConfig) GetCors() Cors {
+	return c.Cors
 }

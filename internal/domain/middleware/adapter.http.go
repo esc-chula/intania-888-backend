@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
@@ -108,6 +109,28 @@ func isBrowserHeadersValid(c *fiber.Ctx) bool {
 
 	// Check if common browser headers are present
 	return acceptLanguage != "" && acceptEncoding != "" && secFetchMode != ""
+}
+
+func (h *MiddlewareHttpHandler) AdminMiddleware(c *fiber.Ctx) error {
+	user := utils.GetUserProfileFromCtx(c)
+	if user == nil {
+		h.log.Named("AdminMiddleware").Error("User not found in context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+
+	if user.RoleId != "ADMIN" {
+		h.log.Named("AdminMiddleware").Warn("Non-admin attempted admin action",
+			zap.String("user_id", user.Id),
+			zap.String("role", user.RoleId),
+			zap.String("endpoint", c.Path()))
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "admin access required",
+		})
+	}
+
+	return c.Next()
 }
 
 func isInBlacklists(user *model.UserDto) bool {

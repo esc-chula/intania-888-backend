@@ -17,14 +17,16 @@ func NewMatchHttpHandler(matchService MatchService) *MatchHttpHandler {
 func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
 	router = router.Group("/matches", mid.AuthMiddleware)
 
-	router.Post("/", h.CreateMatch)
 	router.Get("/", h.GetAllMatches)
 	router.Get("/:id", h.GetMatch)
 	router.Get("/current/time", h.GetTime)
-	router.Patch("/:id/winner/:winner_id", h.UpdateMatchWinner)
-	router.Patch("/:id/score", h.UpdateMatchScore)
-	router.Patch("/:id/draw", h.UpdateMatchDraw)
-	router.Delete("/:id", h.DeleteMatch)
+
+	adminRouter := router.Group("", mid.AdminMiddleware)
+	adminRouter.Post("/", h.CreateMatch)
+	adminRouter.Patch("/:id/winner/:winner_id", h.UpdateMatchWinner)
+	adminRouter.Patch("/:id/score", h.UpdateMatchScore)
+	adminRouter.Patch("/:id/draw", h.UpdateMatchDraw)
+	adminRouter.Delete("/:id", h.DeleteMatch)
 }
 
 // CreateMatch @Summary      Create a new match

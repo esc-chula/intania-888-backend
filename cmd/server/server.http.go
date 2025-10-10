@@ -77,7 +77,7 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 
 	// enable cors
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     "https://888.chula.engineering",
+		AllowOrigins:     s.cfg.GetCors().AllowOrigins,
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
 		AllowHeaders:     "Origin,X-PINGOTHER,Accept,Authorization,Content-Type,X-CSRF-Token",
 		ExposeHeaders:    "Link",

@@ -7,54 +7,61 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type billServiceImpl struct {
 	repo     BillRepository
 	userRepo user.UserRepository
 	log      *zap.Logger
+	db       *gorm.DB
 }
 
 // Create a new instance of BillService
-func NewBillService(repo BillRepository, userRepo user.UserRepository, log *zap.Logger) BillService {
-	return &billServiceImpl{repo, userRepo, log}
+func NewBillService(repo BillRepository, userRepo user.UserRepository, log *zap.Logger, db *gorm.DB) BillService {
+	return &billServiceImpl{repo, userRepo, log, db}
 }
 
-// CreateBill creates a new bill
+// CreateBill creates a new bill with transaction
 func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
-	user, err := s.userRepo.GetById(userProfile.Id)
-	if err != nil {
-		s.log.Named("CreateBill").Error("Get user by Id", zap.Error(err))
-		return err
-	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", userProfile.Id).
+			First(&user).Error; err != nil {
+			s.log.Named("CreateBill").Error("Get user by Id with lock", zap.Error(err))
+			return err
+		}
 
-	if user.RemainingCoin < billDto.Total {
-		err := errors.New("user does not have enough coins to cover the total bill")
-		s.log.Named("CreateBill").Error("Check for balance", zap.Error(err))
-		return err
-	}
+		if user.RemainingCoin < billDto.Total {
+			err := errors.New("user does not have enough coins to cover the total bill")
+			s.log.Named("CreateBill").Error("Check for balance", zap.Error(err))
+			return err
+		}
 
-	bill := mapBillDtoToEntity(billDto)
-	bill.Id = uuid.NewString()
-	for i := range bill.Lines {
-		bill.Lines[i].BillId = bill.Id
-	}
+		bill := mapBillDtoToEntity(billDto)
+		bill.Id = uuid.NewString()
+		for i := range bill.Lines {
+			bill.Lines[i].BillId = bill.Id
+		}
 
-	err = s.repo.Create(bill)
-	if err != nil {
-		s.log.Named("CreateBill").Error("Create", zap.Error(err))
-		return err
-	}
+		if err := tx.Create(bill).Error; err != nil {
+			s.log.Named("CreateBill").Error("Create bill", zap.Error(err))
+			return err
+		}
 
-	user.RemainingCoin -= bill.Total
-	err = s.userRepo.Update(user)
-	if err != nil {
-		s.log.Named("CreateBill").Error("Update user", zap.Error(err))
-		return err
-	}
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", user.Id).
+			Update("remaining_coin", gorm.Expr("remaining_coin - ?", bill.Total)).
+			Error; err != nil {
+			s.log.Named("CreateBill").Error("Update user balance", zap.Error(err))
+			return err
+		}
 
-	s.log.Named("CreateBill").Info("Created bill successful", zap.Any("bill", bill))
-	return nil
+		s.log.Named("CreateBill").Info("Created bill successful", zap.Any("bill", bill))
+		return nil
+	})
 }
 
 // GetBill returns a bill by id
