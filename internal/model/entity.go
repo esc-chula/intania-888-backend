@@ -149,3 +149,31 @@ type DailyReward struct {
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``
 }
+type MineGame struct {
+	Id            string     `gorm:"primaryKey;type:varchar(100)"`
+	UserId        string     `gorm:"type:varchar(100);not null"`
+	BetAmount     float64    `gorm:"type:decimal(10,2);not null"`
+	RiskLevel     string     `gorm:"type:varchar(20);not null"` // low, medium, high
+	Status        string     `gorm:"type:varchar(20);not null"` // active, won, lost, cashed_out
+	RevealedCount int        `gorm:"type:int;default:0"`
+	CurrentPayout float64    `gorm:"type:decimal(10,2);not null"`
+	Multiplier    float64    `gorm:"type:decimal(10,2);default:1.0"`
+	GridData      string     `gorm:"type:text;not null"` // JSON string of the grid
+	CreatedAt     time.Time  ``
+	UpdatedAt     time.Time  ``
+	CompletedAt   *time.Time ``
+
+	User User `gorm:"foreignKey:UserId"`
+}
+
+type MineGameHistory struct {
+	Id          string    `gorm:"primaryKey;type:varchar(100)"`
+	GameId      string    `gorm:"type:varchar(100);not null"`
+	TileIndex   int       `gorm:"type:int;not null"`
+	TileType    string    `gorm:"type:varchar(20);not null"` // diamond, bomb
+	Multiplier  float64   `gorm:"type:decimal(10,2);not null"`
+	PayoutAtHit float64   `gorm:"type:decimal(10,2);not null"`
+	CreatedAt   time.Time ``
+
+	Game MineGame `gorm:"foreignKey:GameId"`
+}

@@ -34,6 +34,8 @@ func main() {
 		&model.GroupLine{},
 		&model.DailyReward{},
 		&model.GroupStage{},
+		&model.MineGame{},
+		&model.MineGameHistory{},
 	); err != nil {
 		log.Fatalf("Error during migration: %v", err)
 	}
