@@ -75,8 +75,8 @@ type MatchesByDate struct {
 }
 
 type ScoreDto struct {
-	TeamAScore int
-	TeamBScore int
+	TeamAScore int `json:"team_a_score"`
+	TeamBScore int `json:"team_b_score"`
 }
 
 type ScheduleFilter string

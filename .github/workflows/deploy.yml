@@ -1,0 +1,92 @@
+name: Deploy to Cloud Run
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: intania-888-backend
+  REGION: asia-southeast1
+  IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/intania-888-backend
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker to use gcloud
+        run: gcloud auth configure-docker
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:latest
+
+      - name: Push Docker image to GCR
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.IMAGE_NAME }}:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars="SERVER_NAME=intania-shop-api" \
+            --set-env-vars="SERVER_ENV=production" \
+            --set-env-vars="SERVER_HOST=0.0.0.0" \
+            --set-env-vars="SERVER_PORT=8080" \
+            --set-env-vars="SERVER_ORIGIN=${{ secrets.FRONTEND_URL }}" \
+            --set-secrets="DB_HOST=DB_HOST:latest" \
+            --set-secrets="DB_PORT=DB_PORT:latest" \
+            --set-secrets="DB_USER=DB_USER:latest" \
+            --set-secrets="DB_PASS=DB_PASS:latest" \
+            --set-secrets="DB_NAME=DB_NAME:latest" \
+            --set-secrets="JWT_ACCESS_TOKEN_SECRET=JWT_ACCESS_TOKEN_SECRET:latest" \
+            --set-secrets="JWT_REFRESH_TOKEN_EXPIRATION=JWT_REFRESH_TOKEN_EXPIRATION:latest" \
+            --set-secrets="OAUTH_CLIENT_ID=OAUTH_CLIENT_ID:latest" \
+            --set-secrets="OAUTH_CLIENT_SECRET=OAUTH_CLIENT_SECRET:latest" \
+            --set-secrets="OAUTH_REDIRECT_URI=OAUTH_REDIRECT_URI:latest" \
+            --set-secrets="CACHE_HOST=CACHE_HOST:latest" \
+            --set-secrets="CACHE_PORT=CACHE_PORT:latest" \
+            --set-secrets="CACHE_PASS=CACHE_PASS:latest" \
+            --set-secrets="SWAGGER_USERNAME=SWAGGER_USERNAME:latest" \
+            --set-secrets="SWAGGER_PASSWORD=SWAGGER_PASSWORD:latest" \
+            --set-secrets="CORS_ALLOW_ORIGINS=CORS_ALLOW_ORIGINS:latest" \
+            --min-instances=0 \
+            --max-instances=10 \
+            --memory=512Mi \
+            --cpu=1 \
+            --timeout=300
+
+      - name: Show deployment URL
+        run: |
+          echo "Deployment completed!"
+          gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)'

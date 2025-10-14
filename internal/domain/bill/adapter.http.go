@@ -25,6 +25,9 @@ func (h *BillHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 	router.Get("/:id", h.GetBill)
 	router.Patch("/:id", h.UpdateBill)
 	router.Delete("/:id", h.DeleteBill)
+
+	adminRouter := router.Group("/admin", mid.AdminMiddleware)
+	adminRouter.Get("/all", h.GetAllBillsAdmin)
 }
 
 // CreateBill godoc
@@ -166,6 +169,24 @@ func (h *BillHttpHandler) DeleteBill(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GetAllBillsAdmin godoc
+// @Summary Get all bills (admin)
+// @Description Get all bills from all users (admin only)
+// @Tags Bill
+// @Accept json
+// @Produce json
+// @Success 200 {array} model.BillHeadDto
+// @Failure 500 {object} ErrorResponse
+// @Router /bills/admin/all [get]
+func (h *BillHttpHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
+	bills, err := h.service.GetAllBillsAdmin()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get bills"})
+	}
+
+	return c.JSON(bills)
 }
 
 type ErrorResponse struct {

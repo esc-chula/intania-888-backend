@@ -120,10 +120,24 @@ func (h *MiddlewareHttpHandler) AdminMiddleware(c *fiber.Ctx) error {
 		})
 	}
 
-	if user.RoleId != "ADMIN" {
+	// Check if user is hardcoded admin or has ADMIN role
+	authorizedAdmins := []string{
+		"6633165121@student.chula.ac.th",
+		"6738086221@student.chula.ac.th",
+	}
+	isAuthorizedAdmin := false
+	for _, adminEmail := range authorizedAdmins {
+		if user.Email == adminEmail {
+			isAuthorizedAdmin = true
+			break
+		}
+	}
+
+	if !isAuthorizedAdmin && user.RoleId != "ADMIN" {
 		h.log.Named("AdminMiddleware").Warn("Non-admin attempted admin action",
 			zap.String("user_id", user.Id),
 			zap.String("role", user.RoleId),
+			zap.String("email", user.Email),
 			zap.String("endpoint", c.Path()))
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "admin access required",

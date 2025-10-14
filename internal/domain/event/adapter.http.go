@@ -24,6 +24,9 @@ func (h *EventHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 
 	router.Get("/redeem/daily", h.RedeemDailyReward)
 	router.Post("/spin/slot", h.SpinSlotMachine)
+
+	adminRouter := router.Group("", mid.AdminMiddleware)
+	adminRouter.Post("/daily-rewards", h.SetDailyReward)
 }
 
 // RedeemDailyReward handles the daily reward redemption
@@ -82,4 +85,33 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(result)
+}
+
+// SetDailyReward handles setting daily reward amount
+// @Summary Set daily reward
+// @Description Set daily reward amount for a specific date (admin only)
+// @Tags Event
+// @Accept json
+// @Produce json
+// @Param request body map[string]interface{} true "Daily reward request (date and amount)"
+// @Success 200 {object} map[string]string "Set daily reward successful"
+// @Failure 400 {object} map[string]string "Invalid request payload"
+// @Failure 500 {object} map[string]string "Failed to set daily reward"
+// @Router /events/daily-rewards [post]
+func (h *EventHttpHandler) SetDailyReward(c *fiber.Ctx) error {
+	var req struct {
+		Date   string  `json:"date"`   // Format: DD-MM-YYYY (e.g., "31-10-24")
+		Amount float64 `json:"amount"` // Reward amount
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
+	err := h.eventService.SetDailyReward(req.Date, req.Amount)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to set daily reward"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Set daily reward successful"})
 }

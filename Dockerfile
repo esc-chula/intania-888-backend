@@ -10,7 +10,6 @@ RUN CGO_ENABLED=0 go build -o /bin/app ./cmd/main.go
 FROM gcr.io/distroless/static-debian11
 
 COPY --from=build /bin/app /bin
-COPY ./.env /bin/.env
 
 EXPOSE 8080
 

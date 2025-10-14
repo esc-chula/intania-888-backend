@@ -23,6 +23,7 @@ func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 
 	adminRouter := router.Group("", mid.AdminMiddleware)
 	adminRouter.Post("/", h.CreateMatch)
+	adminRouter.Put("/:id", h.UpdateMatch)
 	adminRouter.Patch("/:id/winner/:winner_id", h.UpdateMatchWinner)
 	adminRouter.Patch("/:id/score", h.UpdateMatchScore)
 	adminRouter.Patch("/:id/draw", h.UpdateMatchDraw)
@@ -198,4 +199,32 @@ func (h *MatchHttpHandler) UpdateMatchDraw(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Updated match as draw successfully"})
+}
+
+// UpdateMatch @Summary      Update match details
+// @Summary Updates match details (teams, type, times)
+// @Description  Updates match details including teams, sport type, start time, and end time
+// @Tags         Match
+// @Accept       json
+// @Produce      json
+// @Param        id     path      string          true  "Match ID"
+// @Param        match  body      model.MatchDto  true  "Match information"
+// @Success      200    {object}  map[string]string  "Updated match successfully"
+// @Failure      400    {object}  map[string]string  "Invalid request payload"
+// @Failure      500    {object}  map[string]string  "Failed to update match"
+// @Router       /matches/{id} [put]
+func (h *MatchHttpHandler) UpdateMatch(c *fiber.Ctx) error {
+	matchId := c.Params("id")
+	matchDto := new(model.MatchDto)
+
+	if err := c.BodyParser(&matchDto); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
+	err := h.matchService.UpdateMatch(matchId, matchDto)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update match"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Updated match successfully"})
 }

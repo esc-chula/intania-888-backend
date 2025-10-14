@@ -8,6 +8,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/event"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
@@ -64,6 +65,10 @@ func main() {
 	eventSvc := event.NewEventService(eventRepo, userRepo, cfg, logger)
 	eventHttp := event.NewEventHttpHandler(eventSvc)
 
+	sportTypeRepo := sporttype.NewSportTypeRepository(db)
+	sportTypeSvc := sporttype.NewSportTypeService(sportTypeRepo, logger.Named("SportTypeSvc"))
+	sportTypeHttp := sporttype.NewSportTypeHttpHandler(sportTypeSvc)
+
 	// init router
 	server := server.NewFiberHttpServer(cfg, logger)
 	router := server.InitHttpServer()
@@ -75,6 +80,7 @@ func main() {
 	matchHttp.RegisterRoutes(router, midHttp)
 	colorHttp.RegisterRoutes(router, midHttp)
 	eventHttp.RegisterRoutes(router, midHttp)
+	sportTypeHttp.RegisterRoutes(router, midHttp)
 
 	// start server
 	server.Start()
