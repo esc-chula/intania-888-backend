@@ -36,21 +36,15 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Configure Docker to use gcloud
         run: gcloud auth configure-docker
 
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: false
-          load: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.IMAGE_NAME }}:latest
+      - name: Build and tag Docker image
+        run: |
+          docker build \
+            -t "${{ env.IMAGE_NAME }}:${{ github.sha }}" \
+            -t "${{ env.IMAGE_NAME }}:latest" \
+            .
 
       - name: Push Docker image to GCR
         run: |
