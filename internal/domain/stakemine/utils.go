@@ -1,3 +1,4 @@
+// internal/domain/stakemine/utils.go
 package stakemine
 
 import (
@@ -11,6 +12,55 @@ type Tile struct {
 	Index    int    `json:"index"`
 	Type     string `json:"type"` // diamond, bomb
 	Revealed bool   `json:"revealed"`
+}
+
+// Pre-calculated multiplier lookup tables based on your probability data
+var multiplierTable = map[string]map[int]float64{
+	"low": { // Easy (σ=0.9, 2 gn) - 2 bombs, 14 diamonds
+		0:  1.0,
+		1:  1.03,
+		2:  1.07,
+		3:  1.12,
+		4:  1.19,
+		5:  1.29,
+		6:  1.42,
+		7:  1.59,
+		8:  1.84,
+		9:  2.21,
+		10: 2.79,
+		11: 3.77,
+		12: 5.65,
+		13: 10.17,
+		14: 27.45,
+	},
+	"medium": { // Medium (σ=0.9, 4 gn) - 4 bombs, 12 diamonds
+		0:  1.0,
+		1:  1.20,
+		2:  1.47,
+		3:  1.86,
+		4:  2.41,
+		5:  3.26,
+		6:  4.61,
+		7:  6.91,
+		8:  11.19,
+		9:  20.15,
+		10: 42.31,
+		11: 114.24,
+		12: 514.44,
+	},
+	"high": { // Hard (σ=0.9, 6 gn) - 6 bombs, 10 diamonds
+		0:  1.0,
+		1:  1.44,
+		2:  2.16,
+		3:  3.40,
+		4:  5.69,
+		5:  10.24,
+		6:  20.27,
+		7:  45.60,
+		8:  123.10,
+		9:  443.27,
+		10: 2789.43,
+	},
 }
 
 // GetBombCount returns number of bombs based on risk level
@@ -27,39 +77,22 @@ func GetBombCount(risk string) int {
 	}
 }
 
-// CalculateMultiplier calculates the payout multiplier based on diamonds found and risk level
-// This matches the probability table provided
+// CalculateMultiplier returns the pre-calculated multiplier from lookup table
 func CalculateMultiplier(diamondsFound int, risk string) float64 {
-	if diamondsFound == 0 {
-		return 1.0
+	// Get multiplier from lookup table
+	if riskTable, exists := multiplierTable[risk]; exists {
+		if multiplier, exists := riskTable[diamondsFound]; exists {
+			return multiplier
+		}
 	}
 
-	totalTiles := 16
-	bombs := GetBombCount(risk)
-	diamonds := totalTiles - bombs
+	// Fallback to 1.0 if not found (should never happen)
+	return 1.0
+}
 
-	// House edge factor (RTP = 0.9, so multiply by 0.9)
-	houseEdge := 0.9
-
-	// Calculate cumulative multiplier
-	multiplier := 1.0
-
-	for i := 0; i < diamondsFound; i++ {
-		remainingDiamonds := diamonds - i
-		remainingTiles := totalTiles - i
-
-		// Probability of hitting a diamond = remainingDiamonds / remainingTiles
-		probability := float64(remainingDiamonds) / float64(remainingTiles)
-
-		// Multiplier increases by 1/probability for each successful pick
-		multiplier *= (1.0 / probability)
-	}
-
-	// Apply house edge
-	multiplier *= houseEdge
-
-	// Round to 2 decimal places
-	return float64(int(multiplier*100+0.5)) / 100
+// GetMaxDiamonds returns maximum diamonds for a risk level
+func GetMaxDiamonds(risk string) int {
+	return 16 - GetBombCount(risk)
 }
 
 // SecureRandom generates a cryptographically secure random number between 0 and max-1
