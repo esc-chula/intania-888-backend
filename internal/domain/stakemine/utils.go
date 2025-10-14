@@ -3,7 +3,6 @@ package stakemine
 import (
 	"crypto/rand"
 	"encoding/json"
-	"math"
 	"math/big"
 )
 
@@ -18,44 +17,49 @@ type Tile struct {
 func GetBombCount(risk string) int {
 	switch risk {
 	case "low":
-		return 3 // 18.75% chance (3/16)
+		return 2 // Easy mode: 2 bombs, 14 diamonds
 	case "medium":
-		return 5 // 31.25% chance (5/16)
+		return 4 // Medium mode: 4 bombs, 12 diamonds
 	case "high":
-		return 7 // 43.75% chance (7/16)
+		return 6 // Hard mode: 6 bombs, 10 diamonds
 	default:
-		return 3
+		return 2
 	}
 }
 
 // CalculateMultiplier calculates the payout multiplier based on diamonds found and risk level
+// This matches the probability table provided
 func CalculateMultiplier(diamondsFound int, risk string) float64 {
-	totalTiles := 16
-	bombs := GetBombCount(risk)
-	safeTiles := totalTiles - bombs
-
 	if diamondsFound == 0 {
 		return 1.0
 	}
 
-	// Calculate multiplier based on probability
+	totalTiles := 16
+	bombs := GetBombCount(risk)
+	diamonds := totalTiles - bombs
+
+	// House edge factor (RTP = 0.9, so multiply by 0.9)
+	houseEdge := 0.9
+
+	// Calculate cumulative multiplier
 	multiplier := 1.0
-	remainingSafe := safeTiles
-	remainingTotal := totalTiles
 
 	for i := 0; i < diamondsFound; i++ {
-		// Probability of picking safe tile
-		prob := float64(remainingSafe) / float64(remainingTotal)
-		// House edge: 4% (96% RTP)
-		houseEdge := 0.96
-		multiplier *= (1.0 / prob) * houseEdge
+		remainingDiamonds := diamonds - i
+		remainingTiles := totalTiles - i
 
-		remainingSafe--
-		remainingTotal--
+		// Probability of hitting a diamond = remainingDiamonds / remainingTiles
+		probability := float64(remainingDiamonds) / float64(remainingTiles)
+
+		// Multiplier increases by 1/probability for each successful pick
+		multiplier *= (1.0 / probability)
 	}
 
+	// Apply house edge
+	multiplier *= houseEdge
+
 	// Round to 2 decimal places
-	return math.Round(multiplier*100) / 100
+	return float64(int(multiplier*100+0.5)) / 100
 }
 
 // SecureRandom generates a cryptographically secure random number between 0 and max-1
