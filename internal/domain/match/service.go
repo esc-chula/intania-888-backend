@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -18,6 +19,11 @@ func NewMatchService(repo MatchRepository, log *zap.Logger) MatchService {
 }
 
 func (s *matchServiceImpl) CreateMatch(matchDto *model.MatchDto) error {
+	// Generate UUID if not provided
+	if matchDto.Id == "" {
+		matchDto.Id = uuid.New().String()
+	}
+
 	match := mapMatchDtoToEntity(matchDto)
 	err := s.repo.Create(match)
 	if err != nil {
@@ -274,5 +280,41 @@ func (s *matchServiceImpl) UpdateMatchDraw(matchId string) error {
 	}
 
 	s.log.Info("Updated match as draw and processed payouts", zap.String("match_id", matchId))
+	return nil
+}
+
+func (s *matchServiceImpl) UpdateMatch(matchId string, matchDto *model.MatchDto) error {
+	// Fetch the existing match
+	existingMatch, err := s.getMatchById(matchId)
+	if err != nil {
+		s.log.Named("UpdateMatch").Error("Failed to fetch match", zap.Error(err))
+		return err
+	}
+
+	// Update the match fields
+	if matchDto.TeamAId != "" {
+		existingMatch.TeamA_Id = &matchDto.TeamAId
+	}
+	if matchDto.TeamBId != "" {
+		existingMatch.TeamB_Id = &matchDto.TeamBId
+	}
+	if matchDto.TypeId != "" {
+		existingMatch.TypeId = matchDto.TypeId
+	}
+	if !matchDto.StartTime.IsZero() {
+		existingMatch.StartTime = matchDto.StartTime
+	}
+	if !matchDto.EndTime.IsZero() {
+		existingMatch.EndTime = matchDto.EndTime
+	}
+
+	// Update the match in the database
+	err = s.repo.UpdateMatch(existingMatch)
+	if err != nil {
+		s.log.Named("UpdateMatch").Error("Failed to update match", zap.Error(err))
+		return err
+	}
+
+	s.log.Named("UpdateMatch").Info("Updated match successfully", zap.String("id", matchId))
 	return nil
 }

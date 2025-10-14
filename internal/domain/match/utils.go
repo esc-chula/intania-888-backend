@@ -1,6 +1,7 @@
 package match
 
 import (
+	"sort"
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
@@ -82,13 +83,33 @@ func groupMatchesByDateAndType(matches []*model.MatchDto) []model.MatchesByDate 
 
 	var response []model.MatchesByDate
 
-	for date, typeMap := range dateMap {
+	// Get all dates and sort them
+	var dates []time.Time
+	for date := range dateMap {
+		dates = append(dates, date)
+	}
+	sort.Slice(dates, func(i, j int) bool {
+		return dates[i].Before(dates[j])
+	})
+
+	// Process dates in sorted order
+	for _, date := range dates {
+		typeMap := dateMap[date]
 		matchesByDate := model.MatchesByDate{
 			Date:  date,
 			Types: []model.MatchesByType{},
 		}
 
-		for sportType, matches := range typeMap {
+		// Get all sport types and sort them alphabetically for consistency
+		var sportTypes []string
+		for sportType := range typeMap {
+			sportTypes = append(sportTypes, sportType)
+		}
+		sort.Strings(sportTypes)
+
+		// Process sport types in sorted order
+		for _, sportType := range sportTypes {
+			matches := typeMap[sportType]
 			matchesByType := model.MatchesByType{
 				SportType: sportType,
 				Matches:   matches,

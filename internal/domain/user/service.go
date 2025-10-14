@@ -89,3 +89,29 @@ func (s *userServiceImpl) UpdateUser(userDto *model.UserDto) error {
 	s.log.Named("UpdateUser").Info("User updated successfully", zap.String("user_id", userDto.Id))
 	return nil
 }
+
+func (s *userServiceImpl) AdminUpdateUser(userId string, userDto *model.UserDto) error {
+	existed, err := s.repo.GetById(userId)
+	if err != nil {
+		s.log.Named("AdminUpdateUser").Error("Failed to get existed user", zap.Error(err))
+		return err
+	}
+
+	// Admin can update all fields including role and coins
+	existed.Name = userDto.Name
+	existed.NickName = userDto.NickName
+	existed.RoleId = userDto.RoleId
+	existed.RemainingCoin = userDto.RemainingCoin
+	if userDto.GroupId != nil {
+		existed.GroupId = userDto.GroupId
+	}
+
+	err = s.repo.Update(existed)
+	if err != nil {
+		s.log.Named("AdminUpdateUser").Error("Failed to update user", zap.Error(err))
+		return err
+	}
+
+	s.log.Named("AdminUpdateUser").Info("User updated by admin successfully", zap.String("user_id", userId))
+	return nil
+}

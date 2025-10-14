@@ -6,9 +6,11 @@ type EventRepository interface {
 	SetDailyRewardCache(key string, value interface{}, ttl int) error
 	GetDailyRewardCache(key string, value interface{}) error
 	GetReward(date string) (*model.DailyReward, error)
+	SetReward(reward *model.DailyReward) error
 }
 
 type EventService interface {
 	RedeemDailyReward(req *model.UserDto) error
 	SpinSlotMachine(req *model.UserDto, spendAmount float64) (map[string]interface{}, error)
+	SetDailyReward(date string, amount float64) error
 }

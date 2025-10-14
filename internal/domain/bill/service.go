@@ -82,7 +82,7 @@ func (s *billServiceImpl) GetBill(billId, userId string) (*model.BillHeadDto, er
 	return billDto, nil
 }
 
-// GetAllBills returns all bills
+// GetAllBills returns all bills for a specific user
 func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, error) {
 	bills, err := s.repo.GetAll(userId)
 	if err != nil {
@@ -92,6 +92,19 @@ func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, erro
 
 	billDtos := mapBillsEntityToDto(bills)
 	s.log.Named("GetAllBills").Info("Retrieved all bills successful", zap.Int("count", len(billDtos)))
+	return billDtos, nil
+}
+
+// GetAllBillsAdmin returns all bills from all users (admin only)
+func (s *billServiceImpl) GetAllBillsAdmin() ([]*model.BillHeadDto, error) {
+	bills, err := s.repo.GetAllAdmin()
+	if err != nil {
+		s.log.Named("GetAllBillsAdmin").Error("GetAllAdmin", zap.Error(err))
+		return nil, err
+	}
+
+	billDtos := mapBillsEntityToDto(bills)
+	s.log.Named("GetAllBillsAdmin").Info("Retrieved all bills (admin) successful", zap.Int("count", len(billDtos)))
 	return billDtos, nil
 }
 
