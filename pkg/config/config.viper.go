@@ -39,7 +39,11 @@ func NewViperConfig() Config {
 		v.AutomaticEnv()
 
 		if err := v.ReadInConfig(); err != nil {
-			log.Fatalf("Error reading configs file: %s", err)
+			if appEnv == "prod" {
+				log.Println("No config file found, using environment variables")
+			} else {
+				log.Fatalf("Error reading configs file: %s", err)
+			}
 		}
 
 		cfg := &viperConfig{}
