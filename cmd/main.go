@@ -50,7 +50,7 @@ func main() {
 	midHttp := middleware.NewMiddlewareHttpHandler(midSvc, logger)
 
 	billRepo := bill.NewBillRepository(db)
-	billSvc := bill.NewBillService(billRepo, userRepo, logger.Named("BillSvc"))
+	billSvc := bill.NewBillService(billRepo, userRepo, db, logger.Named("BillSvc"))
 	billHttp := bill.NewBillHttpHandler(billSvc)
 
 	matchRepo := match.NewMatchRepository(db)

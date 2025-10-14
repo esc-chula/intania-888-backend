@@ -7,31 +7,54 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type billServiceImpl struct {
 	repo     BillRepository
 	userRepo user.UserRepository
+	db       *gorm.DB
 	log      *zap.Logger
 }
 
 // Create a new instance of BillService
-func NewBillService(repo BillRepository, userRepo user.UserRepository, log *zap.Logger) BillService {
-	return &billServiceImpl{repo, userRepo, log}
+func NewBillService(repo BillRepository, userRepo user.UserRepository, db *gorm.DB, log *zap.Logger) BillService {
+	return &billServiceImpl{repo, userRepo, db, log}
 }
 
 // CreateBill creates a new bill
 func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
+	tx := s.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	user, err := s.userRepo.GetById(userProfile.Id)
 	if err != nil {
+		tx.Rollback()
 		s.log.Named("CreateBill").Error("Get user by Id", zap.Error(err))
 		return err
 	}
 
+	// Check balance
 	if user.RemainingCoin < billDto.Total {
+		tx.Rollback()
 		err := errors.New("user does not have enough coins to cover the total bill")
-		s.log.Named("CreateBill").Error("Check for balance", zap.Error(err))
+		s.log.Named("CreateBill").Error("Insufficient balance",
+			zap.String("userId", userProfile.Id),
+			zap.Float64("balance", user.RemainingCoin),
+			zap.Float64("required", billDto.Total))
 		return err
+	}
+
+	// Deduct balance FIRST (within transaction)
+	newBalance := user.RemainingCoin - billDto.Total
+	if err := tx.Model(&model.User{}).Where("id = ?", user.Id).Update("remaining_coin", newBalance).Error; err != nil {
+		tx.Rollback()
+		s.log.Named("CreateBill").Error("Failed to deduct balance", zap.Error(err))
+		return errors.New("failed to deduct balance")
 	}
 
 	bill := mapBillDtoToEntity(billDto)
@@ -40,17 +63,15 @@ func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.
 		bill.Lines[i].BillId = bill.Id
 	}
 
-	err = s.repo.Create(bill)
-	if err != nil {
-		s.log.Named("CreateBill").Error("Create", zap.Error(err))
-		return err
+	if err := tx.Create(bill).Error; err != nil {
+		tx.Rollback()
+		s.log.Named("CreateBill").Error("Failed to create bill", zap.Error(err))
+		return errors.New("failed to create bill")
 	}
 
-	user.RemainingCoin -= bill.Total
-	err = s.userRepo.Update(user)
-	if err != nil {
-		s.log.Named("CreateBill").Error("Update user", zap.Error(err))
-		return err
+	if err := tx.Commit().Error; err != nil {
+		s.log.Named("CreateBill").Error("Failed to commit transaction", zap.Error(err))
+		return errors.New("failed to complete transaction")
 	}
 
 	s.log.Named("CreateBill").Info("Created bill successful", zap.Any("bill", bill))
