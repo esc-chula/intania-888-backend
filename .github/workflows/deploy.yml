@@ -58,27 +58,9 @@ jobs:
             --platform managed \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --set-env-vars="SERVER_NAME=intania-shop-api" \
-            --set-env-vars="SERVER_ENV=production" \
-            --set-env-vars="SERVER_HOST=0.0.0.0" \
-            --set-env-vars="SERVER_PORT=8080" \
-            --set-env-vars="SERVER_ORIGIN=${{ secrets.FRONTEND_URL }}" \
-            --set-secrets="DB_HOST=DB_HOST:latest" \
-            --set-secrets="DB_PORT=DB_PORT:latest" \
-            --set-secrets="DB_USER=DB_USER:latest" \
-            --set-secrets="DB_PASS=DB_PASS:latest" \
-            --set-secrets="DB_NAME=DB_NAME:latest" \
-            --set-secrets="JWT_ACCESS_TOKEN_SECRET=JWT_ACCESS_TOKEN_SECRET:latest" \
-            --set-secrets="JWT_REFRESH_TOKEN_EXPIRATION=JWT_REFRESH_TOKEN_EXPIRATION:latest" \
-            --set-secrets="OAUTH_CLIENT_ID=OAUTH_CLIENT_ID:latest" \
-            --set-secrets="OAUTH_CLIENT_SECRET=OAUTH_CLIENT_SECRET:latest" \
-            --set-secrets="OAUTH_REDIRECT_URI=OAUTH_REDIRECT_URI:latest" \
-            --set-secrets="CACHE_HOST=CACHE_HOST:latest" \
-            --set-secrets="CACHE_PORT=CACHE_PORT:latest" \
-            --set-secrets="CACHE_PASS=CACHE_PASS:latest" \
-            --set-secrets="SWAGGER_USERNAME=SWAGGER_USERNAME:latest" \
-            --set-secrets="SWAGGER_PASSWORD=SWAGGER_PASSWORD:latest" \
-            --set-secrets="CORS_ALLOW_ORIGINS=CORS_ALLOW_ORIGINS:latest" \
+            --vpc-connector=projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/connectors/cloudrun-connector \
+            --vpc-egress=private-ranges-only \
+            --set-env-vars="SERVER_NAME=intania-shop-api,SERVER_ENV=production,SERVER_HOST=0.0.0.0,SERVER_PORT=8080,SERVER_ORIGIN=${{ secrets.FRONTEND_URL }},DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_USER=${{ secrets.DB_USER }},DB_PASS=${{ secrets.DB_PASS }},DB_NAME=${{ secrets.DB_NAME }},JWT_ACCESS_TOKEN_SECRET=${{ secrets.JWT_ACCESS_TOKEN_SECRET }},JWT_REFRESH_TOKEN_EXPIRATION=${{ secrets.JWT_REFRESH_TOKEN_EXPIRATION }},OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }},OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }},OAUTH_REDIRECT_URI=${{ secrets.OAUTH_REDIRECT_URI }},CACHE_HOST=${{ secrets.CACHE_HOST }},CACHE_PORT=${{ secrets.CACHE_PORT }},CACHE_PASS=${{ secrets.CACHE_PASS }},SWAGGER_USERNAME=${{ secrets.SWAGGER_USERNAME }},SWAGGER_PASSWORD=${{ secrets.SWAGGER_PASSWORD }},CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS }}" \
             --min-instances=0 \
             --max-instances=10 \
             --memory=512Mi \
