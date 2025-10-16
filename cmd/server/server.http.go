@@ -134,7 +134,17 @@ func (s *FiberHttpServer) OriginGuard() fiber.Handler {
 		origin := c.Get("Origin")
 		s.logger.Info("OriginGuard", zap.String("origin", origin))
 
-		if origin != s.cfg.GetServer().Origin {
+		//todo: remove this redundanct shit, have fun
+		allowedOrigins := strings.Split(s.cfg.GetCors().AllowOrigins, ",")
+		isAllowed := false
+		for _, allowed := range allowedOrigins {
+			if origin == strings.TrimSpace(allowed) {
+				isAllowed = true
+				break
+			}
+		}
+
+		if !isAllowed {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"message": "Unauthorized",
 			})
