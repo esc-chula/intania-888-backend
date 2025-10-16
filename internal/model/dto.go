@@ -139,3 +139,38 @@ type UpdateUserDto struct {
 	RoleId   string  `json:"role_id"`
 	GroupId  *string `json:"group_id"`
 }
+
+// Steal token DTOs
+type StealTokenDto struct {
+	Token       string    `json:"token"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	VictimCount int       `json:"victim_count"`
+	Message     string    `json:"message"`
+}
+
+type CandidatePreviewDto struct {
+	Index   int     `json:"index"`
+	Name    string  `json:"name"`
+	RoleId  string  `json:"role_id"`
+	GroupId *string `json:"group_id"`
+}
+
+type UseStealTokenRequestDto struct {
+	Token       string `json:"token"`
+	VictimIndex int    `json:"victim_index"`
+}
+
+type VictimDetailDto struct {
+	UserId       string  `json:"user_id"`
+	Name         string  `json:"name"`
+	RoleId       string  `json:"role_id"`
+	GroupId      *string `json:"group_id"`
+	AmountStolen float64 `json:"amount_stolen"`
+}
+
+type UseStealTokenResponseDto struct {
+	TotalStolen   float64           `json:"total_stolen"`
+	VictimsCount  int               `json:"victims_count"`
+	VictimDetails []VictimDetailDto `json:"victim_details"`
+	Message       string            `json:"message"`
+}

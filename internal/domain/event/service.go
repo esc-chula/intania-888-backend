@@ -3,12 +3,14 @@ package event
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/utils"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -106,6 +108,53 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 	// Calculate reward based on new rules
 	var reward float64
 	switch {
+	// 3 matching aliens -> issue steal token
+	case slot1 == "👽" && slot2 == "👽" && slot3 == "👽":
+		// pick 3 candidates and store their IDs in token
+		candidates, err := s.eventRepo.GetRandomEligibleUsers(req.Id, 3)
+		if err != nil || len(candidates) == 0 {
+			s.log.Named("SpinSlotMachine").Error("No eligible candidates", zap.Error(err))
+			reward = spendAmount * 4.0
+			break
+		}
+
+		ids := make([]string, 0, len(candidates))
+		for _, u := range candidates {
+			ids = append(ids, u.Id)
+		}
+
+		token := &model.StealToken{
+			Id:               uuid.NewString(),
+			UserId:           req.Id,
+			Token:            uuid.NewString(),
+			IsUsed:           false,
+			VictimCount:      3,
+			AllowedVictimIds: joinCSV(ids),
+			ExpiresAt:        time.Now().Add(60 * time.Second),
+		}
+		if err := s.eventRepo.CreateStealToken(token); err != nil {
+			s.log.Named("SpinSlotMachine").Error("Failed to create steal token", zap.Error(err))
+			reward = spendAmount * 4.0
+		} else {
+			// return early with token (no coin reward here)
+			// send back candidate previews without IDs
+			previews := make([]model.CandidatePreviewDto, 0, len(candidates))
+			for i, u := range candidates {
+				previews = append(previews, model.CandidatePreviewDto{Index: i, Name: u.Name, RoleId: u.RoleId, GroupId: u.GroupId})
+			}
+
+			return map[string]interface{}{
+				"slots":  []string{slot1, slot2, slot3},
+				"reward": 0.0,
+				"stealToken": model.StealTokenDto{
+					Token:       token.Token,
+					ExpiresAt:   token.ExpiresAt,
+					VictimCount: token.VictimCount,
+					Message:     "👽 ALIEN POWER! Use this token to steal from other players!",
+				},
+				"candidates": previews,
+			}, nil
+		}
 	// 3 matching gold symbols
 	case slot1 == "💰" && slot2 == "💰" && slot3 == "💰":
 		reward = spendAmount * 10.0
@@ -154,6 +203,59 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 	}, nil
 }
 
+// UseStealToken validates the token ownership & expiry then steals a percentage
+// from random users and marks the token as used.
+func (s *eventService) UseStealToken(userId string, token string, victimIndex int) (*model.UseStealTokenResponseDto, error) {
+	stealToken, err := s.eventRepo.GetStealTokenByToken(token)
+	if err != nil {
+		return nil, errors.New("invalid or expired token")
+	}
+	if stealToken.UserId != userId {
+		return nil, errors.New("token does not belong to user")
+	}
+	if stealToken.IsUsed {
+		return nil, errors.New("token already used")
+	}
+	if time.Now().After(stealToken.ExpiresAt) {
+		return nil, errors.New("token expired")
+	}
+
+	// Resolve victim id from token's AllowedVictimIds using victimIndex
+	ids := splitCSV(stealToken.AllowedVictimIds)
+	if victimIndex < 0 || victimIndex >= len(ids) {
+		return nil, errors.New("invalid victim_index")
+	}
+	victimUserId := ids[victimIndex]
+
+	// Fixed percentage = 15%
+	percentage := 0.15
+
+	// Steal from the specific victim chosen by index
+	total, detail, err := s.eventRepo.StealPercentageFromSpecificUser(userId, victimUserId, percentage)
+	if err != nil {
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.eventRepo.MarkTokenAsUsed(stealToken.Id); err != nil {
+		s.log.Named("UseStealToken").Error("mark token used", zap.Error(err))
+	}
+
+	victimDetails := []model.VictimDetailDto{}
+	if detail != nil {
+		victimDetails = append(victimDetails, *detail)
+	}
+
+	return &model.UseStealTokenResponseDto{
+		TotalStolen:   total,
+		VictimsCount:  1,
+		VictimDetails: victimDetails,
+		Message:       fmt.Sprintf("👽 Stole %.2f coins from 1 player!", total),
+	}, nil
+}
+
 func (s *eventService) SetDailyReward(date string, amount float64) error {
 	reward := &model.DailyReward{
 		Date:   date,
@@ -168,4 +270,28 @@ func (s *eventService) SetDailyReward(date string, amount float64) error {
 
 	s.log.Named("SetDailyReward").Info("Set daily reward successfully", zap.String("date", date), zap.Float64("amount", amount))
 	return nil
+}
+
+// joinCSV joins a slice of strings into a comma-separated string.
+func joinCSV(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	return strings.Join(ids, ",")
+}
+
+// splitCSV splits a comma-separated string into a slice of strings.
+func splitCSV(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	// Avoid empty elements from accidental double commas
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

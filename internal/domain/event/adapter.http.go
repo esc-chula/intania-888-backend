@@ -24,6 +24,7 @@ func (h *EventHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 
 	router.Get("/redeem/daily", h.RedeemDailyReward)
 	router.Post("/spin/slot", h.SpinSlotMachine)
+	router.Post("/use-steal-token", h.UseStealToken)
 
 	adminRouter := router.Group("", mid.AdminMiddleware)
 	adminRouter.Post("/daily-rewards", h.SetDailyReward)
@@ -114,4 +115,29 @@ func (h *EventHttpHandler) SetDailyReward(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Set daily reward successful"})
+}
+
+// UseStealToken consumes a steal token to steal a percentage from random users.
+func (h *EventHttpHandler) UseStealToken(c *fiber.Ctx) error {
+	userProfile := utils.GetUserProfileFromCtx(c)
+	if userProfile == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "User profile not found"})
+	}
+
+	var req struct {
+		Token       string `json:"token"`
+		VictimIndex int    `json:"victim_index"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+	if req.Token == "" || req.VictimIndex < 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "token and victim_index are required"})
+	}
+
+	res, err := h.eventService.UseStealToken(userProfile.Id, req.Token, req.VictimIndex)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.Status(fiber.StatusOK).JSON(res)
 }

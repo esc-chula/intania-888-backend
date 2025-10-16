@@ -149,3 +149,22 @@ type DailyReward struct {
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``
 }
+
+// StealToken represents a short-lived, single-use token that allows a user to
+// steal a percentage of coins from a number of random users. Tokens are
+// created by special slot outcomes and must be consumed via the
+// /events/use-steal-token endpoint. They expire automatically after ExpiresAt
+// and are marked used once consumed.
+type StealToken struct {
+	Id               string    `gorm:"primaryKey;type:varchar(100)"`
+	UserId           string    `gorm:"type:varchar(100);not null;index"`
+	Token            string    `gorm:"type:varchar(100);not null;uniqueIndex"`
+	IsUsed           bool      `gorm:"type:boolean;default:false"`
+	VictimCount      int       `gorm:"type:int;not null"`
+	AllowedVictimIds string    `gorm:"type:text;not null"` // CSV of user IDs
+	ExpiresAt        time.Time `gorm:"not null"`
+	CreatedAt        time.Time ``
+	UpdatedAt        time.Time ``
+
+	User User `gorm:"foreignKey:UserId"`
+}
