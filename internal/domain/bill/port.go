@@ -6,6 +6,7 @@ type BillRepository interface {
 	Create(bill *model.BillHead) error
 	GetById(billId, userId string) (*model.BillHead, error)
 	GetAll(userId string) ([]*model.BillHead, error)
+	GetAllAdmin() ([]*model.BillHead, error)
 	Update(bill *model.BillHead) error
 	Delete(id string) error
 }
@@ -14,6 +15,7 @@ type BillService interface {
 	CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error
 	GetBill(billId, userId string) (*model.BillHeadDto, error)
 	GetAllBills(userId string) ([]*model.BillHeadDto, error)
+	GetAllBillsAdmin() ([]*model.BillHeadDto, error)
 	UpdateBill(billDto *model.BillHeadDto) error
 	DeleteBill(id string) error
 }

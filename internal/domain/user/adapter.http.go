@@ -21,6 +21,10 @@ func (h *UserHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 	router.Get("/", h.GetAllUsers)
 	router.Get("/:id", h.GetUser)
 	router.Patch("/:id", h.UpdateUser)
+
+	// Admin routes
+	adminRouter := router.Group("/admin", mid.AdminMiddleware)
+	adminRouter.Patch("/:id", h.AdminUpdateUser)
 }
 
 // @Summary Create a new user
@@ -107,4 +111,36 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(user)
+}
+
+// @Summary Admin update user
+// @Description Allows admin to update any user including role and coins
+// @Tags User
+// @Accept  json
+// @Produce  json
+// @Param   id    path      string  true  "User ID"
+// @Param   user  body      model.UserDto  true  "Updated user information"
+// @Success 200    {object} model.UserDto
+// @Failure 400    {object} map[string]string  "cannot parse body"
+// @Failure 500    {object} map[string]string  "internal server error"
+// @Router  /users/admin/{id} [patch]
+func (h *UserHttpHandler) AdminUpdateUser(c *fiber.Ctx) error {
+	userId := c.Params("id")
+
+	userDto := new(model.UserDto)
+	if err := c.BodyParser(userDto); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
+	}
+
+	if err := h.service.AdminUpdateUser(userId, userDto); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Return updated user
+	updatedUser, err := h.service.GetUser(userId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(updatedUser)
 }

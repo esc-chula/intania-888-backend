@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type billServiceImpl struct {
@@ -15,67 +16,53 @@ type billServiceImpl struct {
 	userRepo user.UserRepository
 	db       *gorm.DB
 	log      *zap.Logger
+	db       *gorm.DB
 }
 
 // Create a new instance of BillService
-func NewBillService(repo BillRepository, userRepo user.UserRepository, db *gorm.DB, log *zap.Logger) BillService {
-	return &billServiceImpl{repo, userRepo, db, log}
+func NewBillService(repo BillRepository, userRepo user.UserRepository, log *zap.Logger, db *gorm.DB) BillService {
+	return &billServiceImpl{repo, userRepo, log, db}
 }
 
-// CreateBill creates a new bill
+// CreateBill creates a new bill with transaction
 func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
-	tx := s.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", userProfile.Id).
+			First(&user).Error; err != nil {
+			s.log.Named("CreateBill").Error("Get user by Id with lock", zap.Error(err))
+			return err
 		}
-	}()
 
-	user, err := s.userRepo.GetById(userProfile.Id)
-	if err != nil {
-		tx.Rollback()
-		s.log.Named("CreateBill").Error("Get user by Id", zap.Error(err))
-		return err
-	}
+		if user.RemainingCoin < billDto.Total {
+			err := errors.New("user does not have enough coins to cover the total bill")
+			s.log.Named("CreateBill").Error("Check for balance", zap.Error(err))
+			return err
+		}
 
-	// Check balance
-	if user.RemainingCoin < billDto.Total {
-		tx.Rollback()
-		err := errors.New("user does not have enough coins to cover the total bill")
-		s.log.Named("CreateBill").Error("Insufficient balance",
-			zap.String("userId", userProfile.Id),
-			zap.Float64("balance", user.RemainingCoin),
-			zap.Float64("required", billDto.Total))
-		return err
-	}
+		bill := mapBillDtoToEntity(billDto)
+		bill.Id = uuid.NewString()
+		for i := range bill.Lines {
+			bill.Lines[i].BillId = bill.Id
+		}
 
-	// Deduct balance FIRST (within transaction)
-	newBalance := user.RemainingCoin - billDto.Total
-	if err := tx.Model(&model.User{}).Where("id = ?", user.Id).Update("remaining_coin", newBalance).Error; err != nil {
-		tx.Rollback()
-		s.log.Named("CreateBill").Error("Failed to deduct balance", zap.Error(err))
-		return errors.New("failed to deduct balance")
-	}
+		if err := tx.Create(bill).Error; err != nil {
+			s.log.Named("CreateBill").Error("Create bill", zap.Error(err))
+			return err
+		}
 
-	bill := mapBillDtoToEntity(billDto)
-	bill.Id = uuid.NewString()
-	for i := range bill.Lines {
-		bill.Lines[i].BillId = bill.Id
-	}
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", user.Id).
+			Update("remaining_coin", gorm.Expr("remaining_coin - ?", bill.Total)).
+			Error; err != nil {
+			s.log.Named("CreateBill").Error("Update user balance", zap.Error(err))
+			return err
+		}
 
-	if err := tx.Create(bill).Error; err != nil {
-		tx.Rollback()
-		s.log.Named("CreateBill").Error("Failed to create bill", zap.Error(err))
-		return errors.New("failed to create bill")
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		s.log.Named("CreateBill").Error("Failed to commit transaction", zap.Error(err))
-		return errors.New("failed to complete transaction")
-	}
-
-	s.log.Named("CreateBill").Info("Created bill successful", zap.Any("bill", bill))
-	return nil
+		s.log.Named("CreateBill").Info("Created bill successful", zap.Any("bill", bill))
+		return nil
+	})
 }
 
 // GetBill returns a bill by id
@@ -96,7 +83,7 @@ func (s *billServiceImpl) GetBill(billId, userId string) (*model.BillHeadDto, er
 	return billDto, nil
 }
 
-// GetAllBills returns all bills
+// GetAllBills returns all bills for a specific user
 func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, error) {
 	bills, err := s.repo.GetAll(userId)
 	if err != nil {
@@ -106,6 +93,19 @@ func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, erro
 
 	billDtos := mapBillsEntityToDto(bills)
 	s.log.Named("GetAllBills").Info("Retrieved all bills successful", zap.Int("count", len(billDtos)))
+	return billDtos, nil
+}
+
+// GetAllBillsAdmin returns all bills from all users (admin only)
+func (s *billServiceImpl) GetAllBillsAdmin() ([]*model.BillHeadDto, error) {
+	bills, err := s.repo.GetAllAdmin()
+	if err != nil {
+		s.log.Named("GetAllBillsAdmin").Error("GetAllAdmin", zap.Error(err))
+		return nil, err
+	}
+
+	billDtos := mapBillsEntityToDto(bills)
+	s.log.Named("GetAllBillsAdmin").Info("Retrieved all bills (admin) successful", zap.Int("count", len(billDtos)))
 	return billDtos, nil
 }
 

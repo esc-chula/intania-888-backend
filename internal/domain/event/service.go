@@ -153,3 +153,19 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 		"reward": reward,
 	}, nil
 }
+
+func (s *eventService) SetDailyReward(date string, amount float64) error {
+	reward := &model.DailyReward{
+		Date:   date,
+		Reward: amount,
+	}
+
+	err := s.eventRepo.SetReward(reward)
+	if err != nil {
+		s.log.Named("SetDailyReward").Error("Failed to set daily reward", zap.Error(err))
+		return err
+	}
+
+	s.log.Named("SetDailyReward").Info("Set daily reward successfully", zap.String("date", date), zap.Float64("amount", amount))
+	return nil
+}

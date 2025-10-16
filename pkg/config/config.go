@@ -7,6 +7,7 @@ type Config interface {
 	GetJwt() Jwt
 	GetOAuth() OAuth
 	GetSwagger() Swagger
+	GetCors() Cors
 }
 
 type Server struct {
@@ -16,6 +17,10 @@ type Server struct {
 	Url    string `mapstructure:"server_url"`
 	Host   string `mapstructure:"server_host"`
 	Port   int    `mapstructure:"server_port"`
+}
+
+type Cors struct {
+	AllowOrigins string `mapstructure:"cors_allow_origins"`
 }
 
 type Db struct {

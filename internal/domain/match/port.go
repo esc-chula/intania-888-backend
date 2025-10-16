@@ -13,6 +13,7 @@ type MatchService interface {
 	UpdateMatchWinner(matchId string, winnerId string) error
 	processPayoutsForMatch(matchId string) error
 	UpdateMatchDraw(matchId string) error
+	UpdateMatch(matchId string, matchDto *model.MatchDto) error
 	DeleteMatch(id string) error
 }
 

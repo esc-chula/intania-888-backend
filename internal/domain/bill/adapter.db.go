@@ -29,10 +29,20 @@ func (r *billRepositoryImpl) GetById(billId, userId string) (*model.BillHead, er
 	return &bill, nil
 }
 
-// GetAll retrieves all bills
+// GetAll retrieves all bills for a specific user
 func (r *billRepositoryImpl) GetAll(userId string) ([]*model.BillHead, error) {
 	var bills []*model.BillHead
 	err := r.db.Preload("Lines").Preload("Lines.Match").Where("user_id = ?", userId).Find(&bills).Error
+	if err != nil {
+		return nil, err
+	}
+	return bills, nil
+}
+
+// GetAllAdmin retrieves all bills from all users (admin only)
+func (r *billRepositoryImpl) GetAllAdmin() ([]*model.BillHead, error) {
+	var bills []*model.BillHead
+	err := r.db.Preload("Lines").Preload("Lines.Match").Preload("User").Find(&bills).Error
 	if err != nil {
 		return nil, err
 	}

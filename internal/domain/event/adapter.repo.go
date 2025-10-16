@@ -33,3 +33,7 @@ func (r *eventRepository) GetReward(date string) (*model.DailyReward, error) {
 	}
 	return &reward, nil
 }
+
+func (r *eventRepository) SetReward(reward *model.DailyReward) error {
+	return r.db.Save(reward).Error
+}
