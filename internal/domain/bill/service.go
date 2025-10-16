@@ -16,15 +16,13 @@ type billServiceImpl struct {
 	userRepo user.UserRepository
 	db       *gorm.DB
 	log      *zap.Logger
-	db       *gorm.DB
 }
 
 // Create a new instance of BillService
-func NewBillService(repo BillRepository, userRepo user.UserRepository, log *zap.Logger, db *gorm.DB) BillService {
-	return &billServiceImpl{repo, userRepo, log, db}
+func NewBillService(repo BillRepository, userRepo user.UserRepository, db *gorm.DB, log *zap.Logger) BillService {
+	return &billServiceImpl{repo, userRepo, db, log}
 }
 
-// CreateBill creates a new bill with transaction
 func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
@@ -83,7 +81,7 @@ func (s *billServiceImpl) GetBill(billId, userId string) (*model.BillHeadDto, er
 	return billDto, nil
 }
 
-// GetAllBills returns all bills for a specific user
+// GetAllBills returns all bills
 func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, error) {
 	bills, err := s.repo.GetAll(userId)
 	if err != nil {
@@ -93,19 +91,6 @@ func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, erro
 
 	billDtos := mapBillsEntityToDto(bills)
 	s.log.Named("GetAllBills").Info("Retrieved all bills successful", zap.Int("count", len(billDtos)))
-	return billDtos, nil
-}
-
-// GetAllBillsAdmin returns all bills from all users (admin only)
-func (s *billServiceImpl) GetAllBillsAdmin() ([]*model.BillHeadDto, error) {
-	bills, err := s.repo.GetAllAdmin()
-	if err != nil {
-		s.log.Named("GetAllBillsAdmin").Error("GetAllAdmin", zap.Error(err))
-		return nil, err
-	}
-
-	billDtos := mapBillsEntityToDto(bills)
-	s.log.Named("GetAllBillsAdmin").Info("Retrieved all bills (admin) successful", zap.Int("count", len(billDtos)))
 	return billDtos, nil
 }
 
