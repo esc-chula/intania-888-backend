@@ -44,7 +44,3 @@ func (r *userRepositoryImpl) GetAll() ([]*model.User, error) {
 func (r *userRepositoryImpl) Update(user *model.User) error {
 	return r.db.Model(user).Where("id = ?", user.Id).Updates(user).Error
 }
-
-func (r *userRepositoryImpl) Delete(id string) error {
-	return r.db.Delete(&model.User{}, id).Error
-}

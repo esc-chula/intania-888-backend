@@ -1,3 +1,6 @@
 docker-compose*.yml
 *.env
 tmp
+*.md
+.env.local
+.env.prod

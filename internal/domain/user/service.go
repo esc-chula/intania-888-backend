@@ -73,23 +73,19 @@ func (s *userServiceImpl) GetAllUsers() ([]*model.UserDto, error) {
 }
 
 func (s *userServiceImpl) UpdateUser(userDto *model.UserDto) error {
-	err := s.repo.Update(ToUserEntity(userDto))
+	existed, err := s.repo.GetById(userDto.Id)
+	if err != nil {
+		s.log.Named("UpdateUser").Error("Failed to get existed user", zap.Error(err))
+		return err
+	}
+	userDto.RemainingCoin = existed.RemainingCoin
+
+	err = s.repo.Update(ToUserEntity(userDto))
 	if err != nil {
 		s.log.Named("UpdateUser").Error("Failed to update user", zap.Error(err))
 		return err
 	}
 
 	s.log.Named("UpdateUser").Info("User updated successfully", zap.String("user_id", userDto.Id))
-	return nil
-}
-
-func (s *userServiceImpl) DeleteUser(id string) error {
-	err := s.repo.Delete(id)
-	if err != nil {
-		s.log.Named("DeleteUser").Error("Failed to delete user", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("DeleteUser").Info("User deleted successfully", zap.String("user_id", id))
 	return nil
 }

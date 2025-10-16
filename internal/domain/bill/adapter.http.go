@@ -50,6 +50,10 @@ func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
 	}
 
+	if billDto.Total <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
+	}
+
 	billDto.UserId = userProfile.Id
 	err := h.service.CreateBill(userProfile, &billDto)
 	if err != nil {

@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"errors"
+	"slices"
 	"strings"
 
+	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
@@ -20,8 +22,24 @@ func NewMiddlewareHttpHandler(service MiddlewareService, log *zap.Logger) *Middl
 	}
 }
 
-// AuthMiddleware checks the token validity and retrieves the user information.
 func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
+	// Check if the request is coming from Postman, Proxyman, curl, or other HTTP clients
+	userAgent := c.Get("User-Agent")
+	if isNonBrowserRequest(userAgent) {
+		h.log.Named("AuthMiddleware").Error("Request from non-browser blocked", zap.String("User-Agent", userAgent))
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Idiot",
+		})
+	}
+
+	// Check for browser-specific headers
+	if !isBrowserHeadersValid(c) {
+		h.log.Named("AuthMiddleware").Error("Invalid browser headers")
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Idiot",
+		})
+	}
+
 	// Extract token from the header
 	header := c.Get("Authorization")
 	if header == "" {
@@ -57,8 +75,64 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 		})
 	}
 
+	if isInBlacklists(userDto) {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "missing authorization header",
+		})
+	}
+
 	// Store user in context for downstream handlers
 	c.Locals("user", userDto)
 
 	return c.Next()
+}
+
+// Helper function to check if the request is from non-browser clients
+func isNonBrowserRequest(userAgent string) bool {
+	nonBrowserAgents := []string{"postman", "proxyman", "curl", "httpie", "insomnia"}
+	userAgent = strings.ToLower(userAgent)
+
+	for _, agent := range nonBrowserAgents {
+		if strings.Contains(userAgent, agent) {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper function to check browser-specific headers
+func isBrowserHeadersValid(c *fiber.Ctx) bool {
+	acceptLanguage := c.Get("Accept-Language")
+	acceptEncoding := c.Get("Accept-Encoding")
+	secFetchMode := c.Get("Sec-Fetch-Mode")
+
+	// Check if common browser headers are present
+	return acceptLanguage != "" && acceptEncoding != "" && secFetchMode != ""
+}
+
+func isInBlacklists(user *model.UserDto) bool {
+	blacklistEmail := []string{
+		"6530162621@student.chula.ac.th",
+		"6633129621@student.chula.ac.th",
+		"6733023821@student.chula.ac.th",
+		"6630054621@student.chula.ac.th",
+		"6538004621@student.chula.ac.th",
+		"6733291621@student.chula.ac.th",
+		"6430039021@student.chula.ac.th",
+	}
+
+	blacklistId := []string{
+		"115982048644097094953",
+		"101935624102444830754",
+	}
+
+	if found := slices.Contains(blacklistEmail, user.Email); found {
+		return true
+	}
+
+	if found := slices.Contains(blacklistId, user.Id); found {
+		return true
+	}
+
+	return false
 }

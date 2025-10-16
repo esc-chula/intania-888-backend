@@ -6,14 +6,16 @@ type Config interface {
 	GetCache() Cache
 	GetJwt() Jwt
 	GetOAuth() OAuth
+	GetSwagger() Swagger
 }
 
 type Server struct {
-	Name string `mapstructure:"server_name"`
-	Env  string `mapstructure:"server_env"`
-	Url  string `mapstructure:"server_url"`
-	Host string `mapstructure:"server_host"`
-	Port int    `mapstructure:"server_port"`
+	Origin string `mapstructure:"server_origin"`
+	Name   string `mapstructure:"server_name"`
+	Env    string `mapstructure:"server_env"`
+	Url    string `mapstructure:"server_url"`
+	Host   string `mapstructure:"server_host"`
+	Port   int    `mapstructure:"server_port"`
 }
 
 type Db struct {
@@ -43,4 +45,9 @@ type OAuth struct {
 	ClientId     string `mapstructure:"oauth_client_id"`
 	ClientSecret string `mapstructure:"oauth_client_secret"`
 	RedirectUrl  string `mapstructure:"oauth_redirect_uri"`
+}
+
+type Swagger struct {
+	Username string `mapstructure:"swagger_username"`
+	Password string `mapstructure:"swagger_password"`
 }

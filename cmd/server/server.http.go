@@ -12,7 +12,9 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"go.uber.org/zap"
 
@@ -70,9 +72,12 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 	// set global prefix
 	router := s.app.Group("/api/v1")
 
+	// apply origin guard
+	router.Use(s.OriginGuard())
+
 	// enable cors
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000",
+		AllowOrigins:     "https://888.chula.engineering,http://localhost:3000",
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
 		AllowHeaders:     "Origin,X-PINGOTHER,Accept,Authorization,Content-Type,X-CSRF-Token",
 		ExposeHeaders:    "Link",
@@ -87,6 +92,27 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 		TimeZone:   "Asia/Bangkok",
 	}))
 
+	router.Use(limiter.New(limiter.Config{
+		Max:        100,
+		Expiration: 60 * time.Second,
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"message": "Too many requests, please try again later.",
+			})
+		},
+	}))
+
+	// basic authentication for swagger
+	router.Use("/swagger/*", basicauth.New(basicauth.Config{
+		Users: map[string]string{
+			s.cfg.GetSwagger().Username: s.cfg.GetSwagger().Password,
+		},
+		Unauthorized: func(c *fiber.Ctx) error {
+			c.Set(fiber.HeaderWWWAuthenticate, `Basic realm="Restricted"`)
+			return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
+		},
+	}))
+
 	// swagger
 	router.Get("/swagger/*", swagger.HandlerDefault)
 
@@ -96,4 +122,19 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 	})
 
 	return router
+}
+
+func (s *FiberHttpServer) OriginGuard() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		origin := c.Get("Origin")
+		s.logger.Info("OriginGuard", zap.String("origin", origin))
+
+		if origin != s.cfg.GetServer().Origin {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Unauthorized",
+			})
+		}
+
+		return c.Next()
+	}
 }
