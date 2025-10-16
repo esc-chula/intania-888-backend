@@ -192,3 +192,14 @@ type MineGameHistoryDto struct {
 	CreatedAt     time.Time  `json:"created_at"`
 	CompletedAt   *time.Time `json:"completed_at,omitempty"`
 }
+
+// External API DTOs
+type DeductCoinRequest struct {
+	Amount float64 `json:"amount" validate:"required,gte=1,lte=1000000"`
+}
+
+type DeductCoinResponse struct {
+	Success          bool    `json:"success"`
+	DeductedAmount   float64 `json:"deducted_amount"`
+	RemainingBalance float64 `json:"remaining_balance"`
+}

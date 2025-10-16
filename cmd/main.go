@@ -8,8 +8,8 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/event"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
-	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
+	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
@@ -39,7 +39,7 @@ func main() {
 
 	// init all layers
 	userRepo := user.NewUserRepository(db)
-	userSvc := user.NewUserService(userRepo, logger.Named("UserSvc"))
+	userSvc := user.NewUserService(userRepo, db, logger.Named("UserSvc"))
 	userHttp := user.NewUserHttpHandler(userSvc)
 
 	authRepo := auth.NewAuthRepository(*cache)
@@ -86,6 +86,10 @@ func main() {
 	eventHttp.RegisterRoutes(router, midHttp)
 	stakeMineHttp.RegisterRoutes(router, midHttp)
 	sportTypeHttp.RegisterRoutes(router, midHttp)
+
+	// register external API routes
+	externalRouter := router.Group("/external")
+	userHttp.RegisterExternalRoutes(externalRouter, midHttp)
 
 	// start server
 	server.Start()

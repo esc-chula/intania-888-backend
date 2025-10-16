@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -126,6 +127,10 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 
 func (s *FiberHttpServer) OriginGuard() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if strings.HasPrefix(c.Path(), "/api/v1/external/") {
+			return c.Next()
+		}
+
 		origin := c.Get("Origin")
 		s.logger.Info("OriginGuard", zap.String("origin", origin))
 
