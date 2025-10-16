@@ -161,16 +161,19 @@ type UseStealTokenRequestDto struct {
 }
 
 type VictimDetailDto struct {
-	UserId       string  `json:"user_id"`
-	Name         string  `json:"name"`
-	RoleId       string  `json:"role_id"`
-	GroupId      *string `json:"group_id"`
-	AmountStolen float64 `json:"amount_stolen"`
+	Index         int     `json:"index"`
+	UserId        string  `json:"user_id"`
+	Name          string  `json:"name"`
+	RoleId        string  `json:"role_id"`
+	GroupId       *string `json:"group_id"`
+	BalanceBefore float64 `json:"balance_before"`
+	AmountStolen  float64 `json:"amount_stolen"`
+	WasChosen     bool    `json:"was_chosen"`
 }
 
 type UseStealTokenResponseDto struct {
-	TotalStolen   float64           `json:"total_stolen"`
-	VictimsCount  int               `json:"victims_count"`
-	VictimDetails []VictimDetailDto `json:"victim_details"`
-	Message       string            `json:"message"`
+	TotalStolen      float64           `json:"total_stolen"`
+	RaiderNewBalance float64           `json:"raider_new_balance"`
+	AllCandidates    []VictimDetailDto `json:"all_candidates"`
+	Message          string            `json:"message"`
 }

@@ -195,3 +195,11 @@ func (r *eventRepository) GetRandomEligibleUsers(excludeUserId string, limit int
 	}
 	return users, nil
 }
+
+func (r *eventRepository) GetUsersByIds(userIds []string) ([]model.User, error) {
+	var users []model.User
+	if err := r.db.Where("id IN ?", userIds).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}

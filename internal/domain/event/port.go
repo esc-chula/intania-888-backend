@@ -8,16 +8,15 @@ type EventRepository interface {
 	GetReward(date string) (*model.DailyReward, error)
 	SetReward(reward *model.DailyReward) error
 
-	// Steal token repository
 	CreateStealToken(token *model.StealToken) error
 	GetStealTokenByToken(token string) (*model.StealToken, error)
 	MarkTokenAsUsed(tokenId string) error
 	DeleteExpiredTokens() error
 
-	// Steal percentage helpers
 	StealPercentageFromRandomUsers(thiefUserId string, victimCount int, percentage float64) (float64, []model.VictimDetailDto, error)
 	StealPercentageFromSpecificUser(thiefUserId string, victimUserId string, percentage float64) (float64, *model.VictimDetailDto, error)
 	GetRandomEligibleUsers(excludeUserId string, limit int) ([]model.User, error)
+	GetUsersByIds(userIds []string) ([]model.User, error)
 }
 
 type EventService interface {

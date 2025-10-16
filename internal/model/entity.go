@@ -160,9 +160,8 @@ type StealToken struct {
 	UserId           string    `gorm:"type:varchar(100);not null;index"`
 	Token            string    `gorm:"type:varchar(100);not null;uniqueIndex"`
 	IsUsed           bool      `gorm:"type:boolean;default:false"`
-	VictimCount      int       `gorm:"type:int;not null"`
-	AllowedVictimIds string    `gorm:"type:text;not null"` // CSV of user IDs
-	ExpiresAt        time.Time `gorm:"not null"`
+	AllowedVictimIds string    `gorm:"type:text;not null"`
+	ExpiresAt        time.Time `gorm:"not null;index"`
 	CreatedAt        time.Time ``
 	UpdatedAt        time.Time ``
 
