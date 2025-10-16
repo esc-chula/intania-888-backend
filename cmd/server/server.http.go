@@ -94,7 +94,7 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 	}))
 
 	router.Use(limiter.New(limiter.Config{
-		Max:        100,
+		Max:        200,
 		Expiration: 60 * time.Second,
 		KeyGenerator: func(c *fiber.Ctx) string {
 			return c.IP()
