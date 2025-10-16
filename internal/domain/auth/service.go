@@ -87,7 +87,7 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 			return nil, err
 		}
 
-		credential := utils.NewCredentials(*accessToken, *refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration))
+		credential := utils.NewCredentials(*accessToken, *refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration), true)
 
 		if err := s.authRepo.SetCacheValue(utils.ToAccessCacheKey(userToCreate.Id), credential, s.cfg.GetJwt().AccessTokenExpiration); err != nil {
 			s.log.Named("VerifyOAuthLogin").Error("Set access cache value: ", zap.Error(err))
@@ -114,7 +114,7 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 		return nil, err
 	}
 
-	credential := utils.NewCredentials(*accessToken, *refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration))
+	credential := utils.NewCredentials(*accessToken, *refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration), false)
 
 	if err := s.authRepo.SetCacheValue(utils.ToAccessCacheKey(existedUser.Id), credential, s.cfg.GetJwt().AccessTokenExpiration); err != nil {
 		s.log.Named("VerifyOAuthLogin").Error("Set access cache value: ", zap.Error(err))
@@ -147,7 +147,7 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*model.CredentialDt
 		return nil, err
 	}
 
-	newCredential := utils.NewCredentials(*accessToken, refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration))
+	newCredential := utils.NewCredentials(*accessToken, refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration), false)
 	if err := s.authRepo.SetCacheValue(utils.ToAccessCacheKey(refreshCacheDto.UserId), newCredential, s.cfg.GetJwt().AccessTokenExpiration); err != nil {
 		s.log.Named("RefreshToken").Error("Set access cache value: ", zap.Error(err))
 		return nil, err

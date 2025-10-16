@@ -90,6 +90,7 @@ func main() {
 	// register external API routes
 	externalRouter := router.Group("/external")
 	userHttp.RegisterExternalRoutes(externalRouter, midHttp)
+	authHttp.RegisterExternalRoutes(externalRouter, midHttp)
 
 	// start server
 	server.Start()
