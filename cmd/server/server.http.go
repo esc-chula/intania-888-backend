@@ -96,6 +96,9 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 	router.Use(limiter.New(limiter.Config{
 		Max:        100,
 		Expiration: 60 * time.Second,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"message": "Too many requests, please try again later.",
