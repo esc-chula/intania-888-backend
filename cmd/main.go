@@ -8,6 +8,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/event"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
@@ -65,6 +66,9 @@ func main() {
 	eventSvc := event.NewEventService(eventRepo, userRepo, cfg, logger)
 	eventHttp := event.NewEventHttpHandler(eventSvc)
 
+	stakeMineRepo := stakemine.NewStakeMineRepository(db)
+	stakeMineSvc := stakemine.NewStakeMineService(stakeMineRepo, db, logger.Named("StakeMineSvc"))
+	stakeMineHttp := stakemine.NewStakeMineHttpHandler(stakeMineSvc)
 	sportTypeRepo := sporttype.NewSportTypeRepository(db)
 	sportTypeSvc := sporttype.NewSportTypeService(sportTypeRepo, logger.Named("SportTypeSvc"))
 	sportTypeHttp := sporttype.NewSportTypeHttpHandler(sportTypeSvc)
@@ -80,6 +84,7 @@ func main() {
 	matchHttp.RegisterRoutes(router, midHttp)
 	colorHttp.RegisterRoutes(router, midHttp)
 	eventHttp.RegisterRoutes(router, midHttp)
+	stakeMineHttp.RegisterRoutes(router, midHttp)
 	sportTypeHttp.RegisterRoutes(router, midHttp)
 
 	// start server

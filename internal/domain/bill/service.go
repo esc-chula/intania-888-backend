@@ -14,6 +14,7 @@ import (
 type billServiceImpl struct {
 	repo     BillRepository
 	userRepo user.UserRepository
+	db       *gorm.DB
 	log      *zap.Logger
 	db       *gorm.DB
 }

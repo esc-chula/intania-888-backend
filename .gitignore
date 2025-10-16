@@ -3,3 +3,5 @@
 *.env
 tmp
 *.md
+.env.local
+.env.prod
