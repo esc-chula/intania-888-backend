@@ -124,6 +124,7 @@ func (h *MiddlewareHttpHandler) AdminMiddleware(c *fiber.Ctx) error {
 	authorizedAdmins := []string{
 		"6633165121@student.chula.ac.th",
 		"6738086221@student.chula.ac.th",
+		"6633149121@student.chula.ac.th",
 	}
 	isAuthorizedAdmin := false
 	for _, adminEmail := range authorizedAdmins {

@@ -35,6 +35,8 @@ func main() {
 		&model.DailyReward{},
 		&model.StealToken{},
 		&model.GroupStage{},
+		&model.MineGame{},
+		&model.MineGameHistory{},
 	); err != nil {
 		log.Fatalf("Error during migration: %v", err)
 	}

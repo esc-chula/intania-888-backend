@@ -20,6 +20,7 @@ type CredentialDto struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int32  `json:"expires_in"`
+	IsNewUser    bool   `json:"is_new_user"`
 }
 
 type OAuthCodeDto struct {
@@ -176,4 +177,66 @@ type UseStealTokenResponseDto struct {
 	RaiderNewBalance float64           `json:"raider_new_balance"`
 	AllCandidates    []VictimDetailDto `json:"all_candidates"`
 	Message          string            `json:"message"`
+type CreateMineGameRequest struct {
+	BetAmount float64 `json:"bet_amount" validate:"required,gte=1,lte=1000000"`
+	RiskLevel string  `json:"risk_level" validate:"required,oneof=low medium high"`
+}
+
+type RevealMineTileRequest struct {
+	Index int `json:"index" validate:"required,min=0,max=15"`
+}
+
+// Response DTOs
+type MineTileDto struct {
+	Index    int    `json:"index"`
+	Type     string `json:"type"` // diamond, bomb, hidden
+	Revealed bool   `json:"revealed"`
+}
+
+type MineGameDto struct {
+	Id            string        `json:"id"`
+	UserId        string        `json:"user_id"`
+	BetAmount     float64       `json:"bet_amount"`
+	RiskLevel     string        `json:"risk_level"`
+	Grid          []MineTileDto `json:"grid"`
+	RevealedCount int           `json:"revealed_count"`
+	CurrentPayout float64       `json:"current_payout"`
+	Multiplier    float64       `json:"multiplier"`
+	Status        string        `json:"status"`
+	CreatedAt     time.Time     `json:"created_at"`
+	CompletedAt   *time.Time    `json:"completed_at,omitempty"`
+}
+
+type MineGameStatsDto struct {
+	TotalGames     int     `json:"total_games"`
+	GamesWon       int     `json:"games_won"`
+	GamesLost      int     `json:"games_lost"`
+	GamesCashedOut int     `json:"games_cashed_out"`
+	TotalWagered   float64 `json:"total_wagered"`
+	TotalWinnings  float64 `json:"total_winnings"`
+	NetProfit      float64 `json:"net_profit"`
+	WinRate        float64 `json:"win_rate"`
+}
+
+type MineGameHistoryDto struct {
+	GameId        string     `json:"game_id"`
+	BetAmount     float64    `json:"bet_amount"`
+	RiskLevel     string     `json:"risk_level"`
+	Status        string     `json:"status"`
+	FinalPayout   float64    `json:"final_payout"`
+	Multiplier    float64    `json:"multiplier"`
+	RevealedCount int        `json:"revealed_count"`
+	CreatedAt     time.Time  `json:"created_at"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty"`
+}
+
+// External API DTOs
+type DeductCoinRequest struct {
+	Amount float64 `json:"amount" validate:"required,gte=1,lte=1000000"`
+}
+
+type DeductCoinResponse struct {
+	Success          bool    `json:"success"`
+	DeductedAmount   float64 `json:"deducted_amount"`
+	RemainingBalance float64 `json:"remaining_balance"`
 }

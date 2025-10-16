@@ -125,6 +125,7 @@ func bindEnvVars(v *viper.Viper) {
 	v.BindEnv("cache_pass", "CACHE_PASS")
 
 	v.BindEnv("jwt_access_token_secret", "JWT_ACCESS_TOKEN_SECRET")
+	v.BindEnv("jwt_access_token_expiration", "JWT_ACCESS_TOKEN_EXPIRATION")
 	v.BindEnv("jwt_refresh_token_expiration", "JWT_REFRESH_TOKEN_EXPIRATION")
 
 	v.BindEnv("oauth_client_id", "OAUTH_CLIENT_ID")

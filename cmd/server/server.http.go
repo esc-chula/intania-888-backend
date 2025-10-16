@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -93,8 +94,11 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 	}))
 
 	router.Use(limiter.New(limiter.Config{
-		Max:        100,
+		Max:        200,
 		Expiration: 60 * time.Second,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"message": "Too many requests, please try again later.",
@@ -126,10 +130,24 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 
 func (s *FiberHttpServer) OriginGuard() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if strings.HasPrefix(c.Path(), "/api/v1/external/") {
+			return c.Next()
+		}
+
 		origin := c.Get("Origin")
 		s.logger.Info("OriginGuard", zap.String("origin", origin))
 
-		if origin != s.cfg.GetServer().Origin {
+		//todo: remove this redundanct shit, have fun
+		allowedOrigins := strings.Split(s.cfg.GetCors().AllowOrigins, ",")
+		isAllowed := false
+		for _, allowed := range allowedOrigins {
+			if origin == strings.TrimSpace(allowed) {
+				isAllowed = true
+				break
+			}
+		}
+
+		if !isAllowed {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"message": "Unauthorized",
 			})

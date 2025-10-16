@@ -14,16 +14,15 @@ import (
 type billServiceImpl struct {
 	repo     BillRepository
 	userRepo user.UserRepository
-	log      *zap.Logger
 	db       *gorm.DB
+	log      *zap.Logger
 }
 
 // Create a new instance of BillService
-func NewBillService(repo BillRepository, userRepo user.UserRepository, log *zap.Logger, db *gorm.DB) BillService {
-	return &billServiceImpl{repo, userRepo, log, db}
+func NewBillService(repo BillRepository, userRepo user.UserRepository, db *gorm.DB, log *zap.Logger) BillService {
+	return &billServiceImpl{repo, userRepo, db, log}
 }
 
-// CreateBill creates a new bill with transaction
 func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
@@ -82,7 +81,7 @@ func (s *billServiceImpl) GetBill(billId, userId string) (*model.BillHeadDto, er
 	return billDto, nil
 }
 
-// GetAllBills returns all bills for a specific user
+// GetAllBills returns all bills
 func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, error) {
 	bills, err := s.repo.GetAll(userId)
 	if err != nil {

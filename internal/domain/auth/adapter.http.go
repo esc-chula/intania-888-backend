@@ -25,6 +25,10 @@ func (h *AuthHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 	router.Get("/me", mid.AuthMiddleware, h.GetMe)
 }
 
+func (h *AuthHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
+	router.Get("/me", mid.ExternalAPIMiddleware, h.GetMe)
+}
+
 // @Summary Login URL
 // @Description Retrieves the OAuth login URL
 // @Tags Auth

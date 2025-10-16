@@ -9,6 +9,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
+	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
@@ -38,7 +39,7 @@ func main() {
 
 	// init all layers
 	userRepo := user.NewUserRepository(db)
-	userSvc := user.NewUserService(userRepo, logger.Named("UserSvc"))
+	userSvc := user.NewUserService(userRepo, db, logger.Named("UserSvc"))
 	userHttp := user.NewUserHttpHandler(userSvc)
 
 	authRepo := auth.NewAuthRepository(*cache)
@@ -50,7 +51,7 @@ func main() {
 	midHttp := middleware.NewMiddlewareHttpHandler(midSvc, logger)
 
 	billRepo := bill.NewBillRepository(db)
-	billSvc := bill.NewBillService(billRepo, userRepo, logger.Named("BillSvc"), db)
+	billSvc := bill.NewBillService(billRepo, userRepo, db, logger.Named("BillSvc"))
 	billHttp := bill.NewBillHttpHandler(billSvc)
 
 	matchRepo := match.NewMatchRepository(db)
@@ -65,6 +66,9 @@ func main() {
 	eventSvc := event.NewEventService(eventRepo, userRepo, cfg, logger)
 	eventHttp := event.NewEventHttpHandler(eventSvc)
 
+	stakeMineRepo := stakemine.NewStakeMineRepository(db)
+	stakeMineSvc := stakemine.NewStakeMineService(stakeMineRepo, db, logger.Named("StakeMineSvc"))
+	stakeMineHttp := stakemine.NewStakeMineHttpHandler(stakeMineSvc)
 	sportTypeRepo := sporttype.NewSportTypeRepository(db)
 	sportTypeSvc := sporttype.NewSportTypeService(sportTypeRepo, logger.Named("SportTypeSvc"))
 	sportTypeHttp := sporttype.NewSportTypeHttpHandler(sportTypeSvc)
@@ -80,7 +84,13 @@ func main() {
 	matchHttp.RegisterRoutes(router, midHttp)
 	colorHttp.RegisterRoutes(router, midHttp)
 	eventHttp.RegisterRoutes(router, midHttp)
+	stakeMineHttp.RegisterRoutes(router, midHttp)
 	sportTypeHttp.RegisterRoutes(router, midHttp)
+
+	// register external API routes
+	externalRouter := router.Group("/external")
+	userHttp.RegisterExternalRoutes(externalRouter, midHttp)
+	authHttp.RegisterExternalRoutes(externalRouter, midHttp)
 
 	// start server
 	server.Start()

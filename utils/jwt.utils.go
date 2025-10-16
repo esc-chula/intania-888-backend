@@ -55,10 +55,11 @@ func JwtSignRefreshToken(expiration int) (*string, error) {
 	return &refreshToken, nil
 }
 
-func NewCredentials(accessToken, refreshToken string, expiresIn int32) *model.CredentialDto {
+func NewCredentials(accessToken, refreshToken string, expiresIn int32, isNewUser bool) *model.CredentialDto {
 	return &model.CredentialDto{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    expiresIn,
+		IsNewUser:    isNewUser,
 	}
 }
