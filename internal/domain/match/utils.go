@@ -147,5 +147,10 @@ func calculateOddsRate(betOn string, totalBetOnA, totalBetOnB float64) float64 {
 }
 
 func calculatePayout(totalRates, amount float64) float64 {
-	return totalRates * amount
+	payout := totalRates * amount
+	return roundToTwoDecimals(payout)
+}
+
+func roundToTwoDecimals(value float64) float64 {
+	return float64(int(value*100+0.5)) / 100
 }

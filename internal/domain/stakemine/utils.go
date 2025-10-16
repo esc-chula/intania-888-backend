@@ -196,5 +196,11 @@ func CalculatePayoutSafe(betAmount float64, multiplier float64) (float64, error)
 
 	payout := betAmount * multiplier
 
+	payout = roundToTwoDecimals(payout)
+
 	return payout, nil
+}
+
+func roundToTwoDecimals(value float64) float64 {
+	return float64(int(value*100+0.5)) / 100
 }
