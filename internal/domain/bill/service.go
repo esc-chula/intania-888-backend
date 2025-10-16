@@ -94,6 +94,19 @@ func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, erro
 	return billDtos, nil
 }
 
+// GetAllBillsAdmin returns all bills from all users (admin only)
+func (s *billServiceImpl) GetAllBillsAdmin() ([]*model.BillHeadDto, error) {
+	bills, err := s.repo.GetAllAdmin()
+	if err != nil {
+		s.log.Named("GetAllBillsAdmin").Error("GetAllAdmin", zap.Error(err))
+		return nil, err
+	}
+
+	billDtos := mapBillsEntityToDto(bills)
+	s.log.Named("GetAllBillsAdmin").Info("Retrieved all bills (admin) successful", zap.Int("count", len(billDtos)))
+	return billDtos, nil
+}
+
 // UpdateBill updates an existing bill
 func (s *billServiceImpl) UpdateBill(billDto *model.BillHeadDto) error {
 	bill := mapBillDtoToEntity(billDto)
