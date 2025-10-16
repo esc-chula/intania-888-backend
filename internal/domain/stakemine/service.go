@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type stakeMineServiceImpl struct {
@@ -26,81 +27,100 @@ func NewStakeMineService(repo StakeMineRepository, db *gorm.DB, log *zap.Logger)
 }
 
 func (s *stakeMineServiceImpl) CreateGame(userId string, req *model.CreateMineGameRequest) (*model.MineGameDto, error) {
+	if req.BetAmount < 1 {
+		return nil, errors.New("bet amount must be at least 1 coin")
+	}
+	if req.BetAmount > 1000000 {
+		return nil, errors.New("bet amount cannot exceed 1,000,000 coins")
+	}
+
 	// Validate risk level
 	if !ValidateRiskLevel(req.RiskLevel) {
 		s.log.Named("CreateGame").Error("Invalid risk level", zap.String("risk", req.RiskLevel))
 		return nil, errors.New("invalid risk level. must be 'low', 'medium', or 'high'")
 	}
 
-	// Check if user has an active game
-	activeGame, _ := s.repo.FindActiveByUserId(userId)
-	if activeGame != nil {
-		s.log.Named("CreateGame").Warn("User already has active game", zap.String("userId", userId))
-		return nil, errors.New("you already have an active game. please finish or cash out first")
-	}
+	var game *model.MineGame
 
-	// Check user balance
-	var user model.User
-	if err := s.userDB.Where("id = ?", userId).First(&user).Error; err != nil {
-		s.log.Named("CreateGame").Error("User not found", zap.Error(err))
-		return nil, errors.New("user not found")
-	}
+	err := s.userDB.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", userId).
+			First(&user).Error; err != nil {
+			s.log.Named("CreateGame").Error("User not found", zap.Error(err))
+			return errors.New("user not found")
+		}
 
-	if user.RemainingCoin < req.BetAmount {
-		s.log.Named("CreateGame").Warn("Insufficient balance", zap.String("userId", userId), zap.Float64("balance", user.RemainingCoin), zap.Float64("bet", req.BetAmount))
-		return nil, errors.New("insufficient balance")
-	}
+		var activeGameCount int64
+		if err := tx.Model(&model.MineGame{}).
+			Where("user_id = ? AND status = ?", userId, "active").
+			Count(&activeGameCount).Error; err != nil {
+			s.log.Named("CreateGame").Error("Failed to check active games", zap.Error(err))
+			return errors.New("failed to check active games")
+		}
+		if activeGameCount > 0 {
+			s.log.Named("CreateGame").Warn("User already has active game", zap.String("userId", userId))
+			return errors.New("you already have an active game. please finish or cash out first")
+		}
 
-	// Deduct bet amount from user balance
-	user.RemainingCoin -= req.BetAmount
-	if err := s.userDB.Save(&user).Error; err != nil {
-		s.log.Named("CreateGame").Error("Failed to deduct balance", zap.Error(err))
-		return nil, errors.New("failed to deduct balance")
-	}
+		if user.RemainingCoin < req.BetAmount {
+			s.log.Named("CreateGame").Warn("Insufficient balance",
+				zap.String("userId", userId),
+				zap.Float64("balance", user.RemainingCoin),
+				zap.Float64("bet", req.BetAmount))
+			return errors.New("insufficient balance")
+		}
 
-	// Generate grid
-	grid, err := GenerateGrid(req.RiskLevel)
+		grid, err := GenerateGrid(req.RiskLevel)
+		if err != nil {
+			s.log.Named("CreateGame").Error("Failed to generate grid", zap.Error(err))
+			return errors.New("failed to generate game grid")
+		}
+
+		gridJSON, err := GridToJSON(grid)
+		if err != nil {
+			s.log.Named("CreateGame").Error("Failed to save grid", zap.Error(err))
+			return errors.New("failed to save game data")
+		}
+
+		game = &model.MineGame{
+			Id:            uuid.New().String(),
+			UserId:        userId,
+			BetAmount:     req.BetAmount,
+			RiskLevel:     req.RiskLevel,
+			Status:        "active",
+			RevealedCount: 0,
+			CurrentPayout: req.BetAmount,
+			Multiplier:    1.0,
+			GridData:      gridJSON,
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+
+		if err := tx.Create(game).Error; err != nil {
+			s.log.Named("CreateGame").Error("Failed to create game", zap.Error(err))
+			return errors.New("failed to create game")
+		}
+
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userId).
+			Update("remaining_coin", gorm.Expr("remaining_coin - ?", req.BetAmount)).
+			Error; err != nil {
+			s.log.Named("CreateGame").Error("Failed to deduct balance", zap.Error(err))
+			return errors.New("failed to deduct balance")
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		// Refund on error
-		user.RemainingCoin += req.BetAmount
-		s.userDB.Save(&user)
-		s.log.Named("CreateGame").Error("Failed to generate grid", zap.Error(err))
-		return nil, errors.New("failed to generate game grid")
+		return nil, err
 	}
 
-	gridJSON, err := GridToJSON(grid)
-	if err != nil {
-		// Refund on error
-		user.RemainingCoin += req.BetAmount
-		s.userDB.Save(&user)
-		s.log.Named("CreateGame").Error("Failed to save grid", zap.Error(err))
-		return nil, errors.New("failed to save game data")
-	}
-
-	// Create game
-	game := &model.MineGame{
-		Id:            uuid.New().String(),
-		UserId:        userId,
-		BetAmount:     req.BetAmount,
-		RiskLevel:     req.RiskLevel,
-		Status:        "active",
-		RevealedCount: 0,
-		CurrentPayout: req.BetAmount,
-		Multiplier:    1.0,
-		GridData:      gridJSON,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
-	}
-
-	if err := s.repo.Create(game); err != nil {
-		// Refund on error
-		user.RemainingCoin += req.BetAmount
-		s.userDB.Save(&user)
-		s.log.Named("CreateGame").Error("Failed to create game", zap.Error(err))
-		return nil, errors.New("failed to create game")
-	}
-
-	s.log.Named("CreateGame").Info("Game created successfully", zap.String("gameId", game.Id), zap.String("userId", userId), zap.Float64("bet", req.BetAmount))
+	s.log.Named("CreateGame").Info("Game created successfully",
+		zap.String("gameId", game.Id),
+		zap.String("userId", userId),
+		zap.Float64("bet", req.BetAmount))
 	return s.gameToDto(game, true)
 }
 
@@ -145,6 +165,7 @@ func (s *stakeMineServiceImpl) RevealTile(userId string, gameId string, req *mod
 	game.RevealedCount++
 
 	var message string
+	var needsBalanceUpdate bool
 
 	if grid[req.Index].Type == "bomb" {
 		// Hit a bomb - game over
@@ -160,21 +181,17 @@ func (s *stakeMineServiceImpl) RevealTile(userId string, gameId string, req *mod
 
 		message = "💣 BOOM! You hit a bomb and lost!"
 		s.log.Named("RevealTile").Info("Player hit bomb", zap.String("gameId", gameId), zap.String("userId", userId))
-
-		// Record history
-		s.repo.CreateHistory(&model.MineGameHistory{
-			Id:          uuid.New().String(),
-			GameId:      game.Id,
-			TileIndex:   req.Index,
-			TileType:    "bomb",
-			Multiplier:  game.Multiplier,
-			PayoutAtHit: 0,
-			CreatedAt:   time.Now(),
-		})
 	} else {
 		// Found a diamond
 		game.Multiplier = CalculateMultiplier(game.RevealedCount, game.RiskLevel)
-		game.CurrentPayout = game.BetAmount * game.Multiplier
+
+		// Calculate payout safely with overflow protection
+		payout, err := CalculatePayoutSafe(game.BetAmount, game.Multiplier)
+		if err != nil {
+			s.log.Named("RevealTile").Error("Payout calculation error", zap.Error(err))
+			return nil, "", errors.New("payout calculation failed")
+		}
+		game.CurrentPayout = payout
 
 		// Check if all safe tiles revealed (auto win)
 		totalTiles := 16
@@ -183,17 +200,11 @@ func (s *stakeMineServiceImpl) RevealTile(userId string, gameId string, req *mod
 			game.Status = "won"
 			now := time.Now()
 			game.CompletedAt = &now
+			needsBalanceUpdate = true
 
 			// Reveal all tiles
 			for i := range grid {
 				grid[i].Revealed = true
-			}
-
-			// Credit winnings to user
-			var user model.User
-			if err := s.userDB.Where("id = ?", userId).First(&user).Error; err == nil {
-				user.RemainingCoin += game.CurrentPayout
-				s.userDB.Save(&user)
 			}
 
 			message = fmt.Sprintf("🎉 Perfect! You found all diamonds! Won: %.2f coins", game.CurrentPayout)
@@ -201,27 +212,65 @@ func (s *stakeMineServiceImpl) RevealTile(userId string, gameId string, req *mod
 		} else {
 			message = fmt.Sprintf("💎 Diamond found! Current payout: %.2f coins (%.2fx)", game.CurrentPayout, game.Multiplier)
 		}
-
-		// Record history
-		s.repo.CreateHistory(&model.MineGameHistory{
-			Id:          uuid.New().String(),
-			GameId:      game.Id,
-			TileIndex:   req.Index,
-			TileType:    "diamond",
-			Multiplier:  game.Multiplier,
-			PayoutAtHit: game.CurrentPayout,
-			CreatedAt:   time.Now(),
-		})
 	}
 
-	// Save updated grid
 	gridJSON, _ := GridToJSON(grid)
 	game.GridData = gridJSON
 	game.UpdatedAt = time.Now()
 
-	if err := s.repo.Update(game); err != nil {
-		s.log.Named("RevealTile").Error("Failed to update game", zap.Error(err))
-		return nil, "", errors.New("failed to update game")
+	if needsBalanceUpdate {
+		err := s.userDB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Save(game).Error; err != nil {
+				s.log.Named("RevealTile").Error("Failed to update game", zap.Error(err))
+				return errors.New("failed to update game")
+			}
+
+			if err := tx.Model(&model.User{}).
+				Where("id = ?", userId).
+				Update("remaining_coin", gorm.Expr("remaining_coin + ?", game.CurrentPayout)).
+				Error; err != nil {
+				s.log.Named("RevealTile").Error("Failed to credit winnings", zap.Error(err))
+				return errors.New("failed to credit winnings")
+			}
+
+			history := &model.MineGameHistory{
+				Id:          uuid.New().String(),
+				GameId:      game.Id,
+				TileIndex:   req.Index,
+				TileType:    "diamond",
+				Multiplier:  game.Multiplier,
+				PayoutAtHit: game.CurrentPayout,
+				CreatedAt:   time.Now(),
+			}
+			if err := tx.Create(history).Error; err != nil {
+				s.log.Named("RevealTile").Error("Failed to create history", zap.Error(err))
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			return nil, "", err
+		}
+	} else {
+		if err := s.repo.Update(game); err != nil {
+			s.log.Named("RevealTile").Error("Failed to update game", zap.Error(err))
+			return nil, "", errors.New("failed to update game")
+		}
+
+		tileType := "diamond"
+		if grid[req.Index].Type == "bomb" {
+			tileType = "bomb"
+		}
+		s.repo.CreateHistory(&model.MineGameHistory{
+			Id:          uuid.New().String(),
+			GameId:      game.Id,
+			TileIndex:   req.Index,
+			TileType:    tileType,
+			Multiplier:  game.Multiplier,
+			PayoutAtHit: game.CurrentPayout,
+			CreatedAt:   time.Now(),
+		})
 	}
 
 	gameDto, _ := s.gameToDto(game, game.Status == "active")
@@ -266,22 +315,25 @@ func (s *stakeMineServiceImpl) CashOut(userId string, gameId string) (*model.Min
 	game.GridData = gridJSON
 	game.UpdatedAt = time.Now()
 
-	// Credit winnings to user
-	var user model.User
-	if err := s.userDB.Where("id = ?", userId).First(&user).Error; err != nil {
-		s.log.Named("CashOut").Error("User not found during cash out", zap.Error(err))
-		return nil, errors.New("user not found")
-	}
+	err = s.userDB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(game).Error; err != nil {
+			s.log.Named("CashOut").Error("Failed to update game", zap.Error(err))
+			return errors.New("failed to update game")
+		}
 
-	user.RemainingCoin += game.CurrentPayout
-	if err := s.userDB.Save(&user).Error; err != nil {
-		s.log.Named("CashOut").Error("Failed to credit winnings", zap.Error(err))
-		return nil, errors.New("failed to credit winnings")
-	}
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userId).
+			Update("remaining_coin", gorm.Expr("remaining_coin + ?", game.CurrentPayout)).
+			Error; err != nil {
+			s.log.Named("CashOut").Error("Failed to credit winnings", zap.Error(err))
+			return errors.New("failed to credit winnings")
+		}
 
-	if err := s.repo.Update(game); err != nil {
-		s.log.Named("CashOut").Error("Failed to update game", zap.Error(err))
-		return nil, errors.New("failed to update game")
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	s.log.Named("CashOut").Info("Player cashed out", zap.String("gameId", gameId), zap.String("userId", userId), zap.Float64("payout", game.CurrentPayout))

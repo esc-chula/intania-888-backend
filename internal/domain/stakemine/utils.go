@@ -4,6 +4,7 @@ package stakemine
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"math/big"
 )
 
@@ -104,7 +105,6 @@ func SecureRandom(max int) (int, error) {
 	return int(n.Int64()), nil
 }
 
-// GenerateGrid creates a new game grid with randomly placed bombs
 func GenerateGrid(risk string) ([]Tile, error) {
 	bombCount := GetBombCount(risk)
 	grid := make([]Tile, 16)
@@ -118,22 +118,22 @@ func GenerateGrid(risk string) ([]Tile, error) {
 		}
 	}
 
-	// Randomly place bombs using Fisher-Yates shuffle approach
-	bombsPlaced := 0
-	attempts := 0
-	maxAttempts := 100
+	//Fisher-Yates
+	indices := make([]int, 16)
+	for i := range indices {
+		indices[i] = i
+	}
 
-	for bombsPlaced < bombCount && attempts < maxAttempts {
-		idx, err := SecureRandom(16)
+	for i := 15; i > 0; i-- {
+		j, err := SecureRandom(i + 1)
 		if err != nil {
 			return nil, err
 		}
+		indices[i], indices[j] = indices[j], indices[i]
+	}
 
-		if grid[idx].Type != "bomb" {
-			grid[idx].Type = "bomb"
-			bombsPlaced++
-		}
-		attempts++
+	for i := 0; i < bombCount; i++ {
+		grid[indices[i]].Type = "bomb"
 	}
 
 	return grid, nil
@@ -180,4 +180,21 @@ func ValidateRiskLevel(risk string) bool {
 // ValidateTileIndex checks if tile index is valid
 func ValidateTileIndex(index int) bool {
 	return index >= 0 && index < 16
+}
+
+// ValidateBetAmount
+func ValidateBetAmount(amount float64) bool {
+	return amount >= 1 && amount <= 1000000
+}
+
+// CalculatePayoutSafe overflow protection
+func CalculatePayoutSafe(betAmount float64, multiplier float64) (float64, error) {
+	const maxFloat64 = 1.7976931348623157e+308
+	if betAmount > 0 && multiplier > maxFloat64/betAmount {
+		return 0, errors.New("payout calculation would overflow")
+	}
+
+	payout := betAmount * multiplier
+
+	return payout, nil
 }
