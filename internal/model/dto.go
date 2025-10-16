@@ -141,6 +141,42 @@ type UpdateUserDto struct {
 	GroupId  *string `json:"group_id"`
 }
 
+// Steal token DTOs
+type StealTokenDto struct {
+	Token       string    `json:"token"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	VictimCount int       `json:"victim_count"`
+	Message     string    `json:"message"`
+}
+
+type CandidatePreviewDto struct {
+	Index   int     `json:"index"`
+	Name    string  `json:"name"`
+	RoleId  string  `json:"role_id"`
+	GroupId *string `json:"group_id"`
+}
+
+type UseStealTokenRequestDto struct {
+	Token       string `json:"token"`
+	VictimIndex int    `json:"victim_index"`
+}
+
+type VictimDetailDto struct {
+	Index         int     `json:"index"`
+	UserId        string  `json:"user_id"`
+	Name          string  `json:"name"`
+	RoleId        string  `json:"role_id"`
+	GroupId       *string `json:"group_id"`
+	BalanceBefore float64 `json:"balance_before"`
+	AmountStolen  float64 `json:"amount_stolen"`
+	WasChosen     bool    `json:"was_chosen"`
+}
+
+type UseStealTokenResponseDto struct {
+	TotalStolen      float64           `json:"total_stolen"`
+	RaiderNewBalance float64           `json:"raider_new_balance"`
+	AllCandidates    []VictimDetailDto `json:"all_candidates"`
+	Message          string            `json:"message"`
 type CreateMineGameRequest struct {
 	BetAmount float64 `json:"bet_amount" validate:"required,gte=1,lte=1000000"`
 	RiskLevel string  `json:"risk_level" validate:"required,oneof=low medium high"`

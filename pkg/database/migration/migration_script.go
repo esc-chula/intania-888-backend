@@ -33,6 +33,7 @@ func main() {
 		&model.GroupHead{},
 		&model.GroupLine{},
 		&model.DailyReward{},
+		&model.StealToken{},
 		&model.GroupStage{},
 		&model.MineGame{},
 		&model.MineGameHistory{},

@@ -149,6 +149,19 @@ type DailyReward struct {
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``
 }
+
+type StealToken struct {
+	Id               string    `gorm:"primaryKey;type:varchar(100)"`
+	UserId           string    `gorm:"type:varchar(100);not null;index"`
+	Token            string    `gorm:"type:varchar(100);not null;uniqueIndex"`
+	IsUsed           bool      `gorm:"type:boolean;default:false"`
+	AllowedVictimIds string    `gorm:"type:text;not null"`
+	ExpiresAt        time.Time `gorm:"not null;index"`
+	CreatedAt        time.Time ``
+	UpdatedAt        time.Time ``
+
+	User User `gorm:"foreignKey:UserId"`
+}
 type MineGame struct {
 	Id            string     `gorm:"primaryKey;type:varchar(100)"`
 	UserId        string     `gorm:"type:varchar(100);not null"`
