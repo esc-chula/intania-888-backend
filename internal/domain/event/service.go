@@ -211,7 +211,7 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 		return nil, errors.New("invalid or expired token")
 	}
 	if stealToken.UserId != userId {
-		return nil, errors.New("token does not belong to user")
+		return nil, errors.New("Idiot")
 	}
 	if stealToken.IsUsed {
 		return nil, errors.New("token already used")
@@ -222,7 +222,7 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 
 	candidateIds := splitCSV(stealToken.AllowedVictimIds)
 	if victimIndex < 0 || victimIndex >= len(candidateIds) {
-		return nil, errors.New("invalid victim_index")
+		return nil, errors.New("Idiot")
 	}
 	chosenVictimId := candidateIds[victimIndex]
 
@@ -239,34 +239,11 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 	chosenVictim, exists := candidateMap[chosenVictimId]
 	minVictimBalance := 100.0
 
-	if !exists || chosenVictim.RemainingCoin < minVictimBalance {
-		if err := s.eventRepo.MarkTokenAsUsed(stealToken.Id); err != nil {
-			s.log.Named("UseStealToken").Error("mark token used", zap.Error(err))
-		}
-
-		raider, err := s.userRepo.GetById(userId)
-		if err != nil {
-			return nil, errors.New("failed to get raider for compensation")
-		}
-
-		compensationAmount := 200.0
-		raider.RemainingCoin += compensationAmount
-		if err := s.userRepo.Update(raider); err != nil {
-			s.log.Named("UseStealToken").Error("failed to give compensation", zap.Error(err))
-			return nil, errors.New("failed to give compensation")
-		}
-
-		message := "😢 Your target escaped! They no longer exist. Here's 200 coins as compensation!"
-		if exists {
-			message = fmt.Sprintf("😢 Your target %s is too poor now (%.2f coins). Here's 200 coins as compensation!", chosenVictim.Name, chosenVictim.RemainingCoin)
-		}
-
-		return &model.UseStealTokenResponseDto{
-			TotalStolen:      compensationAmount,
-			RaiderNewBalance: roundToTwoDecimals(raider.RemainingCoin),
-			AllCandidates:    []model.VictimDetailDto{},
-			Message:          message,
-		}, nil
+	if !exists {
+		return nil, errors.New("chosen victim no longer exists")
+	}
+	if chosenVictim.RemainingCoin < minVictimBalance {
+		return nil, errors.New("chosen victim has insufficient balance")
 	}
 
 	percentage := 0.15

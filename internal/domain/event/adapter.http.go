@@ -71,12 +71,12 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 	// Parse the spend amount from the query
 	spendAmount, err := strconv.ParseFloat(spendAmountStr, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid spend amount"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Idiot"})
 	}
 
 	// Check that the spend amount is exactly 50, 100, or 500
 	if spendAmount != 50 && spendAmount != 100 && spendAmount != 500 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid spend amount"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Idiot"})
 	}
 
 	// Call the service to spin the slot machine with the selected spending amount
