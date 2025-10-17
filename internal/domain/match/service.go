@@ -7,6 +7,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type matchServiceImpl struct {
@@ -37,8 +38,17 @@ func (s *matchServiceImpl) CreateMatch(matchDto *model.MatchDto) error {
 
 func (s *matchServiceImpl) GetMatch(matchId string) (*model.MatchDto, error) {
 	match, err := s.repo.GetById(matchId)
+	// if err != nil {
+	// 	s.log.Named("GetMatch").Error("GetById", zap.Error(err))
+	// 	return nil, err
+	// }
+
 	if err != nil {
-		s.log.Named("GetMatch").Error("GetById", zap.Error(err))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			s.log.Named("GetMatch").Warn("Match not found", zap.String("id", matchId))
+			return nil, errors.New("match not found")
+		}
+		s.log.Named("GetMatch").Error("GetById failed", zap.Error(err))
 		return nil, err
 	}
 
