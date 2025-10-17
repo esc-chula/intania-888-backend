@@ -356,6 +356,10 @@ func (s *stakeMineServiceImpl) GetGame(userId string, gameId string) (*model.Min
 func (s *stakeMineServiceImpl) GetActiveGame(userId string) (*model.MineGameDto, error) {
 	game, err := s.repo.FindActiveByUserId(userId)
 	if err != nil {
+		return nil, err
+	}
+
+	if game == nil {
 		return nil, errors.New("no active game found")
 	}
 
