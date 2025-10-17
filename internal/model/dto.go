@@ -177,6 +177,8 @@ type UseStealTokenResponseDto struct {
 	RaiderNewBalance float64           `json:"raider_new_balance"`
 	AllCandidates    []VictimDetailDto `json:"all_candidates"`
 	Message          string            `json:"message"`
+}
+
 type CreateMineGameRequest struct {
 	BetAmount float64 `json:"bet_amount" validate:"required,gte=1,lte=1000000"`
 	RiskLevel string  `json:"risk_level" validate:"required,oneof=low medium high"`
