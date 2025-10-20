@@ -3,13 +3,14 @@ package model
 import "time"
 
 type UserDto struct {
-	Id            string  `json:"id"`
-	Email         string  `json:"email"`
-	Name          string  `json:"name"`
-	NickName      *string `json:"nick_name"`
-	RoleId        string  `json:"role_id"`
-	GroupId       *string `json:"group_id"`
-	RemainingCoin float64 `json:"remaining_coin"`
+	Id            string    `json:"id"`
+	Email         string    `json:"email"`
+	Name          string    `json:"name"`
+	NickName      *string   `json:"nick_name"`
+	RoleId        string    `json:"role_id"`
+	GroupId       *string   `json:"group_id"`
+	RemainingCoin float64   `json:"remaining_coin"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type RoleDto struct {

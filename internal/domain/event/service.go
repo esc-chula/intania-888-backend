@@ -246,7 +246,7 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 		return nil, errors.New("chosen victim has insufficient balance")
 	}
 
-	percentage := 0.15
+	percentage := 0.20
 	stolenAmount, _, err := s.eventRepo.StealPercentageFromSpecificUser(userId, chosenVictimId, percentage)
 	if err != nil {
 		return nil, fmt.Errorf("raid failed: %v", err)

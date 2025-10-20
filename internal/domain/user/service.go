@@ -71,6 +71,7 @@ func (s *userServiceImpl) GetAllUsers() ([]*model.UserDto, error) {
 			RemainingCoin: user.RemainingCoin,
 			NickName:      user.NickName,
 			GroupId:       user.GroupId,
+			CreatedAt:     user.CreatedAt,
 		}
 	}
 
