@@ -254,7 +254,7 @@ func (s *matchServiceImpl) DeleteMatch(id string) error {
 }
 
 func (s *matchServiceImpl) GetTime() (string, error) {
-	return time.Now().Format("2006-01-02 15:04:05"), nil
+	return time.Now().UTC().Format(time.RFC3339), nil
 }
 
 func (s *matchServiceImpl) UpdateMatchDraw(matchId string) error {

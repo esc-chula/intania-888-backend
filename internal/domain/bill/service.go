@@ -2,6 +2,7 @@ package bill
 
 import (
 	"errors"
+	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/model"
@@ -37,6 +38,24 @@ func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.
 			err := errors.New("user does not have enough coins to cover the total bill")
 			s.log.Named("CreateBill").Error("Check for balance", zap.Error(err))
 			return err
+		}
+
+		currentTime := time.Now()
+		for _, lineDto := range billDto.Lines {
+			var match model.Match
+			if err := tx.Where("id = ?", lineDto.MatchId).First(&match).Error; err != nil {
+				s.log.Named("CreateBill").Error("Failed to fetch match", zap.String("match_id", lineDto.MatchId), zap.Error(err))
+				return errors.New("match not found: " + lineDto.MatchId)
+			}
+
+			if currentTime.After(match.StartTime) || currentTime.Equal(match.StartTime) {
+				err := errors.New("cannot bet on match that has already started or expired")
+				s.log.Named("CreateBill").Error("Betting on expired match",
+					zap.String("match_id", lineDto.MatchId),
+					zap.Time("match_start", match.StartTime),
+					zap.Time("current_time", currentTime))
+				return err
+			}
 		}
 
 		bill := mapBillDtoToEntity(billDto)
