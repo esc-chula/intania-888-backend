@@ -42,6 +42,7 @@ func (s *authServiceImpl) GetOAuthUrl() (string, error) {
 	parameters.Add("scope", strings.Join(s.oauthClient.OAuthConfig().Scopes, " "))
 	parameters.Add("redirect_uri", s.oauthClient.OAuthConfig().RedirectURL)
 	parameters.Add("response_type", "code")
+	parameters.Add("hd", "student.chula.ac.th")
 	URL.RawQuery = parameters.Encode()
 	url := URL.String()
 
