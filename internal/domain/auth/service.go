@@ -42,7 +42,6 @@ func (s *authServiceImpl) GetOAuthUrl() (string, error) {
 	parameters.Add("scope", strings.Join(s.oauthClient.OAuthConfig().Scopes, " "))
 	parameters.Add("redirect_uri", s.oauthClient.OAuthConfig().RedirectURL)
 	parameters.Add("response_type", "code")
-	parameters.Add("hd", "student.chula.ac.th")
 	URL.RawQuery = parameters.Encode()
 	url := URL.String()
 
@@ -55,6 +54,47 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 	if err != nil {
 		s.log.Named("VerifyOAuthLogin").Error("Get user info: ", zap.Error(err))
 		return nil, err
+	}
+
+	allowedEmails := []string{
+		"phanthawasjira@gmail.com",
+		"bububiib@gmail.com",
+		"pear.nataya49@gmail.com",
+	}
+
+	isAllowed := false
+	if strings.HasSuffix(userInfo.Email, "@student.chula.ac.th") {
+		isAllowed = true
+	}
+	for _, email := range allowedEmails {
+		if userInfo.Email == email {
+			isAllowed = true
+			break
+		}
+	}
+
+	if !isAllowed {
+		s.log.Named("VerifyOAuthLogin").Warn("Please login with Chula student email",
+			zap.String("email", userInfo.Email))
+		return nil, gorm.ErrInvalidData
+	}
+
+	blacklistedEmails := []string{
+		"6530162621@student.chula.ac.th",
+		"6633129621@student.chula.ac.th",
+		"6733023821@student.chula.ac.th",
+		"6630054621@student.chula.ac.th",
+		"6538004621@student.chula.ac.th",
+		"6733291621@student.chula.ac.th",
+		"6430039021@student.chula.ac.th",
+	}
+
+	for _, email := range blacklistedEmails {
+		if userInfo.Email == email {
+			s.log.Named("VerifyOAuthLogin").Warn("Idiot",
+				zap.String("email", userInfo.Email))
+			return nil, gorm.ErrInvalidData
+		}
 	}
 
 	existedUser, err := s.userRepo.GetByEmail(userInfo.Email)
