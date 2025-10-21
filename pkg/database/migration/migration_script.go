@@ -180,6 +180,18 @@ func main() {
 			Id:    constant.TUG_OF_WAR,
 			Title: "ชักเย่อ",
 		},
+		{
+			Id:    constant.TRADITIONAL_SPORTS,
+			Title: "กีฬาพื้นบ้าน",
+		},
+		{
+			Id:    constant.TUG_OF_WAR_CHAK_YOR,
+			Title: "ชักเย่อ",
+		},
+		{
+			Id:    constant.RUNNING_PIAW,
+			Title: "วิ่งเปี้ยว",
+		},
 	}
 
 	// Define color teams
