@@ -67,8 +67,8 @@ func (r *matchRepositoryImpl) UpdateScore(match *model.Match) error {
 	return r.db.Model(&model.Match{}).
 		Where("id = ?", match.Id).
 		Updates(map[string]interface{}{
-			"teama_score": match.TeamA_Score,
-			"teamb_score": match.TeamB_Score,
+			"team_a_score": match.TeamA_Score,
+			"team_b_score": match.TeamB_Score,
 		}).Error
 }
 
@@ -109,6 +109,11 @@ func (r *matchRepositoryImpl) UpdateMatch(match *model.Match) error {
 	return r.db.Model(&model.Match{}).
 		Where("id = ?", match.Id).
 		Updates(map[string]interface{}{
+			"team_a_id":  match.TeamA_Id,
+			"team_b_id":  match.TeamB_Id,
+			"type_id":    match.TypeId,
+			"start_time": match.StartTime,
+			"end_time":   match.EndTime,
 			"is_draw":    match.IsDraw,
 			"updated_at": time.Now(),
 		}).Error
