@@ -134,6 +134,10 @@ func (s *FiberHttpServer) OriginGuard() fiber.Handler {
 			return c.Next()
 		}
 
+		if c.Path() == "/api/v1/auth/callback" {
+			return c.Next()
+		}
+
 		origin := c.Get("Origin")
 		s.logger.Info("OriginGuard", zap.String("origin", origin))
 
