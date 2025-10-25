@@ -131,6 +131,7 @@ func bindEnvVars(v *viper.Viper) {
 	v.BindEnv("oauth_client_id", "OAUTH_CLIENT_ID")
 	v.BindEnv("oauth_client_secret", "OAUTH_CLIENT_SECRET")
 	v.BindEnv("oauth_redirect_uri", "OAUTH_REDIRECT_URI")
+	v.BindEnv("oauth_frontend_url", "OAUTH_FRONTEND_URL")
 
 	v.BindEnv("swagger_username", "SWAGGER_USERNAME")
 	v.BindEnv("swagger_password", "SWAGGER_PASSWORD")
