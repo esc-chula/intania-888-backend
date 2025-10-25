@@ -31,7 +31,7 @@ func NewAuthService(authRepo AuthRepository, userRepo user.UserRepository, cfg c
 	}
 }
 
-func (s *authServiceImpl) GetOAuthUrl() (string, error) {
+func (s *authServiceImpl) GetOAuthUrl(redirectTo string) (string, error) {
 	URL, err := url.Parse(s.oauthClient.OAuthConfig().Endpoint.AuthURL)
 	if err != nil {
 		s.log.Named("GetGoogleLoginUrl").Error("Parse: ", zap.Error(err))
@@ -43,11 +43,16 @@ func (s *authServiceImpl) GetOAuthUrl() (string, error) {
 	parameters.Add("redirect_uri", s.oauthClient.OAuthConfig().RedirectURL)
 	parameters.Add("response_type", "code")
 	parameters.Add("hd", "student.chula.ac.th")
-	URL.RawQuery = parameters.Encode()
-	url := URL.String()
 
-	s.log.Named("GetGoogleLoginUrl").Info("Success: ", zap.String("url", url))
-	return url, nil
+	if redirectTo != "" {
+		parameters.Add("state", redirectTo)
+	}
+
+	URL.RawQuery = parameters.Encode()
+	urlString := URL.String()
+
+	s.log.Named("GetGoogleLoginUrl").Info("Success: ", zap.String("url", urlString), zap.String("redirect_to", redirectTo))
+	return urlString, nil
 }
 
 func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, error) {
@@ -195,4 +200,43 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*model.CredentialDt
 	}
 
 	return newCredential, nil
+}
+
+func (s *authServiceImpl) IsAllowedRedirect(redirectUrl string) bool {
+	parsedUrl, err := url.Parse(redirectUrl)
+	if err != nil {
+		s.log.Named("IsAllowedRedirect").Warn("Invalid URL format", zap.String("url", redirectUrl), zap.Error(err))
+		return false
+	}
+
+	if s.cfg.GetServer().Env == "production" && parsedUrl.Scheme != "https" {
+		s.log.Named("IsAllowedRedirect").Warn("Non-HTTPS redirect in production", zap.String("url", redirectUrl))
+		return false
+	}
+
+	if parsedUrl.Scheme != "http" && parsedUrl.Scheme != "https" {
+		s.log.Named("IsAllowedRedirect").Warn("Invalid scheme", zap.String("url", redirectUrl))
+		return false
+	}
+
+	allowedDomains := []string{
+		"localhost",
+		"127.0.0.1",
+		"888.intania.org",
+	}
+
+	hostname := parsedUrl.Hostname()
+	for _, allowed := range allowedDomains {
+		if hostname == allowed {
+			s.log.Named("IsAllowedRedirect").Info("Redirect allowed", zap.String("url", redirectUrl))
+			return true
+		}
+	}
+
+	s.log.Named("IsAllowedRedirect").Warn("Domain not in whitelist", zap.String("domain", hostname))
+	return false
+}
+
+func (s *authServiceImpl) GetFrontendUrl() string {
+	return s.cfg.GetOAuth().FrontendUrl
 }

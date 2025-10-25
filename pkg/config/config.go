@@ -50,6 +50,7 @@ type OAuth struct {
 	ClientId     string `mapstructure:"oauth_client_id"`
 	ClientSecret string `mapstructure:"oauth_client_secret"`
 	RedirectUrl  string `mapstructure:"oauth_redirect_uri"`
+	FrontendUrl  string `mapstructure:"oauth_frontend_url"`
 }
 
 type Swagger struct {
