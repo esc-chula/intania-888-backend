@@ -56,18 +56,18 @@ type IntaniaGroup struct {
 
 type Match struct {
 	Id          string  `gorm:"primaryKey;type:varchar(100)"`
-	TeamA_Id    *string `gorm:"type:varchar(100);"`
-	TeamB_Id    *string `gorm:"type:varchar(100);"`
-	TeamA_Score *int    `gorm:"type:int;"`
-	TeamB_Score *int    `gorm:"type:int;"`
+	TeamA_Id    *string `gorm:"column:teama_id;type:varchar(100);"`
+	TeamB_Id    *string `gorm:"column:teamb_id;type:varchar(100);"`
+	TeamA_Score *int    `gorm:"column:teama_score;type:int;"`
+	TeamB_Score *int    `gorm:"column:teamb_score;type:int;"`
 
-	WinnerId  *string   `gorm:"type:varchar(100);"`
-	TypeId    string    `gorm:"type:varchar(100);not null"`
-	IsDraw    bool      `gorm:"type:boolean;default:false"`
-	StartTime time.Time ``
-	EndTime   time.Time ``
-	CreatedAt time.Time ``
-	UpdatedAt time.Time ``
+	WinnerId  *string   `gorm:"column:winner_id;type:varchar(100);"`
+	TypeId    string    `gorm:"column:type_id;type:varchar(100);not null"`
+	IsDraw    bool      `gorm:"column:is_draw;type:boolean;default:false"`
+	StartTime time.Time `gorm:"column:start_time"`
+	EndTime   time.Time `gorm:"column:end_time"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
 
 	BillLines []BillLine `gorm:"foreignKey:MatchId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	SportType SportType  `gorm:"foreignKey:TypeId"`
