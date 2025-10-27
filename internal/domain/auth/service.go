@@ -209,15 +209,12 @@ func (s *authServiceImpl) IsAllowedRedirect(redirectUrl string) bool {
 		return false
 	}
 
-	if s.cfg.GetServer().Env == "production" && parsedUrl.Scheme != "https" {
-		s.log.Named("IsAllowedRedirect").Warn("Non-HTTPS redirect in production", zap.String("url", redirectUrl))
-		return false
-	}
-
 	if parsedUrl.Scheme != "http" && parsedUrl.Scheme != "https" {
 		s.log.Named("IsAllowedRedirect").Warn("Invalid scheme", zap.String("url", redirectUrl))
 		return false
 	}
+
+	hostname := parsedUrl.Hostname()
 
 	allowedDomains := []string{
 		"localhost",
@@ -225,16 +222,26 @@ func (s *authServiceImpl) IsAllowedRedirect(redirectUrl string) bool {
 		"888.intania.org",
 	}
 
-	hostname := parsedUrl.Hostname()
+	isAllowed := false
 	for _, allowed := range allowedDomains {
 		if hostname == allowed {
-			s.log.Named("IsAllowedRedirect").Info("Redirect allowed", zap.String("url", redirectUrl))
-			return true
+			isAllowed = true
+			break
 		}
 	}
 
-	s.log.Named("IsAllowedRedirect").Warn("Domain not in whitelist", zap.String("domain", hostname))
-	return false
+	if !isAllowed {
+		s.log.Named("IsAllowedRedirect").Warn("Domain not in whitelist", zap.String("domain", hostname))
+		return false
+	}
+
+	if hostname == "888.intania.org" && parsedUrl.Scheme != "https" {
+		s.log.Named("IsAllowedRedirect").Error("Production domain must use HTTPS", zap.String("url", redirectUrl))
+		return false
+	}
+
+	s.log.Named("IsAllowedRedirect").Info("Redirect allowed", zap.String("url", redirectUrl))
+	return true
 }
 
 func (s *authServiceImpl) GetFrontendUrl() string {
