@@ -220,6 +220,7 @@ func (s *authServiceImpl) IsAllowedRedirect(redirectUrl string) bool {
 		"localhost",
 		"127.0.0.1",
 		"888.intania.org",
+		"intaniagames2025-project.vercel.app",
 	}
 
 	isAllowed := false
