@@ -41,6 +41,7 @@ func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 // @Failure      400    {object}  map[string]string  "Invalid request payload"
 // @Failure      500    {object}  map[string]string  "Failed to create match"
 // @Router       /matches [post]
+// @Security     BearerAuth
 func (h *MatchHttpHandler) CreateMatch(c *fiber.Ctx) error {
 	matchDto := new(model.MatchDto)
 
@@ -65,6 +66,7 @@ func (h *MatchHttpHandler) CreateMatch(c *fiber.Ctx) error {
 // @Success      200    {object}  model.MatchDto
 // @Failure      404    {object}  map[string]string  "Match not found"
 // @Router       /matches/{id} [get]
+// @Security     BearerAuth
 func (h *MatchHttpHandler) GetMatch(c *fiber.Ctx) error {
 	match, err := h.matchService.GetMatch(c.Params("id"))
 	if err != nil {
@@ -81,10 +83,11 @@ func (h *MatchHttpHandler) GetMatch(c *fiber.Ctx) error {
 // @Produce      json
 // @Param        typeId     query     string  false  "Filter by sport type ID"
 // @Param        schedule   query     string  false  "Filter by schedule (schedule or result)"
-// @Success      200    {object}  []model.MatchesByDate  "List of matches grouped by date and sport type"
+// @Success      200    {array}   model.MatchesByDate  "List of matches grouped by date and sport type"
 // @Failure      400    {object}  map[string]string  "Invalid schedule parameter"
 // @Failure      500    {object}  map[string]string  "Failed to fetch matches"
 // @Router       /matches [get]
+// @Security     BearerAuth
 func (h *MatchHttpHandler) GetAllMatches(c *fiber.Ctx) error {
 	filter := &model.MatchFilter{}
 
@@ -126,6 +129,7 @@ func (h *MatchHttpHandler) GetAllMatches(c *fiber.Ctx) error {
 // @Failure      400    {object}  map[string]string  "Invalid request payload"
 // @Failure      500    {object}  map[string]string  "Failed to update match score"
 // @Router       /matches/{id}/score [patch]
+// @Security     BearerAuth
 func (h *MatchHttpHandler) UpdateMatchScore(c *fiber.Ctx) error {
 	matchId := c.Params("id")
 	scoreDto := new(model.ScoreDto)
@@ -152,6 +156,7 @@ func (h *MatchHttpHandler) UpdateMatchScore(c *fiber.Ctx) error {
 // @Success      200    {object}  map[string]string  "Updated match winner successfully"
 // @Failure      500    {object}  map[string]string  "Failed to update match winner"
 // @Router       /matches/{id}/winner/{winner_id} [patch]
+// @Security     BearerAuth
 func (h *MatchHttpHandler) UpdateMatchWinner(c *fiber.Ctx) error {
 	matchId := c.Params("id")
 	winnerId := c.Params("winner_id")
@@ -172,6 +177,7 @@ func (h *MatchHttpHandler) UpdateMatchWinner(c *fiber.Ctx) error {
 // @Success      200    {object}  map[string]string  "Deleted match successful"
 // @Failure      500    {object}  map[string]string  "Failed to delete match"
 // @Router       /matches/{id} [delete]
+// @Security     BearerAuth
 func (h *MatchHttpHandler) DeleteMatch(c *fiber.Ctx) error {
 	err := h.matchService.DeleteMatch(c.Params("id"))
 	if err != nil {
@@ -181,6 +187,14 @@ func (h *MatchHttpHandler) DeleteMatch(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Deleted match successful"})
 }
 
+// @Summary Get current match time
+// @Description Gets the current server time used by match scheduling
+// @Tags Match
+// @Produce json
+// @Success 200 {object} map[string]string "current match time"
+// @Failure 500 {object} map[string]string "Failed to get time"
+// @Router /matches/current/time [get]
+// @Security BearerAuth
 func (h *MatchHttpHandler) GetTime(c *fiber.Ctx) error {
 	time, err := h.matchService.GetTime()
 	if err != nil {
@@ -190,6 +204,15 @@ func (h *MatchHttpHandler) GetTime(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"currentTime": time})
 }
 
+// @Summary Mark a match as draw
+// @Description Marks a match as a draw (admin only)
+// @Tags Match
+// @Produce json
+// @Param id path string true "Match ID"
+// @Success 200 {object} map[string]string "Updated match as draw successfully"
+// @Failure 500 {object} map[string]string "Failed to update match as draw"
+// @Router /matches/{id}/draw [patch]
+// @Security BearerAuth
 func (h *MatchHttpHandler) UpdateMatchDraw(c *fiber.Ctx) error {
 	matchId := c.Params("id")
 
@@ -213,6 +236,7 @@ func (h *MatchHttpHandler) UpdateMatchDraw(c *fiber.Ctx) error {
 // @Failure      400    {object}  map[string]string  "Invalid request payload"
 // @Failure      500    {object}  map[string]string  "Failed to update match"
 // @Router       /matches/{id} [put]
+// @Security     BearerAuth
 func (h *MatchHttpHandler) UpdateMatch(c *fiber.Ctx) error {
 	matchId := c.Params("id")
 	matchDto := new(model.MatchDto)

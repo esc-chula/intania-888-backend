@@ -54,6 +54,8 @@ type OAuth struct {
 }
 
 type Swagger struct {
-	Username string `mapstructure:"swagger_username"`
-	Password string `mapstructure:"swagger_password"`
+	Enabled     bool   `mapstructure:"swagger_enabled"`
+	RequireAuth bool   `mapstructure:"swagger_require_auth"`
+	Username    string `mapstructure:"swagger_username"`
+	Password    string `mapstructure:"swagger_password"`
 }

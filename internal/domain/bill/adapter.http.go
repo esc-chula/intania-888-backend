@@ -41,6 +41,7 @@ func (h *BillHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /bills [post]
+// @Security BearerAuth
 func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 	// get user from context
 	userProfile := utils.GetUserProfileFromCtx(c)
@@ -77,6 +78,7 @@ func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 // @Failure 404 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /bills/{id} [get]
+// @Security BearerAuth
 func (h *BillHttpHandler) GetBill(c *fiber.Ctx) error {
 	userProfile := utils.GetUserProfileFromCtx(c)
 	if userProfile == nil {
@@ -100,6 +102,7 @@ func (h *BillHttpHandler) GetBill(c *fiber.Ctx) error {
 // @Success 200 {array} model.BillHeadDto
 // @Failure 500 {object} ErrorResponse
 // @Router /bills [get]
+// @Security BearerAuth
 func (h *BillHttpHandler) GetAllBills(c *fiber.Ctx) error {
 	userProfile := utils.GetUserProfileFromCtx(c)
 	if userProfile == nil {
@@ -126,7 +129,8 @@ func (h *BillHttpHandler) GetAllBills(c *fiber.Ctx) error {
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
-// @Router /bills/{id} [put]
+// @Router /bills/{id} [patch]
+// @Security BearerAuth
 func (h *BillHttpHandler) UpdateBill(c *fiber.Ctx) error {
 	userProfile := utils.GetUserProfileFromCtx(c)
 	if userProfile == nil {
@@ -160,6 +164,7 @@ func (h *BillHttpHandler) UpdateBill(c *fiber.Ctx) error {
 // @Failure 404 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /bills/{id} [delete]
+// @Security BearerAuth
 func (h *BillHttpHandler) DeleteBill(c *fiber.Ctx) error {
 	id := c.Params("id")
 
@@ -180,6 +185,7 @@ func (h *BillHttpHandler) DeleteBill(c *fiber.Ctx) error {
 // @Success 200 {array} model.BillHeadDto
 // @Failure 500 {object} ErrorResponse
 // @Router /bills/admin/all [get]
+// @Security BearerAuth
 func (h *BillHttpHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
 	bills, err := h.service.GetAllBillsAdmin()
 	if err != nil {

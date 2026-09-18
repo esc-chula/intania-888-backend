@@ -30,7 +30,7 @@ func (h *AuthHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 }
 
 func (h *AuthHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router.Get("/me", mid.ExternalAPIMiddleware, h.GetMe)
+	router.Get("/me", mid.ExternalAPIMiddleware, h.GetExternalMe)
 }
 
 // @Summary Login URL
@@ -186,6 +186,7 @@ func (h *AuthHttpHandler) RefreshToken(c *fiber.Ctx) error {
 // @Success 200 {object} map[string]string "profile"
 // @Failure 400 {object} map[string]string "bad request error"
 // @Router  /auth/me [get]
+// @Security BearerAuth
 func (h *AuthHttpHandler) GetMe(c *fiber.Ctx) error {
 	userDto, ok := c.Locals("user").(*model.UserDto)
 	if !ok {
@@ -195,4 +196,17 @@ func (h *AuthHttpHandler) GetMe(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"profile": userDto,
 	})
+}
+
+// @Summary Get profile (External API)
+// @Description Retrieves user profile data through the external API middleware
+// @Tags External
+// @Produce json
+// @Success 200 {object} map[string]interface{} "profile"
+// @Failure 400 {object} map[string]string "bad request error"
+// @Failure 401 {object} map[string]string "missing or invalid authorization"
+// @Router /external/me [get]
+// @Security BearerAuth
+func (h *AuthHttpHandler) GetExternalMe(c *fiber.Ctx) error {
+	return h.GetMe(c)
 }

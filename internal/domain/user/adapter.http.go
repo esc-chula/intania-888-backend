@@ -27,16 +27,6 @@ func (h *UserHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 	adminRouter.Patch("/:id", h.AdminUpdateUser)
 }
 
-// @Summary Create a new user
-// @Description Creates a new user and stores it in the system
-// @Tags User
-// @Accept  json
-// @Produce  json
-// @Param   user  body      model.UserDto  true  "User information"
-// @Success 201    {object} model.UserDto
-// @Failure 400    {object} map[string]string  "cannot parse body"
-// @Failure 500    {object} map[string]string  "internal server error"
-// @Router  /users [post]
 func (h *UserHttpHandler) CreateUser(c *fiber.Ctx) error {
 	user := new(model.UserDto)
 	if err := c.BodyParser(user); err != nil {
@@ -56,6 +46,7 @@ func (h *UserHttpHandler) CreateUser(c *fiber.Ctx) error {
 // @Success 200    {object} model.UserDto
 // @Failure 404    {object} map[string]string  "user not found"
 // @Router  /users/{id} [get]
+// @Security BearerAuth
 func (h *UserHttpHandler) GetUser(c *fiber.Ctx) error {
 	id := c.Params("id")
 	user, err := h.service.GetUser(id)
@@ -72,6 +63,7 @@ func (h *UserHttpHandler) GetUser(c *fiber.Ctx) error {
 // @Success 200    {array}  model.UserDto
 // @Failure 500    {object} map[string]string  "internal server error"
 // @Router  /users [get]
+// @Security BearerAuth
 func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
 	users, err := h.service.GetAllUsers()
 	if err != nil {
@@ -91,6 +83,7 @@ func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
 // @Failure 400    {object} map[string]string  "cannot parse body"
 // @Failure 500    {object} map[string]string  "internal server error"
 // @Router  /users/{id} [patch]
+// @Security BearerAuth
 func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 	profile := utils.GetUserProfileFromCtx(c)
 
@@ -124,6 +117,7 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 // @Failure 400    {object} map[string]string  "cannot parse body"
 // @Failure 500    {object} map[string]string  "internal server error"
 // @Router  /users/admin/{id} [patch]
+// @Security BearerAuth
 func (h *UserHttpHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	userId := c.Params("id")
 

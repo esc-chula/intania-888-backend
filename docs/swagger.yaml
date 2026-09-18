@@ -30,6 +30,8 @@ definitions:
         type: string
       bill_id:
         type: string
+      is_paid:
+        type: boolean
       match:
         $ref: '#/definitions/model.MatchDto'
       match_id:
@@ -51,6 +53,40 @@ definitions:
         type: integer
       won:
         type: integer
+    type: object
+  model.CreateMineGameRequest:
+    properties:
+      bet_amount:
+        maximum: 1000000
+        minimum: 1
+        type: number
+      risk_level:
+        enum:
+        - low
+        - medium
+        - high
+        type: string
+    required:
+    - bet_amount
+    - risk_level
+    type: object
+  model.DeductCoinRequest:
+    properties:
+      amount:
+        maximum: 1000000
+        minimum: 1
+        type: number
+    required:
+    - amount
+    type: object
+  model.DeductCoinResponse:
+    properties:
+      deducted_amount:
+        type: number
+      remaining_balance:
+        type: number
+      success:
+        type: boolean
     type: object
   model.MatchDto:
     properties:
@@ -97,6 +133,62 @@ definitions:
       sportType:
         type: string
     type: object
+  model.MineGameDto:
+    properties:
+      bet_amount:
+        type: number
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      current_payout:
+        type: number
+      grid:
+        items:
+          $ref: '#/definitions/model.MineTileDto'
+        type: array
+      id:
+        type: string
+      multiplier:
+        type: number
+      revealed_count:
+        type: integer
+      risk_level:
+        type: string
+      status:
+        type: string
+      user_id:
+        type: string
+    type: object
+  model.MineGameStatsDto:
+    properties:
+      games_cashed_out:
+        type: integer
+      games_lost:
+        type: integer
+      games_won:
+        type: integer
+      net_profit:
+        type: number
+      total_games:
+        type: integer
+      total_wagered:
+        type: number
+      total_winnings:
+        type: number
+      win_rate:
+        type: number
+    type: object
+  model.MineTileDto:
+    properties:
+      index:
+        type: integer
+      revealed:
+        type: boolean
+      type:
+        description: diamond, bomb, hidden
+        type: string
+    type: object
   model.OAuthCodeDto:
     properties:
       code:
@@ -107,15 +199,53 @@ definitions:
       refresh_token:
         type: string
     type: object
+  model.RevealMineTileRequest:
+    properties:
+      index:
+        maximum: 15
+        minimum: 0
+        type: integer
+    required:
+    - index
+    type: object
   model.ScoreDto:
     properties:
-      teamAScore:
+      team_a_score:
         type: integer
-      teamBScore:
+      team_b_score:
         type: integer
+    type: object
+  model.SportTypeDto:
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+    type: object
+  model.UseStealTokenRequestDto:
+    properties:
+      token:
+        type: string
+      victim_index:
+        type: integer
+    type: object
+  model.UseStealTokenResponseDto:
+    properties:
+      all_candidates:
+        items:
+          $ref: '#/definitions/model.VictimDetailDto'
+        type: array
+      message:
+        type: string
+      raider_new_balance:
+        type: number
+      total_stolen:
+        type: number
     type: object
   model.UserDto:
     properties:
+      created_at:
+        type: string
       email:
         type: string
       group_id:
@@ -131,6 +261,30 @@ definitions:
       role_id:
         type: string
     type: object
+  model.VictimDetailDto:
+    properties:
+      amount_stolen:
+        type: number
+      balance_before:
+        type: number
+      group_id:
+        type: string
+      index:
+        type: integer
+      name:
+        type: string
+      role_id:
+        type: string
+      user_id:
+        type: string
+      was_chosen:
+        type: boolean
+    type: object
+  sporttype.ErrorResponse:
+    properties:
+      message:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -138,14 +292,59 @@ info:
   title: Intania888 Backend - API
   version: 0.0.0
 paths:
+  /auth/callback:
+    get:
+      description: Handles OAuth callback from Google, exchanges code for tokens,
+        and redirects appropriately
+      parameters:
+      - description: OAuth authorization code from Google
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: State parameter with redirect URL for third parties
+        in: query
+        name: state
+        type: string
+      responses:
+        "302":
+          description: redirect to frontend or third-party site
+          schema:
+            type: string
+        "400":
+          description: missing code
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: OAuth Callback (Google redirects here)
+      tags:
+      - Auth
   /auth/login:
     get:
       description: Retrieves the OAuth login URL
+      parameters:
+      - description: URL to redirect to after successful authentication
+        in: query
+        name: redirect_to
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: url
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: invalid redirect URL
           schema:
             additionalProperties:
               type: string
@@ -163,7 +362,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Verifies the OAuth login and returns credentials
+      description: Verifies the OAuth login and returns credentials or redirects to
+        third-party site
       parameters:
       - description: OAuth Code
         in: body
@@ -171,6 +371,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/model.OAuthCodeDto'
+      - description: State parameter with redirect URL
+        in: query
+        name: state
+        type: string
       produces:
       - application/json
       responses:
@@ -179,6 +383,10 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "302":
+          description: redirect to third-party site with credentials
+          schema:
+            type: string
         "400":
           description: cannot parse body
           schema:
@@ -212,6 +420,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: GetMe
       tags:
       - Auth
@@ -268,6 +478,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/bill.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get all bills
       tags:
       - Bill
@@ -297,6 +509,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/bill.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Create a new bill
       tags:
       - Bill
@@ -324,6 +538,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/bill.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete a bill
       tags:
       - Bill
@@ -352,10 +568,12 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/bill.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get a bill by ID
       tags:
       - Bill
-    put:
+    patch:
       consumes:
       - application/json
       description: Update a bill with the input payload
@@ -390,7 +608,32 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/bill.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Update a bill
+      tags:
+      - Bill
+  /bills/admin/all:
+    get:
+      consumes:
+      - application/json
+      description: Get all bills from all users (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.BillHeadDto'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bill.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all bills (admin)
       tags:
       - Bill
   /colors/group-stage:
@@ -401,11 +644,11 @@ paths:
       parameters:
       - description: Type ID to filter
         in: query
-        name: typeId
+        name: type_id
         type: string
       - description: Group ID to filter
         in: query
-        name: groupId
+        name: group_id
         type: string
       produces:
       - application/json
@@ -424,6 +667,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/color.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get group stage table
       tags:
       - Color
@@ -435,7 +680,7 @@ paths:
       parameters:
       - description: Type ID to filter
         in: query
-        name: typeId
+        name: type_id
         type: string
       produces:
       - application/json
@@ -454,9 +699,50 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/color.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get all color leaderboards
       tags:
       - Color
+  /events/daily-rewards:
+    post:
+      consumes:
+      - application/json
+      description: Set daily reward amount for a specific date (admin only)
+      parameters:
+      - description: Daily reward request (date and amount)
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Set daily reward successful
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to set daily reward
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Set daily reward
+      tags:
+      - Event
   /events/redeem/daily:
     get:
       consumes:
@@ -483,9 +769,154 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Redeem daily reward
       tags:
       - Event
+  /events/spin/slot:
+    post:
+      description: Spins the slot machine using the requested coin amount
+      parameters:
+      - description: Coin amount to spend (50, 100, or 500)
+        in: query
+        name: spendAmount
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: slot result
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid spend amount or user profile
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Spin the slot machine
+      tags:
+      - Event
+  /events/use-steal-token:
+    post:
+      consumes:
+      - application/json
+      description: Uses a steal token against one of its eligible victims
+      parameters:
+      - description: Steal token request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.UseStealTokenRequestDto'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: steal result
+          schema:
+            $ref: '#/definitions/model.UseStealTokenResponseDto'
+        "400":
+          description: invalid request or token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: missing or invalid authorization
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Use a steal token
+      tags:
+      - Event
+  /external/deduct-coin:
+    post:
+      consumes:
+      - application/json
+      description: External API endpoint to deduct coins from authenticated user's
+        balance. Bypasses browser-only validation but requires JWT authentication.
+      parameters:
+      - description: Deduction request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.DeductCoinRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.DeductCoinResponse'
+        "400":
+          description: Invalid amount or parse error
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Missing or invalid token
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Insufficient balance or blacklisted
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Deduct coins from user balance (External API)
+      tags:
+      - External
+  /external/me:
+    get:
+      description: Retrieves user profile data through the external API middleware
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: profile
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: bad request error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: missing or invalid authorization
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get profile (External API)
+      tags:
+      - External
   /matches:
     get:
       description: Retrieves a list of matches, optionally filtered by type and schedule
@@ -519,6 +950,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Retrieves a list of matches, optionally filtered by type and schedule
       tags:
       - Match
@@ -554,6 +987,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Creates a new match
       tags:
       - Match
@@ -579,6 +1014,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Deletes a match by its ID
       tags:
       - Match
@@ -603,7 +1040,81 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Retrieves a single match by its ID
+      tags:
+      - Match
+    put:
+      consumes:
+      - application/json
+      description: Updates match details including teams, sport type, start time,
+        and end time
+      parameters:
+      - description: Match ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Match information
+        in: body
+        name: match
+        required: true
+        schema:
+          $ref: '#/definitions/model.MatchDto'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated match successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to update match
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Updates match details (teams, type, times)
+      tags:
+      - Match
+  /matches/{id}/draw:
+    patch:
+      description: Marks a match as a draw (admin only)
+      parameters:
+      - description: Match ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated match as draw successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to update match as draw
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Mark a match as draw
       tags:
       - Match
   /matches/{id}/score:
@@ -644,6 +1155,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Updates the score of a match
       tags:
       - Match
@@ -676,9 +1189,287 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Updates the winner of a match
       tags:
       - Match
+  /matches/current/time:
+    get:
+      description: Gets the current server time used by match scheduling
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: current match time
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to get time
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get current match time
+      tags:
+      - Match
+  /mines/{id}:
+    get:
+      description: Get details of a specific Stake Mines game by ID
+      parameters:
+      - description: Game ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.MineGameDto'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get game details
+      tags:
+      - StakeMines
+  /mines/{id}/cashout:
+    post:
+      description: Cash out and take winnings from an active Stake Mines game
+      parameters:
+      - description: Game ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cash out from the current game
+      tags:
+      - StakeMines
+  /mines/{id}/reveal:
+    post:
+      consumes:
+      - application/json
+      description: Reveal a specific tile in an active Stake Mines game
+      parameters:
+      - description: Game ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reveal tile request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.RevealMineTileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reveal a tile in the game
+      tags:
+      - StakeMines
+  /mines/active:
+    get:
+      description: Get the current active Stake Mines game for the user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.MineGameDto'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get active game
+      tags:
+      - StakeMines
+  /mines/create:
+    post:
+      consumes:
+      - application/json
+      description: Start a new Stake Mines game with specified bet amount and risk
+        level
+      parameters:
+      - description: Game creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreateMineGameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.MineGameDto'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new Stake Mines game
+      tags:
+      - StakeMines
+  /mines/history:
+    get:
+      description: Get user's Stake Mines game history with pagination
+      parameters:
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get game history
+      tags:
+      - StakeMines
+  /mines/stats:
+    get:
+      description: Get comprehensive statistics for the user's Stake Mines games
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.MineGameStatsDto'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user statistics
+      tags:
+      - StakeMines
+  /sport-types:
+    get:
+      consumes:
+      - application/json
+      description: Get all sport types available in the system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.SportTypeDto'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/sporttype.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all sport types
+      tags:
+      - SportType
   /users:
     get:
       description: Retrieves a list of all users
@@ -697,63 +1488,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get all users
       tags:
       - User
-    post:
-      consumes:
-      - application/json
-      description: Creates a new user and stores it in the system
-      parameters:
-      - description: User information
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/model.UserDto'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/model.UserDto'
-        "400":
-          description: cannot parse body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Create a new user
-      tags:
-      - User
   /users/{id}:
-    delete:
-      description: Deletes a user by their ID
-      parameters:
-      - description: User ID
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "500":
-          description: internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Delete user
-      tags:
-      - User
     get:
       description: Retrieves a single user by their ID
       parameters:
@@ -775,6 +1515,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get user by ID
       tags:
       - User
@@ -813,9 +1555,54 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update user
       tags:
       - User
+  /users/admin/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Allows admin to update any user including role and coins
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated user information
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/model.UserDto'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.UserDto'
+        "400":
+          description: cannot parse body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Admin update user
+      tags:
+      - User
+schemes:
+- http
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and the token

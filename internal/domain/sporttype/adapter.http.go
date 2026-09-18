@@ -27,6 +27,7 @@ func (h *SportTypeHttpHandler) RegisterRoutes(router fiber.Router, mid *middlewa
 // @Success 200 {object} []model.SportTypeDto
 // @Failure 500 {object} ErrorResponse
 // @Router /sport-types [get]
+// @Security BearerAuth
 func (h *SportTypeHttpHandler) GetAllSportTypes(c *fiber.Ctx) error {
 	sportTypes, err := h.service.GetAllSportTypes()
 	if err != nil {

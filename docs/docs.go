@@ -15,6 +15,56 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/auth/callback": {
+            "get": {
+                "description": "Handles OAuth callback from Google, exchanges code for tokens, and redirects appropriately",
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "OAuth Callback (Google redirects here)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "OAuth authorization code from Google",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "State parameter with redirect URL for third parties",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "redirect to frontend or third-party site",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "missing code",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "get": {
                 "description": "Retrieves the OAuth login URL",
@@ -25,9 +75,26 @@ const docTemplate = `{
                     "Auth"
                 ],
                 "summary": "Login URL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "URL to redirect to after successful authentication",
+                        "name": "redirect_to",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "url",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "invalid redirect URL",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -49,7 +116,7 @@ const docTemplate = `{
         },
         "/auth/login/callback": {
             "post": {
-                "description": "Verifies the OAuth login and returns credentials",
+                "description": "Verifies the OAuth login and returns credentials or redirects to third-party site",
                 "consumes": [
                     "application/json"
                 ],
@@ -69,6 +136,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/model.OAuthCodeDto"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "State parameter with redirect URL",
+                        "name": "state",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -77,6 +150,12 @@ const docTemplate = `{
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    },
+                    "302": {
+                        "description": "redirect to third-party site with credentials",
+                        "schema": {
+                            "type": "string"
                         }
                     },
                     "400": {
@@ -102,6 +181,11 @@ const docTemplate = `{
         },
         "/auth/me": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieves user profile data",
                 "produces": [
                     "application/json"
@@ -187,6 +271,11 @@ const docTemplate = `{
         },
         "/bills": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all bills",
                 "consumes": [
                     "application/json"
@@ -217,6 +306,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a new bill with the input payload",
                 "consumes": [
                     "application/json"
@@ -261,8 +355,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/bills/admin/all": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all bills from all users (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bill"
+                ],
+                "summary": "Get all bills (admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.BillHeadDto"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/bill.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/bills/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get a bill by its ID",
                 "consumes": [
                     "application/json"
@@ -304,7 +440,56 @@ const docTemplate = `{
                     }
                 }
             },
-            "put": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a bill by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bill"
+                ],
+                "summary": "Delete a bill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bill ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/bill.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/bill.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update a bill with the input payload",
                 "consumes": [
                     "application/json"
@@ -360,49 +545,15 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "delete": {
-                "description": "Delete a bill by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Bill"
-                ],
-                "summary": "Delete a bill",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bill ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    }
-                }
             }
         },
         "/colors/group-stage": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get group stage table with group id and sport type",
                 "consumes": [
                     "application/json"
@@ -418,13 +569,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Type ID to filter",
-                        "name": "typeId",
+                        "name": "type_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Group ID to filter",
-                        "name": "groupId",
+                        "name": "group_id",
                         "in": "query"
                     }
                 ],
@@ -455,6 +606,11 @@ const docTemplate = `{
         },
         "/colors/leaderboards": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all colors with their leaderboard info",
                 "consumes": [
                     "application/json"
@@ -470,7 +626,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Type ID to filter",
-                        "name": "typeId",
+                        "name": "type_id",
                         "in": "query"
                     }
                 ],
@@ -499,8 +655,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/daily-rewards": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Set daily reward amount for a specific date (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Event"
+                ],
+                "summary": "Set daily reward",
+                "parameters": [
+                    {
+                        "description": "Daily reward request (date and amount)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Set daily reward successful",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request payload",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to set daily reward",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/events/redeem/daily": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Redeem daily reward for the logged-in user",
                 "consumes": [
                     "application/json"
@@ -543,8 +765,234 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/spin/slot": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Spins the slot machine using the requested coin amount",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Event"
+                ],
+                "summary": "Spin the slot machine",
+                "parameters": [
+                    {
+                        "type": "number",
+                        "description": "Coin amount to spend (50, 100, or 500)",
+                        "name": "spendAmount",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "slot result",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "invalid spend amount or user profile",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/events/use-steal-token": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Uses a steal token against one of its eligible victims",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Event"
+                ],
+                "summary": "Use a steal token",
+                "parameters": [
+                    {
+                        "description": "Steal token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.UseStealTokenRequestDto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "steal result",
+                        "schema": {
+                            "$ref": "#/definitions/model.UseStealTokenResponseDto"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request or token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "missing or invalid authorization",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/external/deduct-coin": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "External API endpoint to deduct coins from authenticated user's balance. Bypasses browser-only validation but requires JWT authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External"
+                ],
+                "summary": "Deduct coins from user balance (External API)",
+                "parameters": [
+                    {
+                        "description": "Deduction request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.DeductCoinRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.DeductCoinResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid amount or parse error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient balance or blacklisted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/external/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves user profile data through the external API middleware",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External"
+                ],
+                "summary": "Get profile (External API)",
+                "responses": {
+                    "200": {
+                        "description": "profile",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "bad request error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "missing or invalid authorization",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/matches": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieves a list of matches, optionally filtered by type and schedule",
                 "produces": [
                     "application/json"
@@ -598,6 +1046,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Creates a new match and stores it in the system",
                 "consumes": [
                     "application/json"
@@ -651,8 +1104,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/matches/current/time": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Gets the current server time used by match scheduling",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Get current match time",
+                "responses": {
+                    "200": {
+                        "description": "current match time",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to get time",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/matches/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieves a single match by its ID",
                 "produces": [
                     "application/json"
@@ -688,7 +1183,77 @@ const docTemplate = `{
                     }
                 }
             },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates match details including teams, sport type, start time, and end time",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Updates match details (teams, type, times)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Match information",
+                        "name": "match",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.MatchDto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated match successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request payload",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to update match",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Deletes a match by its ID",
                 "tags": [
                     "Match"
@@ -725,8 +1290,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/matches/{id}/draw": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks a match as a draw (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Match"
+                ],
+                "summary": "Mark a match as draw",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated match as draw successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to update match as draw",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/matches/{id}/score": {
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates the score of a match",
                 "consumes": [
                     "application/json"
@@ -789,6 +1405,11 @@ const docTemplate = `{
         },
         "/matches/{id}/winner/{winner_id}": {
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates the winner of a match",
                 "produces": [
                     "application/json"
@@ -835,8 +1456,402 @@ const docTemplate = `{
                 }
             }
         },
+        "/mines/active": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the current active Stake Mines game for the user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "StakeMines"
+                ],
+                "summary": "Get active game",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MineGameDto"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mines/create": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Start a new Stake Mines game with specified bet amount and risk level",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "StakeMines"
+                ],
+                "summary": "Create a new Stake Mines game",
+                "parameters": [
+                    {
+                        "description": "Game creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.CreateMineGameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MineGameDto"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mines/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get user's Stake Mines game history with pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "StakeMines"
+                ],
+                "summary": "Get game history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mines/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get comprehensive statistics for the user's Stake Mines games",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "StakeMines"
+                ],
+                "summary": "Get user statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MineGameStatsDto"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mines/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get details of a specific Stake Mines game by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "StakeMines"
+                ],
+                "summary": "Get game details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MineGameDto"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mines/{id}/cashout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cash out and take winnings from an active Stake Mines game",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "StakeMines"
+                ],
+                "summary": "Cash out from the current game",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/mines/{id}/reveal": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reveal a specific tile in an active Stake Mines game",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "StakeMines"
+                ],
+                "summary": "Reveal a tile in the game",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reveal tile request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.RevealMineTileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sport-types": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all sport types available in the system",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "SportType"
+                ],
+                "summary": "Get all sport types",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.SportTypeDto"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/sporttype.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieves a list of all users",
                 "produces": [
                     "application/json"
@@ -865,9 +1880,16 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "post": {
-                "description": "Creates a new user and stores it in the system",
+            }
+        },
+        "/users/admin/{id}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Allows admin to update any user including role and coins",
                 "consumes": [
                     "application/json"
                 ],
@@ -877,10 +1899,17 @@ const docTemplate = `{
                 "tags": [
                     "User"
                 ],
-                "summary": "Create a new user",
+                "summary": "Admin update user",
                 "parameters": [
                     {
-                        "description": "User information",
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated user information",
                         "name": "user",
                         "in": "body",
                         "required": true,
@@ -890,8 +1919,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/model.UserDto"
                         }
@@ -919,6 +1948,11 @@ const docTemplate = `{
         },
         "/users/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Retrieves a single user by their ID",
                 "produces": [
                     "application/json"
@@ -954,37 +1988,12 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
-                "description": "Deletes a user by their ID",
-                "tags": [
-                    "User"
-                ],
-                "summary": "Delete user",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "500": {
-                        "description": "internal server error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates an existing user",
                 "consumes": [
                     "application/json"
@@ -1090,6 +2099,9 @@ const docTemplate = `{
                 "bill_id": {
                     "type": "string"
                 },
+                "is_paid": {
+                    "type": "boolean"
+                },
                 "match": {
                     "$ref": "#/definitions/model.MatchDto"
                 },
@@ -1121,6 +2133,55 @@ const docTemplate = `{
                 },
                 "won": {
                     "type": "integer"
+                }
+            }
+        },
+        "model.CreateMineGameRequest": {
+            "type": "object",
+            "required": [
+                "bet_amount",
+                "risk_level"
+            ],
+            "properties": {
+                "bet_amount": {
+                    "type": "number",
+                    "maximum": 1000000,
+                    "minimum": 1
+                },
+                "risk_level": {
+                    "type": "string",
+                    "enum": [
+                        "low",
+                        "medium",
+                        "high"
+                    ]
+                }
+            }
+        },
+        "model.DeductCoinRequest": {
+            "type": "object",
+            "required": [
+                "amount"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "maximum": 1000000,
+                    "minimum": 1
+                }
+            }
+        },
+        "model.DeductCoinResponse": {
+            "type": "object",
+            "properties": {
+                "deducted_amount": {
+                    "type": "number"
+                },
+                "remaining_balance": {
+                    "type": "number"
+                },
+                "success": {
+                    "type": "boolean"
                 }
             }
         },
@@ -1193,6 +2254,91 @@ const docTemplate = `{
                 }
             }
         },
+        "model.MineGameDto": {
+            "type": "object",
+            "properties": {
+                "bet_amount": {
+                    "type": "number"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "current_payout": {
+                    "type": "number"
+                },
+                "grid": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MineTileDto"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "multiplier": {
+                    "type": "number"
+                },
+                "revealed_count": {
+                    "type": "integer"
+                },
+                "risk_level": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.MineGameStatsDto": {
+            "type": "object",
+            "properties": {
+                "games_cashed_out": {
+                    "type": "integer"
+                },
+                "games_lost": {
+                    "type": "integer"
+                },
+                "games_won": {
+                    "type": "integer"
+                },
+                "net_profit": {
+                    "type": "number"
+                },
+                "total_games": {
+                    "type": "integer"
+                },
+                "total_wagered": {
+                    "type": "number"
+                },
+                "total_winnings": {
+                    "type": "number"
+                },
+                "win_rate": {
+                    "type": "number"
+                }
+            }
+        },
+        "model.MineTileDto": {
+            "type": "object",
+            "properties": {
+                "index": {
+                    "type": "integer"
+                },
+                "revealed": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "description": "diamond, bomb, hidden",
+                    "type": "string"
+                }
+            }
+        },
         "model.OAuthCodeDto": {
             "type": "object",
             "properties": {
@@ -1209,20 +2355,78 @@ const docTemplate = `{
                 }
             }
         },
+        "model.RevealMineTileRequest": {
+            "type": "object",
+            "required": [
+                "index"
+            ],
+            "properties": {
+                "index": {
+                    "type": "integer",
+                    "maximum": 15,
+                    "minimum": 0
+                }
+            }
+        },
         "model.ScoreDto": {
             "type": "object",
             "properties": {
-                "teamAScore": {
+                "team_a_score": {
                     "type": "integer"
                 },
-                "teamBScore": {
+                "team_b_score": {
                     "type": "integer"
+                }
+            }
+        },
+        "model.SportTypeDto": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.UseStealTokenRequestDto": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                },
+                "victim_index": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.UseStealTokenResponseDto": {
+            "type": "object",
+            "properties": {
+                "all_candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.VictimDetailDto"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "raider_new_balance": {
+                    "type": "number"
+                },
+                "total_stolen": {
+                    "type": "number"
                 }
             }
         },
         "model.UserDto": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -1245,6 +2449,43 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "model.VictimDetailDto": {
+            "type": "object",
+            "properties": {
+                "amount_stolen": {
+                    "type": "number"
+                },
+                "balance_before": {
+                    "type": "number"
+                },
+                "group_id": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role_id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "was_chosen": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "sporttype.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
@@ -1262,7 +2503,7 @@ var SwaggerInfo = &swag.Spec{
 	Version:          "0.0.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
-	Schemes:          []string{},
+	Schemes:          []string{"http"},
 	Title:            "Intania888 Backend - API",
 	Description:      "This is an Intania888 Backend API in Intania888 project.",
 	InfoInstanceName: "swagger",

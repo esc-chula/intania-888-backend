@@ -40,6 +40,7 @@ func (h *EventHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 // @Failure 400 {object} map[string]string "not found user profile in context"
 // @Failure 500 {object} map[string]string "internal server error"
 // @Router /events/redeem/daily [get]
+// @Security BearerAuth
 func (h *EventHttpHandler) RedeemDailyReward(c *fiber.Ctx) error {
 	// get user from context
 	userProfile := utils.GetUserProfileFromCtx(c)
@@ -55,6 +56,16 @@ func (h *EventHttpHandler) RedeemDailyReward(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "redeemed daily reward successful"})
 }
 
+// @Summary Spin the slot machine
+// @Description Spins the slot machine using the requested coin amount
+// @Tags Event
+// @Produce json
+// @Param spendAmount query number true "Coin amount to spend (50, 100, or 500)"
+// @Success 200 {object} map[string]interface{} "slot result"
+// @Failure 400 {object} map[string]string "invalid spend amount or user profile"
+// @Failure 500 {object} map[string]string "internal server error"
+// @Router /events/spin/slot [post]
+// @Security BearerAuth
 func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 	// Get user from context
 	userProfile := utils.GetUserProfileFromCtx(c)
@@ -99,6 +110,7 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 // @Failure 400 {object} map[string]string "Invalid request payload"
 // @Failure 500 {object} map[string]string "Failed to set daily reward"
 // @Router /events/daily-rewards [post]
+// @Security BearerAuth
 func (h *EventHttpHandler) SetDailyReward(c *fiber.Ctx) error {
 	var req struct {
 		Date   string  `json:"date"`   // Format: DD-MM-YYYY (e.g., "31-10-24")
@@ -117,6 +129,17 @@ func (h *EventHttpHandler) SetDailyReward(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Set daily reward successful"})
 }
 
+// @Summary Use a steal token
+// @Description Uses a steal token against one of its eligible victims
+// @Tags Event
+// @Accept json
+// @Produce json
+// @Param request body model.UseStealTokenRequestDto true "Steal token request"
+// @Success 200 {object} model.UseStealTokenResponseDto "steal result"
+// @Failure 400 {object} map[string]string "invalid request or token"
+// @Failure 401 {object} map[string]string "missing or invalid authorization"
+// @Router /events/use-steal-token [post]
+// @Security BearerAuth
 // UseStealToken consumes a steal token to steal a percentage from random users.
 func (h *EventHttpHandler) UseStealToken(c *fiber.Ctx) error {
 	userProfile := utils.GetUserProfileFromCtx(c)

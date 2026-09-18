@@ -25,11 +25,12 @@ func (h *ColorHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 // @Tags Color
 // @Accept json
 // @Produce json
-// @Param typeId query string false "Type ID to filter"
-// @Success 200 {object} []model.ColorDto
+// @Param type_id query string false "Type ID to filter"
+// @Success 200 {array} model.ColorDto
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /colors/leaderboards [get]
+// @Security BearerAuth
 func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 	typeId := c.Query("type_id", "")
 
@@ -46,12 +47,13 @@ func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 // @Tags Color
 // @Accept json
 // @Produce json
-// @Param typeId query string false "Type ID to filter"
-// @Param groupId query string false "Group ID to filter"
-// @Success 200 {object} []model.ColorDto
+// @Param type_id query string false "Type ID to filter"
+// @Param group_id query string false "Group ID to filter"
+// @Success 200 {array} model.ColorDto
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /colors/group-stage [get]
+// @Security BearerAuth
 func (h *ColorHttpHandler) GetGroupStageTable(c *fiber.Ctx) error {
 	typeId := c.Query("type_id", "")
 	groupId := c.Query("group_id", "")

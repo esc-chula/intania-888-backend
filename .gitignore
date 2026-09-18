@@ -3,6 +3,7 @@
 *.env
 tmp
 *.md
+!docs/README.md
 .env.local
 .env.prod
 /requirements

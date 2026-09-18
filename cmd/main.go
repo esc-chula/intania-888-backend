@@ -16,13 +16,15 @@ import (
 	"github.com/esc-chula/intania-888-backend/pkg/database"
 	"github.com/esc-chula/intania-888-backend/pkg/logger"
 	"github.com/esc-chula/intania-888-backend/pkg/oauth"
+	"go.uber.org/zap"
 )
 
 // @title Intania888 Backend - API
 // @version 0.0.0
 // @description  This is an Intania888 Backend API in Intania888 project.
 
-// @host      https://888api.chula.engineering
+// @host      localhost:8080
+// @schemes   http
 // @BasePath  /api/v1
 
 // @securityDefinitions.apikey BearerAuth
@@ -74,8 +76,11 @@ func main() {
 	sportTypeHttp := sporttype.NewSportTypeHttpHandler(sportTypeSvc)
 
 	// init router
-	server := server.NewFiberHttpServer(cfg, logger)
-	router := server.InitHttpServer()
+	httpServer, err := server.NewFiberHttpServer(cfg, logger)
+	if err != nil {
+		logger.Fatal("invalid Swagger configuration", zap.Error(err))
+	}
+	router := httpServer.InitHttpServer()
 
 	// register routes
 	userHttp.RegisterRoutes(router, midHttp)
@@ -93,5 +98,5 @@ func main() {
 	authHttp.RegisterExternalRoutes(externalRouter, midHttp)
 
 	// start server
-	server.Start()
+	httpServer.Start()
 }

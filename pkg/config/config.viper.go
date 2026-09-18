@@ -37,6 +37,11 @@ func NewViperConfig() Config {
 			panic("Error: invalid app env")
 		}
 
+		// Swagger remains enabled for compatibility. Development is frictionless,
+		// while production requires the configured Basic Auth credentials.
+		v.SetDefault("swagger_enabled", true)
+		v.SetDefault("swagger_require_auth", appEnv == "prod")
+
 		// Bind environment variables to config keys
 		bindEnvVars(v)
 		v.AutomaticEnv()
@@ -108,6 +113,7 @@ func (c *viperConfig) GetCors() Cors {
 func bindEnvVars(v *viper.Viper) {
 	v.BindEnv("server_name", "SERVER_NAME")
 	v.BindEnv("server_env", "SERVER_ENV")
+	v.BindEnv("server_url", "SERVER_URL")
 	v.BindEnv("server_host", "SERVER_HOST")
 	v.BindEnv("server_port", "SERVER_PORT")
 	v.BindEnv("server_origin", "SERVER_ORIGIN")
@@ -133,6 +139,8 @@ func bindEnvVars(v *viper.Viper) {
 	v.BindEnv("oauth_redirect_uri", "OAUTH_REDIRECT_URI")
 	v.BindEnv("oauth_frontend_url", "OAUTH_FRONTEND_URL")
 
+	v.BindEnv("swagger_enabled", "SWAGGER_ENABLED")
+	v.BindEnv("swagger_require_auth", "SWAGGER_REQUIRE_AUTH")
 	v.BindEnv("swagger_username", "SWAGGER_USERNAME")
 	v.BindEnv("swagger_password", "SWAGGER_PASSWORD")
 
