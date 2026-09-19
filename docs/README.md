@@ -1,5 +1,7 @@
 # Swagger documentation
 
+> **Breaking backend release:** Money values are fixed two-decimal JSON strings, bill rates are server-owned, and bill/match lifecycle routes changed. The current frontend is incompatible until its separate migration.
+
 The API documentation is generated from Go annotations with `swag` and served
 by Fiber's Swagger UI middleware.
 
