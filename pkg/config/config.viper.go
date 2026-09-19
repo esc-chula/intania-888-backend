@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/spf13/viper"
@@ -68,10 +69,16 @@ func NewViperConfig() Config {
 }
 
 func getEnv() string {
-	if len(os.Args) >= 2 {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) {
+	case "dev", "development":
 		return "dev"
+	case "prod", "production":
+		return "prod"
 	}
 
+	if len(os.Args) >= 2 && os.Args[1] == "dev" {
+		return "dev"
+	}
 	return "prod"
 }
 
@@ -79,6 +86,7 @@ func GetConfig() Config {
 	if instance == nil {
 		instance = NewViperConfig()
 	}
+
 	return instance
 }
 

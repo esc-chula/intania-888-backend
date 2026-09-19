@@ -18,8 +18,25 @@ swagger-check:
 	diff -u docs/swagger.json "$$tmp_dir/swagger.json"; \
 	diff -u docs/swagger.yaml "$$tmp_dir/swagger.yaml"
 
-migrate:
-	go run ./pkg/database/migration/migration_script.go
+migrate-up:
+	APP_ENV=dev go run ./cmd/migrate up
+
+migrate-status:
+	APP_ENV=dev go run ./cmd/migrate status
+
+migrate-down:
+	@test "$${ALLOW_DESTRUCTIVE_MIGRATIONS}" = "I_UNDERSTAND_DATA_WILL_BE_LOST" || (echo "refusing destructive migration; set ALLOW_DESTRUCTIVE_MIGRATIONS=I_UNDERSTAND_DATA_WILL_BE_LOST"; exit 1)
+	APP_ENV=dev go run ./cmd/migrate down
+
+migrate-reset:
+	@test "$${ALLOW_DESTRUCTIVE_MIGRATIONS}" = "I_UNDERSTAND_DATA_WILL_BE_LOST" || (echo "refusing destructive migration; set ALLOW_DESTRUCTIVE_MIGRATIONS=I_UNDERSTAND_DATA_WILL_BE_LOST"; exit 1)
+	APP_ENV=dev go run ./cmd/migrate reset
+
+migrate: migrate-status
+	@echo "'make migrate' is non-mutating; use 'make migrate-up' explicitly"
+
+seed:
+	APP_ENV=dev go run ./cmd/seed
 
 run:
 	go run ./cmd/main.go dev
