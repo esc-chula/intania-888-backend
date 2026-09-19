@@ -9,7 +9,7 @@ type User struct {
 	NickName      *string   `gorm:"type:varchar(100);"`
 	RoleId        string    `gorm:"type:varchar(100);not null"`
 	GroupId       *string   `gorm:"type:varchar(100);"`
-	RemainingCoin float64   `gorm:"type:decimal(10,2);"`
+	RemainingCoin int64     `gorm:"column:remaining_coin;type:bigint;not null;default:0"`
 	CreatedAt     time.Time ``
 	UpdatedAt     time.Time ``
 
@@ -77,11 +77,15 @@ type Match struct {
 }
 
 type BillHead struct {
-	Id        string    `gorm:"primaryKey;type:varchar(100)"`
-	Total     float64   `gorm:"type:decimal(10,2);not null"`
-	UserId    string    `gorm:"type:varchar(100);not null"`
-	CreatedAt time.Time ``
-	UpdatedAt time.Time ``
+	Id        string     `gorm:"primaryKey;type:varchar(100)"`
+	Total     int64      `gorm:"column:total;type:bigint;not null"`
+	UserId    string     `gorm:"type:varchar(100);not null"`
+	Status    string     `gorm:"type:varchar(20);not null"`
+	Payout    *int64     `gorm:"type:bigint"`
+	SettledAt *time.Time ``
+	VoidedAt  *time.Time ``
+	CreatedAt time.Time  ``
+	UpdatedAt time.Time  ``
 
 	User  User       `gorm:"foreignKey:UserId"`
 	Lines []BillLine `gorm:"foreignKey:BillId;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
@@ -90,8 +94,7 @@ type BillHead struct {
 type BillLine struct {
 	BillId    string    `gorm:"primaryKey;type:varchar(100)"`
 	MatchId   string    `gorm:"primaryKey;type:varchar(100)"`
-	Rate      float64   `gorm:"type:decimal(10,2);not null"`
-	IsPaid    bool      `gorm:"type:boolean;default:false"`
+	Rate      int64     `gorm:"column:rate;type:bigint;not null"`
 	BettingOn string    `gorm:"type:varchar(100);not null"` // color
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``
@@ -145,7 +148,7 @@ type SportType struct {
 
 type DailyReward struct {
 	Date      string    `gorm:"primaryKey;type:varchar(100)"` // DD-MM-YY eg. 31-10-24
-	Reward    float64   `gorm:"type:decimal(10,2);not null"`
+	Reward    int64     `gorm:"column:reward;type:bigint;not null"`
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``
 }
@@ -162,15 +165,16 @@ type StealToken struct {
 
 	User User `gorm:"foreignKey:UserId"`
 }
+
 type MineGame struct {
 	Id            string     `gorm:"primaryKey;type:varchar(100)"`
 	UserId        string     `gorm:"type:varchar(100);not null"`
-	BetAmount     float64    `gorm:"type:decimal(10,2);not null"`
+	BetAmount     int64      `gorm:"column:bet_amount;type:bigint;not null"`
 	RiskLevel     string     `gorm:"type:varchar(20);not null"` // low, medium, high
 	Status        string     `gorm:"type:varchar(20);not null"` // active, won, lost, cashed_out
 	RevealedCount int        `gorm:"type:int;default:0"`
-	CurrentPayout float64    `gorm:"type:decimal(10,2);not null"`
-	Multiplier    float64    `gorm:"type:decimal(10,2);default:1.0"`
+	CurrentPayout int64      `gorm:"column:current_payout;type:bigint;not null"`
+	Multiplier    int64      `gorm:"column:multiplier;type:bigint;not null;default:1000000"`
 	GridData      string     `gorm:"type:text;not null"` // JSON string of the grid
 	CreatedAt     time.Time  ``
 	UpdatedAt     time.Time  ``
@@ -184,9 +188,19 @@ type MineGameHistory struct {
 	GameId      string    `gorm:"type:varchar(100);not null"`
 	TileIndex   int       `gorm:"type:int;not null"`
 	TileType    string    `gorm:"type:varchar(20);not null"` // diamond, bomb
-	Multiplier  float64   `gorm:"type:decimal(10,2);not null"`
-	PayoutAtHit float64   `gorm:"type:decimal(10,2);not null"`
+	Multiplier  int64     `gorm:"column:multiplier;type:bigint;not null"`
+	PayoutAtHit int64     `gorm:"column:payout_at_hit;type:bigint;not null"`
 	CreatedAt   time.Time ``
 
 	Game MineGame `gorm:"foreignKey:GameId"`
+}
+
+type BillTerminalEvent struct {
+	Id        string    `gorm:"primaryKey;type:varchar(100)"`
+	BillId    string    `gorm:"type:varchar(100);not null;uniqueIndex"`
+	Kind      string    `gorm:"type:varchar(20);not null"`
+	Amount    int64     `gorm:"type:bigint;not null"`
+	ActorId   *string   `gorm:"type:varchar(100)"`
+	Reason    *string   `gorm:"type:varchar(500)"`
+	CreatedAt time.Time ``
 }

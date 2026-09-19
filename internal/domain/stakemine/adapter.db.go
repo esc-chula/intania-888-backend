@@ -24,24 +24,29 @@ func (r *stakeMineRepositoryImpl) Update(game *model.MineGame) error {
 
 func (r *stakeMineRepositoryImpl) FindById(gameId string) (*model.MineGame, error) {
 	var game model.MineGame
+
 	err := r.db.Where("id = ?", gameId).First(&game).Error
 	if err != nil {
 		return nil, err
 	}
+
 	return &game, nil
 }
 
 func (r *stakeMineRepositoryImpl) FindActiveByUserId(userId string) (*model.MineGame, error) {
 	var game model.MineGame
+
 	err := r.db.Where("user_id = ? AND status = ?", userId, "active").First(&game).Error
 	if err != nil {
 		return nil, err
 	}
+
 	return &game, nil
 }
 
 func (r *stakeMineRepositoryImpl) FindByUserId(userId string, limit int, offset int) ([]model.MineGame, error) {
 	var games []model.MineGame
+
 	err := r.db.Where("user_id = ?", userId).
 		Order("created_at DESC").
 		Limit(limit).
@@ -50,6 +55,7 @@ func (r *stakeMineRepositoryImpl) FindByUserId(userId string, limit int, offset 
 	if err != nil {
 		return nil, err
 	}
+
 	return games, nil
 }
 
@@ -62,28 +68,73 @@ func (r *stakeMineRepositoryImpl) GetStatsByUserId(userId string) (*model.MineGa
 
 	// Count games by status
 	var gamesWon, gamesLost, gamesCashedOut int64
-	r.db.Model(&model.MineGame{}).Where("user_id = ? AND status = ?", userId, "won").Count(&gamesWon)
-	r.db.Model(&model.MineGame{}).Where("user_id = ? AND status = ?", userId, "lost").Count(&gamesLost)
-	r.db.Model(&model.MineGame{}).Where("user_id = ? AND status = ?", userId, "cashed_out").Count(&gamesCashedOut)
+
+	if err := r.db.
+		Model(&model.MineGame{}).
+		Where("user_id = ? AND status = ?", userId, "won").
+		Count(&gamesWon).
+		Error; err != nil {
+		return nil, err
+	}
+
+	if err := r.db.
+		Model(&model.MineGame{}).
+		Where("user_id = ? AND status = ?", userId, "lost").
+		Count(&gamesLost).
+		Error; err != nil {
+		return nil, err
+	}
+
+	if err := r.db.
+		Model(&model.MineGame{}).
+		Where("user_id = ? AND status = ?", userId, "cashed_out").
+		Count(&gamesCashedOut).
+		Error; err != nil {
+		return nil, err
+	}
 
 	stats.GamesWon = int(gamesWon)
 	stats.GamesLost = int(gamesLost)
 	stats.GamesCashedOut = int(gamesCashedOut)
 	stats.TotalGames = stats.GamesWon + stats.GamesLost + stats.GamesCashedOut
 
-	// Calculate total wagered
-	r.db.Model(&model.MineGame{}).
-		Where("user_id = ?", userId).
+	var totalWagered, totalWinnings int64
+
+	// Realized totals exclude the active game.
+	if err := r.db.Model(&model.MineGame{}).
+		Where("user_id = ? AND status <> 'active'", userId).
 		Select("COALESCE(SUM(bet_amount), 0)").
-		Scan(&stats.TotalWagered)
+		Scan(&totalWagered).Error; err != nil {
+		return nil, err
+	}
 
 	// Calculate total winnings (won + cashed out games only)
-	r.db.Model(&model.MineGame{}).
+	if err := r.db.Model(&model.MineGame{}).
 		Where("user_id = ? AND status IN ?", userId, []string{"won", "cashed_out"}).
 		Select("COALESCE(SUM(current_payout), 0)").
-		Scan(&stats.TotalWinnings)
+		Scan(&totalWinnings).Error; err != nil {
+		return nil, err
+	}
 
-	stats.NetProfit = stats.TotalWinnings - stats.TotalWagered
+	stats.TotalWagered = model.MustMoneyFromMinor(totalWagered)
+	stats.TotalWinnings = model.MustMoneyFromMinor(totalWinnings)
+	stats.NetProfit = model.NewSignedMoneyFromMinor(totalWinnings - totalWagered)
+
+	// Include the currently active game's exposure separately.
+	var active model.MineGame
+
+	if err := r.db.
+		Where("user_id = ? AND status = 'active'", userId).
+		First(&active).
+		Error; err == nil {
+		w := model.MustMoneyFromMinor(active.BetAmount)
+		p := model.MustMoneyFromMinor(active.CurrentPayout)
+
+		stats.ActiveWagered = &w
+		stats.ActiveCurrentPayout = &p
+	} else if err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
 
 	// Calculate win rate
 	if stats.TotalGames > 0 {

@@ -24,7 +24,8 @@ func NewUserService(repo UserRepository, db *gorm.DB, log *zap.Logger) UserServi
 }
 
 func (s *userServiceImpl) CreateUser(userDto *model.UserDto) error {
-	userDto.RemainingCoin = 888.00
+	userDto.RemainingCoin = model.MustMoneyFromMinor(88800)
+
 	err := s.repo.Create(ToUserEntity(userDto))
 	if err != nil {
 		s.log.Named("CreateUser").Error("Failed to create user", zap.Error(err))
@@ -43,12 +44,13 @@ func (s *userServiceImpl) GetUser(id string) (*model.UserDto, error) {
 	}
 
 	s.log.Named("GetUser").Info("Successfully fetched user by id", zap.String("user_id", user.Id))
+
 	return &model.UserDto{
 		Id:            user.Id,
 		Email:         user.Email,
 		Name:          user.Name,
 		RoleId:        user.RoleId,
-		RemainingCoin: user.RemainingCoin,
+		RemainingCoin: model.MustMoneyFromMinor(user.RemainingCoin),
 		NickName:      user.NickName,
 		GroupId:       user.GroupId,
 	}, nil
@@ -62,13 +64,14 @@ func (s *userServiceImpl) GetAllUsers() ([]*model.UserDto, error) {
 	}
 
 	usersDto := make([]*model.UserDto, len(users))
+
 	for i, user := range users {
 		usersDto[i] = &model.UserDto{
 			Id:            user.Id,
 			Email:         user.Email,
 			Name:          user.Name,
 			RoleId:        user.RoleId,
-			RemainingCoin: user.RemainingCoin,
+			RemainingCoin: model.MustMoneyFromMinor(user.RemainingCoin),
 			NickName:      user.NickName,
 			GroupId:       user.GroupId,
 			CreatedAt:     user.CreatedAt,
@@ -85,7 +88,8 @@ func (s *userServiceImpl) UpdateUser(userDto *model.UserDto) error {
 		s.log.Named("UpdateUser").Error("Failed to get existed user", zap.Error(err))
 		return err
 	}
-	userDto.RemainingCoin = existed.RemainingCoin
+
+	userDto.RemainingCoin = model.MustMoneyFromMinor(existed.RemainingCoin)
 
 	err = s.repo.Update(ToUserEntity(userDto))
 	if err != nil {
@@ -108,7 +112,8 @@ func (s *userServiceImpl) AdminUpdateUser(userId string, userDto *model.UserDto)
 	existed.Name = userDto.Name
 	existed.NickName = userDto.NickName
 	existed.RoleId = userDto.RoleId
-	existed.RemainingCoin = userDto.RemainingCoin
+	existed.RemainingCoin = userDto.RemainingCoin.MinorUnits()
+
 	if userDto.GroupId != nil {
 		existed.GroupId = userDto.GroupId
 	}
@@ -124,8 +129,8 @@ func (s *userServiceImpl) AdminUpdateUser(userId string, userDto *model.UserDto)
 }
 
 // DeductCoin deducts coins from user balance atomically with transaction safety
-func (s *userServiceImpl) DeductCoin(userId string, amount float64) (float64, error) {
-	var remainingBalance float64
+func (s *userServiceImpl) DeductCoin(userId string, amount model.Money) (model.Money, error) {
+	var remainingBalance model.Money
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Lock user row for update
@@ -138,37 +143,38 @@ func (s *userServiceImpl) DeductCoin(userId string, amount float64) (float64, er
 		}
 
 		// 2. Validate balance (allow exactly 0, reject negative)
-		if user.RemainingCoin < amount {
+		if user.RemainingCoin < amount.MinorUnits() {
 			s.log.Named("DeductCoin").Warn("Insufficient balance",
 				zap.String("userId", userId),
-				zap.Float64("balance", user.RemainingCoin),
-				zap.Float64("amount", amount))
+				zap.Int64("balance_minor", user.RemainingCoin),
+				zap.Int64("amount_minor", amount.MinorUnits()))
 			return errors.New("insufficient balance")
 		}
 
 		// 3. Atomic deduction using SQL expression
 		if err := tx.Model(&model.User{}).
 			Where("id = ?", userId).
-			Update("remaining_coin", gorm.Expr("remaining_coin - ?", amount)).
+			Update("remaining_coin", gorm.Expr("remaining_coin - ?", amount.MinorUnits())).
 			Error; err != nil {
 			s.log.Named("DeductCoin").Error("Failed to deduct coins", zap.Error(err))
 			return errors.New("failed to deduct coins")
 		}
 
 		// 4. Calculate remaining balance for response
-		remainingBalance = user.RemainingCoin - amount
+		remainingBalance = model.MustMoneyFromMinor(user.RemainingCoin - amount.MinorUnits())
 
 		s.log.Named("DeductCoin").Info("Coins deducted successfully",
 			zap.String("userId", userId),
-			zap.Float64("amount", amount),
-			zap.Float64("remaining", remainingBalance))
+			zap.Int64("amount_minor", amount.MinorUnits()),
+			zap.Int64("remaining_minor", remainingBalance.MinorUnits()))
 
 		return nil
 	})
 
 	if err != nil {
-		return 0, err
+		return model.Money{}, err
 	}
 
+	// Return the balance computed while the locked row was updated.
 	return remainingBalance, nil
 }

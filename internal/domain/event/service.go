@@ -39,7 +39,7 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 
 	var dailyRewardCache model.DailyRewardCacheDto
 
-	// Check if user has already redeemed the reward for today
+	// Check whether this user already redeemed today's reward.
 	err := s.eventRepo.GetDailyRewardCache(key, &dailyRewardCache)
 	if err != nil {
 		if err == redis.Nil {
@@ -57,15 +57,16 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 	}
 
 	// Set value of daily reward to 300 coins
-	dailyReward := 300.00
+	dailyReward := model.MustMoneyFromMinor(30000)
 
-	// Update the user's coin balance
+	// Load and update the user's balance.
 	user, err := s.userRepo.GetById(req.Id)
 	if err != nil {
 		s.log.Named("RedeemDailyReward").Error("Get user by Id: ", zap.Error(err))
 		return err
 	}
-	user.RemainingCoin += dailyReward
+
+	user.RemainingCoin += dailyReward.MinorUnits()
 
 	err = s.userRepo.Update(user)
 	if err != nil {
@@ -74,7 +75,11 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 	}
 
 	// Set the cache for daily reward redemption
-	dailyRewardCache = model.DailyRewardCacheDto{UserId: req.Id, Reward: dailyReward}
+	dailyRewardCache = model.DailyRewardCacheDto{
+		UserId: req.Id,
+		Reward: dailyReward,
+	}
+
 	if err := s.eventRepo.SetDailyRewardCache(key, dailyRewardCache, s.cfg.GetJwt().RefreshTokenExpiration); err != nil {
 		s.log.Named("RedeemDailyReward").Error("Set daily reward cache: ", zap.Error(err))
 		return err
@@ -83,7 +88,8 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 	return nil
 }
 
-func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) (map[string]interface{}, error) {
+func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount model.Money) (map[string]interface{}, error) {
+	// Remove expired tokens before starting a new spin.
 	if err := s.eventRepo.DeleteExpiredTokens(); err != nil {
 		s.log.Named("SpinSlotMachine").Warn("failed to cleanup expired tokens", zap.Error(err))
 	}
@@ -93,11 +99,13 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 		return nil, err
 	}
 
-	if user.RemainingCoin < spendAmount {
+	if user.RemainingCoin < spendAmount.MinorUnits() {
 		return nil, errors.New("insufficient coins")
 	}
 
-	user.RemainingCoin -= spendAmount
+	// Deduct the stake before generating the result.
+	user.RemainingCoin -= spendAmount.MinorUnits()
+
 	err = s.userRepo.Update(user)
 	if err != nil {
 		return nil, err
@@ -109,7 +117,12 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 	slot3 := utils.GetRandomSlot(req)
 
 	// Calculate reward based on new rules
-	var reward float64
+	var reward model.Money
+
+	multiply := func(micro int64) {
+		reward, _ = spendAmount.Mul(model.MustRateFromMicro(micro))
+	}
+
 	switch {
 	// 3 matching aliens -> issue steal token
 	case slot1 == "👽" && slot2 == "👽" && slot3 == "👽":
@@ -117,7 +130,7 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 		candidates, err := s.eventRepo.GetRandomEligibleUsers(req.Id, 3)
 		if err != nil || len(candidates) == 0 {
 			s.log.Named("SpinSlotMachine").Error("No eligible candidates", zap.Error(err))
-			reward = spendAmount * 4.0
+			multiply(4000000)
 			break
 		}
 
@@ -136,16 +149,17 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 		}
 		if err := s.eventRepo.CreateStealToken(token); err != nil {
 			s.log.Named("SpinSlotMachine").Error("Failed to create steal token", zap.Error(err))
-			reward = spendAmount * 4.0
+			multiply(4000000)
 		} else {
 			previews := make([]model.CandidatePreviewDto, 0, len(candidates))
+
 			for i, u := range candidates {
 				previews = append(previews, model.CandidatePreviewDto{Index: i, Name: u.Name, RoleId: u.RoleId, GroupId: u.GroupId})
 			}
 
 			return map[string]interface{}{
 				"slots":  []string{slot1, slot2, slot3},
-				"reward": 0.0,
+				"reward": model.Money{},
 				"stealToken": model.StealTokenDto{
 					Token:       token.Token,
 					ExpiresAt:   token.ExpiresAt,
@@ -157,48 +171,47 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount float64) 
 		}
 	// 3 matching gold symbols
 	case slot1 == "💰" && slot2 == "💰" && slot3 == "💰":
-		reward = spendAmount * 10.0
+		multiply(10000000)
 
 	// 3 matching fruit symbols
 	case slot1 == slot2 && slot2 == slot3:
-		reward = spendAmount * 4.0
+		multiply(4000000)
 
 	// 2 gold + 1 different symbol
 	case (slot1 == "💰" && slot2 == "💰" && slot3 != "💰") ||
 		(slot1 == "💰" && slot3 == "💰" && slot2 != "💰") ||
 		(slot2 == "💰" && slot3 == "💰" && slot1 != "💰"):
-		reward = spendAmount * 3.0
+		multiply(3000000)
 
 	// 1 gold + 2 matching symbols
 	case (slot1 == "💰" && slot2 == slot3 && slot2 != "💰") ||
 		(slot2 == "💰" && slot1 == slot3 && slot1 != "💰") ||
 		(slot3 == "💰" && slot1 == slot2 && slot1 != "💰"):
-		reward = spendAmount * 2.0
+		multiply(2000000)
 
 	// 1 gold + 2 different symbols
 	case (slot1 == "💰" && slot2 != "💰" && slot3 != "💰") ||
 		(slot2 == "💰" && slot1 != "💰" && slot3 != "💰") ||
 		(slot3 == "💰" && slot1 != "💰" && slot2 != "💰"):
-		reward = spendAmount * 1.5
+		multiply(1500000)
 
 	// 2 matching fruit symbols
 	case slot1 == slot2 || slot1 == slot3 || slot2 == slot3:
-		reward = spendAmount * 0.75
+		multiply(750000)
 
 	default:
-		reward = 0
+		reward = model.Money{}
 	}
 
-	reward = roundToTwoDecimals(reward)
-
 	// Add reward to user's balance
-	user.RemainingCoin += reward
+	user.RemainingCoin += reward.MinorUnits()
+
 	err = s.userRepo.Update(user)
 	if err != nil {
 		return nil, err
 	}
 
-	// Return result to frontend
+	// Return the generated slots and reward.
 	return map[string]interface{}{
 		"slots":  []string{slot1, slot2, slot3},
 		"reward": reward,
@@ -210,20 +223,25 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 	if err != nil {
 		return nil, errors.New("invalid or expired token")
 	}
+
 	if stealToken.UserId != userId {
 		return nil, errors.New("Idiot")
 	}
+
 	if stealToken.IsUsed {
 		return nil, errors.New("token already used")
 	}
+
 	if time.Now().After(stealToken.ExpiresAt) {
 		return nil, errors.New("token expired")
 	}
 
 	candidateIds := splitCSV(stealToken.AllowedVictimIds)
+
 	if victimIndex < 0 || victimIndex >= len(candidateIds) {
 		return nil, errors.New("Idiot")
 	}
+
 	chosenVictimId := candidateIds[victimIndex]
 
 	allCandidates, err := s.eventRepo.GetUsersByIds(candidateIds)
@@ -232,32 +250,38 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 	}
 
 	candidateMap := make(map[string]model.User)
+
 	for _, u := range allCandidates {
 		candidateMap[u.Id] = u
 	}
 
 	chosenVictim, exists := candidateMap[chosenVictimId]
-	minVictimBalance := 100.0
+	minVictimBalance := int64(10000)
 
 	if !exists {
 		return nil, errors.New("chosen victim no longer exists")
 	}
+
 	if chosenVictim.RemainingCoin < minVictimBalance {
 		return nil, errors.New("chosen victim has insufficient balance")
 	}
 
-	percentage := 0.20
+	// Apply the fixed steal rate, then enforce the minimum payout.
+	percentage := model.MustRateFromMicro(200000)
 	stolenAmount, _, err := s.eventRepo.StealPercentageFromSpecificUser(userId, chosenVictimId, percentage)
 	if err != nil {
 		return nil, fmt.Errorf("raid failed: %v", err)
 	}
 
-	minStealAmount := 50.0
-	if stolenAmount > 0 && stolenAmount < minStealAmount {
-		difference := minStealAmount - stolenAmount
+	minStealAmount := model.MustMoneyFromMinor(5000)
+
+	if !stolenAmount.IsZero() && stolenAmount.MinorUnits() < minStealAmount.MinorUnits() {
+		difference := minStealAmount.MinorUnits() - stolenAmount.MinorUnits()
 		raider, err := s.userRepo.GetById(userId)
+
 		if err == nil {
 			raider.RemainingCoin += difference
+
 			if err := s.userRepo.Update(raider); err != nil {
 				s.log.Named("UseStealToken").Warn("failed to apply minimum bonus", zap.Error(err))
 			} else {
@@ -265,8 +289,6 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 			}
 		}
 	}
-
-	stolenAmount = roundToTwoDecimals(stolenAmount)
 
 	if err := s.eventRepo.MarkTokenAsUsed(stealToken.Id); err != nil {
 		s.log.Named("UseStealToken").Error("mark token used", zap.Error(err))
@@ -278,6 +300,7 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 	}
 
 	allCandidatesDto := make([]model.VictimDetailDto, 0, 3)
+
 	for i, victimId := range candidateIds {
 		victim, found := candidateMap[victimId]
 
@@ -288,15 +311,16 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 				Name:          "[Deleted User]",
 				RoleId:        "UNKNOWN",
 				GroupId:       nil,
-				BalanceBefore: 0.0,
-				AmountStolen:  0.0,
+				BalanceBefore: model.Money{},
+				AmountStolen:  model.Money{},
 				WasChosen:     (victimId == chosenVictimId),
 			})
 			continue
 		}
 
 		wasChosen := (victimId == chosenVictimId)
-		amountStolen := 0.0
+		amountStolen := model.Money{}
+
 		if wasChosen {
 			amountStolen = stolenAmount
 		}
@@ -307,26 +331,26 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 			Name:          victim.Name,
 			RoleId:        victim.RoleId,
 			GroupId:       victim.GroupId,
-			BalanceBefore: roundToTwoDecimals(victim.RemainingCoin), // Balance BEFORE raid
+			BalanceBefore: model.MustMoneyFromMinor(victim.RemainingCoin), // Balance BEFORE raid
 			AmountStolen:  amountStolen,
 			WasChosen:     wasChosen,
 		})
 	}
 
-	message := fmt.Sprintf("👽 You raided %s and stole %.2f coins!", chosenVictim.Name, stolenAmount)
+	message := fmt.Sprintf("👽 You raided %s and stole %s coins!", chosenVictim.Name, stolenAmount.String())
 
 	return &model.UseStealTokenResponseDto{
 		TotalStolen:      stolenAmount,
-		RaiderNewBalance: roundToTwoDecimals(raider.RemainingCoin),
+		RaiderNewBalance: model.MustMoneyFromMinor(raider.RemainingCoin),
 		AllCandidates:    allCandidatesDto,
 		Message:          message,
 	}, nil
 }
 
-func (s *eventService) SetDailyReward(date string, amount float64) error {
+func (s *eventService) SetDailyReward(date string, amount model.Money) error {
 	reward := &model.DailyReward{
 		Date:   date,
-		Reward: amount,
+		Reward: amount.MinorUnits(),
 	}
 
 	err := s.eventRepo.SetReward(reward)
@@ -335,7 +359,8 @@ func (s *eventService) SetDailyReward(date string, amount float64) error {
 		return err
 	}
 
-	s.log.Named("SetDailyReward").Info("Set daily reward successfully", zap.String("date", date), zap.Float64("amount", amount))
+	s.log.Named("SetDailyReward").Info("Set daily reward successfully", zap.String("date", date), zap.Int64("amount_minor", amount.MinorUnits()))
+
 	return nil
 }
 
@@ -344,6 +369,7 @@ func joinCSV(ids []string) string {
 	if len(ids) == 0 {
 		return ""
 	}
+
 	return strings.Join(ids, ",")
 }
 
@@ -352,17 +378,16 @@ func splitCSV(s string) []string {
 	if s == "" {
 		return []string{}
 	}
+
 	// Avoid empty elements from accidental double commas
 	parts := strings.Split(s, ",")
 	out := make([]string, 0, len(parts))
+
 	for _, p := range parts {
 		if p != "" {
 			out = append(out, p)
 		}
 	}
-	return out
-}
 
-func roundToTwoDecimals(value float64) float64 {
-	return float64(int(value*100+0.5)) / 100
+	return out
 }

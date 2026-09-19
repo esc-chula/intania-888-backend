@@ -2,9 +2,9 @@ package event
 
 import (
 	"errors"
-	"strconv"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
 )
@@ -60,7 +60,7 @@ func (h *EventHttpHandler) RedeemDailyReward(c *fiber.Ctx) error {
 // @Description Spins the slot machine using the requested coin amount
 // @Tags Event
 // @Produce json
-// @Param spendAmount query number true "Coin amount to spend (50, 100, or 500)"
+// @Param spendAmount query string true "Money string to spend (50, 100, or 500)"
 // @Success 200 {object} map[string]interface{} "slot result"
 // @Failure 400 {object} map[string]string "invalid spend amount or user profile"
 // @Failure 500 {object} map[string]string "internal server error"
@@ -80,13 +80,13 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 	}
 
 	// Parse the spend amount from the query
-	spendAmount, err := strconv.ParseFloat(spendAmountStr, 64)
+	spendAmount, err := model.ParseMoney(spendAmountStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Idiot"})
 	}
 
 	// Check that the spend amount is exactly 50, 100, or 500
-	if spendAmount != 50 && spendAmount != 100 && spendAmount != 500 {
+	if spendAmount.MinorUnits() != 5000 && spendAmount.MinorUnits() != 10000 && spendAmount.MinorUnits() != 50000 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Idiot"})
 	}
 
@@ -105,17 +105,14 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 // @Tags Event
 // @Accept json
 // @Produce json
-// @Param request body map[string]interface{} true "Daily reward request (date and amount)"
+// @Param request body model.SetDailyRewardRequest true "Daily reward request"
 // @Success 200 {object} map[string]string "Set daily reward successful"
 // @Failure 400 {object} map[string]string "Invalid request payload"
 // @Failure 500 {object} map[string]string "Failed to set daily reward"
 // @Router /events/daily-rewards [post]
 // @Security BearerAuth
 func (h *EventHttpHandler) SetDailyReward(c *fiber.Ctx) error {
-	var req struct {
-		Date   string  `json:"date"`   // Format: DD-MM-YYYY (e.g., "31-10-24")
-		Amount float64 `json:"amount"` // Reward amount
-	}
+	var req model.SetDailyRewardRequest
 
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
@@ -151,16 +148,19 @@ func (h *EventHttpHandler) UseStealToken(c *fiber.Ctx) error {
 		Token       string `json:"token"`
 		VictimIndex int    `json:"victim_index"`
 	}
+
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
 	}
+
 	if req.Token == "" || req.VictimIndex < 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "token and victim_index are required"})
 	}
 
-	res, err := h.eventService.UseStealToken(userProfile.Id, req.Token, req.VictimIndex)
+	result, err := h.eventService.UseStealToken(userProfile.Id, req.Token, req.VictimIndex)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.Status(fiber.StatusOK).JSON(res)
+
+	return c.Status(fiber.StatusOK).JSON(result)
 }

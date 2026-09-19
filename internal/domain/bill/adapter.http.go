@@ -1,198 +1,198 @@
 package bill
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type BillHttpHandler struct {
 	service BillService
 }
 
-func NewBillHttpHandler(service BillService) *BillHttpHandler {
-	return &BillHttpHandler{service}
+func NewBillHttpHandler(s BillService) *BillHttpHandler {
+	return &BillHttpHandler{service: s}
 }
 
-func (h *BillHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/bills", mid.AuthMiddleware)
+func (h *BillHttpHandler) RegisterRoutes(r fiber.Router, mid *middleware.MiddlewareHttpHandler) {
+	r = r.Group("/bills", mid.AuthMiddleware)
 
-	router.Post("/", h.CreateBill)
-	router.Get("/", h.GetAllBills)
-	router.Get("/:id", h.GetBill)
-	router.Patch("/:id", h.UpdateBill)
-	router.Delete("/:id", h.DeleteBill)
+	r.Post("/", h.CreateBill)
+	r.Get("/", h.GetAllBills)
+	r.Get("/:id", h.GetBill)
 
-	adminRouter := router.Group("/admin", mid.AdminMiddleware)
-	adminRouter.Get("/all", h.GetAllBillsAdmin)
+	a := r.Group("/admin", mid.AdminMiddleware)
+
+	a.Get("/all", h.GetAllBillsAdmin)
+	a.Put("/:id/void", h.VoidBill)
+}
+
+func strictJSON(c *fiber.Ctx, dst any) error {
+	dec := json.NewDecoder(bytes.NewReader(c.Body()))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return errors.New("request must contain one JSON value")
+	}
+
+	return nil
+}
+
+func billError(c *fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, ErrInvalidBill):
+		return c.Status(400).JSON(ErrorResponse{"Invalid request payload"})
+	case errors.Is(err, ErrInsufficientBalance):
+		return c.Status(422).JSON(ErrorResponse{"Insufficient balance"})
+	case errors.Is(err, ErrBillConflict):
+		return c.Status(409).JSON(ErrorResponse{"Bill is already settled"})
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return c.Status(404).JSON(ErrorResponse{"Bill not found"})
+	default:
+		return c.Status(500).JSON(ErrorResponse{"Bill operation failed"})
+	}
 }
 
 // CreateBill godoc
-// @Summary Create a new bill
-// @Description Create a new bill with the input payload
+// @Summary Place an authoritative bill
+// @Description Breaking contract: money is a string and rates are calculated by the server.
 // @Tags Bill
 // @Accept json
 // @Produce json
-// @Param bill body model.BillHeadDto true "Create bill"
+// @Param bill body model.CreateBillRequest true "Bill stake and selections"
 // @Success 201 {object} model.BillHeadDto
 // @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 422 {object} ErrorResponse
 // @Router /bills [post]
 // @Security BearerAuth
 func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
-	// get user from context
-	userProfile := utils.GetUserProfileFromCtx(c)
-	if userProfile == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+	u := utils.GetUserProfileFromCtx(c)
+
+	if u == nil {
+		return c.Status(400).JSON(ErrorResponse{"User profile missing"})
 	}
 
-	var billDto model.BillHeadDto
-	if err := c.BodyParser(&billDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
+	var req model.CreateBillRequest
+
+	if err := strictJSON(c, &req); err != nil {
+		return c.Status(400).JSON(ErrorResponse{"Invalid request payload"})
 	}
 
-	if billDto.Total <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
-	}
+	v, err := h.service.CreateBill(u.Id, &req)
 
-	billDto.UserId = userProfile.Id
-	err := h.service.CreateBill(userProfile, &billDto)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to create bill"})
+		return billError(c, err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "created bill successful"})
+	return c.Status(201).JSON(v)
 }
 
 // GetBill godoc
 // @Summary Get a bill by ID
-// @Description Get a bill by its ID
 // @Tags Bill
-// @Accept json
 // @Produce json
 // @Param id path string true "Bill ID"
 // @Success 200 {object} model.BillHeadDto
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
 // @Router /bills/{id} [get]
 // @Security BearerAuth
 func (h *BillHttpHandler) GetBill(c *fiber.Ctx) error {
-	userProfile := utils.GetUserProfileFromCtx(c)
-	if userProfile == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+	u := utils.GetUserProfileFromCtx(c)
+
+	if u == nil {
+		return c.SendStatus(400)
 	}
 
-	bill, err := h.service.GetBill(c.Params("id"), userProfile.Id)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse{Message: "Bill not found"})
+	v, e := h.service.GetBill(c.Params("id"), u.Id)
+
+	if e != nil {
+		return billError(c, e)
 	}
 
-	return c.JSON(bill)
+	return c.JSON(v)
 }
 
 // GetAllBills godoc
-// @Summary Get all bills
-// @Description Get all bills
+// @Summary Get the authenticated user's bills
 // @Tags Bill
-// @Accept json
 // @Produce json
 // @Success 200 {array} model.BillHeadDto
-// @Failure 500 {object} ErrorResponse
 // @Router /bills [get]
 // @Security BearerAuth
 func (h *BillHttpHandler) GetAllBills(c *fiber.Ctx) error {
-	userProfile := utils.GetUserProfileFromCtx(c)
-	if userProfile == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+	u := utils.GetUserProfileFromCtx(c)
+
+	if u == nil {
+		return c.SendStatus(400)
 	}
 
-	bills, err := h.service.GetAllBills(userProfile.Id)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get bills"})
+	v, e := h.service.GetAllBills(u.Id)
+
+	if e != nil {
+		return billError(c, e)
 	}
 
-	return c.JSON(bills)
-}
-
-// UpdateBill godoc
-// @Summary Update a bill
-// @Description Update a bill with the input payload
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Param id path string true "Bill ID"
-// @Param bill body model.BillHeadDto true "Update bill"
-// @Success 200 {object} model.BillHeadDto
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /bills/{id} [patch]
-// @Security BearerAuth
-func (h *BillHttpHandler) UpdateBill(c *fiber.Ctx) error {
-	userProfile := utils.GetUserProfileFromCtx(c)
-	if userProfile == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
-	}
-
-	var billDto model.BillHeadDto
-	if err := c.BodyParser(&billDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
-	}
-	if billDto.UserId != userProfile.Id || billDto.Id != c.Params("id") {
-		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Message: "User is not allowed to access this bill"})
-	}
-
-	err := h.service.UpdateBill(&billDto)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to update bill"})
-	}
-
-	return c.JSON(billDto)
-}
-
-// DeleteBill godoc
-// @Summary Delete a bill
-// @Description Delete a bill by its ID
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Param id path string true "Bill ID"
-// @Success 204 "No Content"
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /bills/{id} [delete]
-// @Security BearerAuth
-func (h *BillHttpHandler) DeleteBill(c *fiber.Ctx) error {
-	id := c.Params("id")
-
-	err := h.service.DeleteBill(id)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to delete bill"})
-	}
-
-	return c.SendStatus(fiber.StatusNoContent)
+	return c.JSON(v)
 }
 
 // GetAllBillsAdmin godoc
 // @Summary Get all bills (admin)
-// @Description Get all bills from all users (admin only)
 // @Tags Bill
-// @Accept json
 // @Produce json
 // @Success 200 {array} model.BillHeadDto
-// @Failure 500 {object} ErrorResponse
 // @Router /bills/admin/all [get]
 // @Security BearerAuth
 func (h *BillHttpHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
-	bills, err := h.service.GetAllBillsAdmin()
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get bills"})
+	v, e := h.service.GetAllBillsAdmin()
+
+	if e != nil {
+		return billError(c, e)
 	}
 
-	return c.JSON(bills)
+	return c.JSON(v)
+}
+
+// VoidBill godoc
+// @Summary Void and refund a pending bill
+// @Tags Bill
+// @Accept json
+// @Produce json
+// @Param id path string true "Bill ID"
+// @Param request body model.VoidBillRequest true "Audit reason"
+// @Success 200 {object} model.BillHeadDto
+// @Failure 409 {object} ErrorResponse
+// @Router /bills/admin/{id}/void [put]
+// @Security BearerAuth
+func (h *BillHttpHandler) VoidBill(c *fiber.Ctx) error {
+	u := utils.GetUserProfileFromCtx(c)
+
+	if u == nil {
+		return c.SendStatus(401)
+	}
+
+	var req model.VoidBillRequest
+
+	if e := strictJSON(c, &req); e != nil {
+		return c.Status(400).JSON(ErrorResponse{"Invalid request payload"})
+	}
+
+	v, e := h.service.VoidBill(c.Params("id"), u.Id, req.Reason)
+
+	if e != nil {
+		return billError(c, e)
+	}
+
+	return c.JSON(v)
 }
 
 type ErrorResponse struct {

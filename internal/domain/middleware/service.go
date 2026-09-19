@@ -40,16 +40,19 @@ func (u *middlewareServiceImpl) VerifyToken(token string) (*string, error) {
 		return nil, errors.New("user id not found in token")
 	}
 
+	// The access token must still match the cached credential.
 	var credential model.CredentialDto
 	err = u.cache.GetValue(utils.ToAccessCacheKey(userId), &credential)
 	if err != nil {
 		u.log.Named("ValidateToken").Error("GetValue: ", zap.Error(err))
 		return nil, err
 	}
+
 	if token != credential.AccessToken {
 		return nil, errors.New("invalid token")
 	}
 
+	// Return the authenticated subject after cache validation.
 	u.log.Named("VerifyToken").Info("Success: ", zap.String("user_id", userId))
 	return &userId, nil
 }
@@ -66,7 +69,7 @@ func (s *middlewareServiceImpl) GetMe(userId string) (*model.UserDto, error) {
 		Name:          user.Name,
 		Email:         user.Email,
 		RoleId:        user.RoleId,
-		RemainingCoin: user.RemainingCoin,
+		RemainingCoin: model.MustMoneyFromMinor(user.RemainingCoin),
 		GroupId:       user.GroupId,
 		NickName:      user.NickName,
 	}, nil

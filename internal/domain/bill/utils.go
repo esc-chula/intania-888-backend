@@ -2,83 +2,69 @@ package bill
 
 import "github.com/esc-chula/intania-888-backend/internal/model"
 
-// mapBillDtoToEntity maps a BillHeadDto to a BillHead entity
-func mapBillDtoToEntity(billDto *model.BillHeadDto) *model.BillHead {
-	return &model.BillHead{
-		Id:     billDto.Id,
-		Total:  billDto.Total,
-		UserId: billDto.UserId,
-		Lines:  mapBillLineDtoToEntity(billDto.Lines),
+func mapBillEntityToDto(v *model.BillHead) *model.BillHeadDto {
+	d := &model.BillHeadDto{
+		Id:        v.Id,
+		Total:     model.MustMoneyFromMinor(v.Total),
+		UserId:    v.UserId,
+		Status:    v.Status,
+		SettledAt: v.SettledAt,
+		VoidedAt:  v.VoidedAt,
+		Lines:     make([]*model.BillLineDto, 0, len(v.Lines)),
 	}
-}
 
-// mapBillEntityToDto maps a BillHead entity to a BillHeadDto
-func mapBillEntityToDto(bill *model.BillHead) *model.BillHeadDto {
-	return &model.BillHeadDto{
-		Id:     bill.Id,
-		Total:  bill.Total,
-		UserId: bill.UserId,
-		Lines:  mapBillLineEntityToDto(bill.Lines),
+	if v.Payout != nil {
+		p := model.MustMoneyFromMinor(*v.Payout)
+		d.Payout = &p
 	}
-}
 
-// mapBillsEntityToDto maps a slice of BillHead entities to a slice of BillHeadDto
-func mapBillsEntityToDto(bills []*model.BillHead) []*model.BillHeadDto {
-	billDtos := make([]*model.BillHeadDto, len(bills))
-	for i, bill := range bills {
-		billDtos[i] = mapBillEntityToDto(bill)
-	}
-	return billDtos
-}
-
-// mapBillLineDtoToEntity maps a slice of BillLineDto to a slice of BillLine entities
-func mapBillLineDtoToEntity(lineDtos []*model.BillLineDto) []model.BillLine {
-	lines := make([]model.BillLine, len(lineDtos))
-	for i, lineDto := range lineDtos {
-		lines[i] = model.BillLine{
-			BillId:    lineDto.BillId,
-			MatchId:   lineDto.MatchId,
-			Rate:      lineDto.Rate,
-			BettingOn: lineDto.BettingOn,
-		}
-	}
-	return lines
-}
-
-// mapBillLineEntityToDto maps a slice of BillLine entities to a slice of BillLineDto
-func mapBillLineEntityToDto(lines []model.BillLine) []*model.BillLineDto {
-	lineDtos := make([]*model.BillLineDto, len(lines))
-	for i, line := range lines {
-		lineDtos[i] = &model.BillLineDto{
+	for _, line := range v.Lines {
+		l := &model.BillLineDto{
 			BillId:    line.BillId,
 			MatchId:   line.MatchId,
-			Rate:      line.Rate,
+			Rate:      model.MustRateFromMicro(line.Rate),
 			BettingOn: line.BettingOn,
-			Match: model.MatchDto{
-				Id: line.Match.Id,
-				TeamAId: func() string {
-					if line.Match.TeamA_Id != nil {
-						return *line.Match.TeamA_Id
-					}
-					return ""
-				}(),
-				TeamBId: func() string {
-					if line.Match.TeamB_Id != nil {
-						return *line.Match.TeamB_Id
-					}
-					return ""
-				}(),
-				WinnerId: func() string {
-					if line.Match.WinnerId != nil {
-						return *line.Match.WinnerId
-					}
-					return ""
-				}(),
-				TypeId:    line.Match.TypeId,
-				StartTime: line.Match.StartTime,
-				EndTime:   line.Match.EndTime,
-			},
 		}
+
+		l.Match = *billMatchDto(line.Match)
+		d.Lines = append(d.Lines, l)
 	}
-	return lineDtos
+
+	return d
+}
+
+func billMatchDto(v model.Match) *model.MatchDto {
+	d := &model.MatchDto{
+		Id:         v.Id,
+		TeamAScore: v.TeamA_Score,
+		TeamBScore: v.TeamB_Score,
+		TypeId:     v.TypeId,
+		IsDraw:     v.IsDraw,
+		StartTime:  v.StartTime,
+		EndTime:    v.EndTime,
+	}
+
+	if v.TeamA_Id != nil {
+		d.TeamAId = *v.TeamA_Id
+	}
+
+	if v.TeamB_Id != nil {
+		d.TeamBId = *v.TeamB_Id
+	}
+
+	if v.WinnerId != nil {
+		d.WinnerId = *v.WinnerId
+	}
+
+	return d
+}
+
+func mapBillsEntityToDto(v []*model.BillHead) []*model.BillHeadDto {
+	out := make([]*model.BillHeadDto, len(v))
+
+	for i := range v {
+		out[i] = mapBillEntityToDto(v[i])
+	}
+
+	return out
 }

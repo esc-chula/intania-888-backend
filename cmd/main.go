@@ -20,8 +20,8 @@ import (
 )
 
 // @title Intania888 Backend - API
-// @version 0.0.0
-// @description  This is an Intania888 Backend API in Intania888 project.
+// @version 1.0.0-breaking
+// @description Breaking backend release: all Money fields are fixed two-decimal strings and the current frontend is incompatible until migrated.
 
 // @host      localhost:8080
 // @schemes   http
@@ -57,7 +57,7 @@ func main() {
 	billHttp := bill.NewBillHttpHandler(billSvc)
 
 	matchRepo := match.NewMatchRepository(db)
-	matchSvc := match.NewMatchService(matchRepo, logger.Named("MatchSvc"))
+	matchSvc := match.NewMatchService(matchRepo, db, logger.Named("MatchSvc"))
 	matchHttp := match.NewMatchHttpHandler(matchSvc)
 
 	colorRepo := color.NewColorRepository(db)
@@ -71,6 +71,7 @@ func main() {
 	stakeMineRepo := stakemine.NewStakeMineRepository(db)
 	stakeMineSvc := stakemine.NewStakeMineService(stakeMineRepo, db, logger.Named("StakeMineSvc"))
 	stakeMineHttp := stakemine.NewStakeMineHttpHandler(stakeMineSvc)
+
 	sportTypeRepo := sporttype.NewSportTypeRepository(db)
 	sportTypeSvc := sporttype.NewSportTypeService(sportTypeRepo, logger.Named("SportTypeSvc"))
 	sportTypeHttp := sporttype.NewSportTypeHttpHandler(sportTypeSvc)
@@ -80,6 +81,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("invalid Swagger configuration", zap.Error(err))
 	}
+
 	router := httpServer.InitHttpServer()
 
 	// register routes

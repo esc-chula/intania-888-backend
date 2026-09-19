@@ -2,319 +2,403 @@ package match
 
 import (
 	"errors"
+	"math/big"
+	"sort"
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+var (
+	ErrResultConflict = errors.New("conflicting terminal result")
+	ErrInvalidResult  = errors.New("invalid match result")
 )
 
 type matchServiceImpl struct {
 	repo MatchRepository
+	db   *gorm.DB
 	log  *zap.Logger
 }
 
-func NewMatchService(repo MatchRepository, log *zap.Logger) MatchService {
-	return &matchServiceImpl{repo, log}
+func NewMatchService(repo MatchRepository, db *gorm.DB, log *zap.Logger) MatchService {
+	return &matchServiceImpl{repo: repo, db: db, log: log}
 }
 
-func (s *matchServiceImpl) CreateMatch(matchDto *model.MatchDto) error {
-	// Generate UUID if not provided
-	if matchDto.Id == "" {
-		matchDto.Id = uuid.New().String()
+func (s *matchServiceImpl) CreateMatch(d *model.MatchDto) error {
+	if d.Id == "" {
+		d.Id = uuid.NewString()
 	}
 
-	match := mapMatchDtoToEntity(matchDto)
-	err := s.repo.Create(match)
-	if err != nil {
-		s.log.Named("CreateMatch").Error("Create", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("CreateMatch").Info("Created match successful", zap.Any("match", match))
-	return nil
+	return s.repo.Create(mapMatchDtoToEntity(d))
 }
 
-func (s *matchServiceImpl) GetMatch(matchId string) (*model.MatchDto, error) {
-	match, err := s.repo.GetById(matchId)
-	if err != nil {
-		s.log.Named("GetMatch").Error("GetById", zap.Error(err))
-		return nil, err
+func rateFor(a, b int64, forA bool) (model.Rate, error) {
+	if a < 0 || b < 0 {
+		return model.Rate{}, model.ErrInvalidRate
 	}
 
-	if match == nil {
-		s.log.Named("GetMatch").Error("Match not found", zap.String("id", matchId))
-		return nil, errors.New("match not found")
+	den := new(big.Int).Add(big.NewInt(a), big.NewInt(1))
+
+	if !forA {
+		den = new(big.Int).Add(big.NewInt(b), big.NewInt(1))
 	}
 
-	// Count the bet for each team
-	teamACount, err := s.repo.CountBetsForTeam(matchId, *match.TeamA_Id)
-	if err != nil {
-		s.log.Named("GetMatch").Error("CountBetsForTeam", zap.Error(err))
-		return nil, err
-	}
-	teamBCount, err := s.repo.CountBetsForTeam(matchId, *match.TeamB_Id)
-	if err != nil {
-		s.log.Named("GetMatch").Error("CountBetsForTeam", zap.Error(err))
-		return nil, err
+	total := new(big.Int).Add(big.NewInt(a), big.NewInt(b))
+	total.Add(total, big.NewInt(2))
+
+	n := new(big.Int).Mul(total, big.NewInt(1_000_000))
+	q, r := new(big.Int), new(big.Int)
+
+	q.QuoRem(n, den, r)
+
+	if new(big.Int).Lsh(r, 1).Cmp(den) >= 0 {
+		q.Add(q, big.NewInt(1))
 	}
 
-	// Calculate the odds rate for each team
-	rateA := calculateOddsRate("A", float64(teamACount), float64(teamBCount))
-	rateB := calculateOddsRate("B", float64(teamACount), float64(teamBCount))
+	if !q.IsInt64() {
+		return model.Rate{}, model.ErrOverflow
+	}
 
-	matchDto := mapMatchEntityToDto(match)
-	matchDto.TeamARate = rateA
-	matchDto.TeamBRate = rateB
-	s.log.Named("GetMatch").Info("Retrieved match successful", zap.String("id", matchId))
-	return matchDto, nil
+	return model.NewRateFromMicro(q.Int64())
 }
 
-func (s *matchServiceImpl) GetAllMatches(filter *model.MatchFilter) ([]*model.MatchDto, error) {
-	matches, err := s.repo.GetAll(filter)
-	if err != nil {
-		s.log.Named("GetAllMatches").Error("Failed to fetch matches", zap.Error(err))
-		return nil, err
+func (s *matchServiceImpl) GetMatch(id string) (*model.MatchDto, error) {
+	m, e := s.repo.GetById(id)
+	if e != nil {
+		return nil, e
 	}
 
-	matchesDto := make([]*model.MatchDto, len(matches))
-	for i, match := range matches {
-		// Count bets for both teams
-		teamACount, err := s.repo.CountBetsForTeam(match.Id, *match.TeamA_Id)
-		if err != nil {
-			return nil, err
+	d := mapMatchEntityToDto(m)
+
+	if m.TeamA_Id != nil && m.TeamB_Id != nil {
+		a, e := s.repo.CountBetsForTeam(id, *m.TeamA_Id)
+		if e != nil {
+			return nil, e
 		}
 
-		teamBCount, err := s.repo.CountBetsForTeam(match.Id, *match.TeamB_Id)
-		if err != nil {
-			return nil, err
+		b, e := s.repo.CountBetsForTeam(id, *m.TeamB_Id)
+		if e != nil {
+			return nil, e
+		}
+		d.TeamARate, e = rateFor(a, b, true)
+		if e != nil {
+			return nil, e
 		}
 
-		// Calculate odds
-		rateA := calculateOddsRate("A", float64(teamACount), float64(teamBCount))
-		rateB := calculateOddsRate("B", float64(teamACount), float64(teamBCount))
-
-		matchDto := mapMatchEntityToDto(match)
-		matchDto.TeamARate = rateA
-		matchDto.TeamBRate = rateB
-
-		matchesDto[i] = matchDto
-	}
-	s.log.Named("GetAllMatches").Info("Retrieved all matches successfully")
-	return matchesDto, nil
-}
-
-func (s *matchServiceImpl) UpdateMatchScore(matchId string, scoreDto *model.ScoreDto) error {
-	existingMatch, err := s.repo.GetById(matchId)
-	if err != nil {
-		s.log.Named("UpdateMatchScore").Error("GetById", zap.Error(err))
-		return err
-	}
-
-	if existingMatch == nil {
-		s.log.Named("UpdateMatchScore").Error("Match not found", zap.String("id", matchId))
-		return errors.New("match not found")
-	}
-
-	existingMatch.TeamA_Score = &scoreDto.TeamAScore
-	existingMatch.TeamB_Score = &scoreDto.TeamBScore
-
-	err = s.repo.UpdateScore(existingMatch)
-	if err != nil {
-		s.log.Named("UpdateMatchScore").Error("UpdateScore", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("UpdateMatchScore").Info("Updated match score successfully", zap.String("id", matchId))
-	return nil
-}
-
-// Helper method to fetch match by ID
-func (s *matchServiceImpl) getMatchById(matchId string) (*model.Match, error) {
-	match, err := s.repo.GetById(matchId)
-	if err != nil {
-		s.log.Error("Failed to fetch match by ID", zap.Error(err))
-		return nil, err
-	}
-
-	if match == nil {
-		s.log.Warn("Match not found", zap.String("match_id", matchId))
-		return nil, errors.New("match not found")
-	}
-
-	return match, nil
-}
-
-func (s *matchServiceImpl) UpdateMatchWinner(matchId string, winnerId string) error {
-	// Fetch the match by ID
-	existingMatch, err := s.getMatchById(matchId)
-	if err != nil {
-		return err
-	}
-
-	// Set the match winner
-	if err := s.setMatchWinner(existingMatch, winnerId); err != nil {
-		return err
-	}
-
-	// Process payouts for users who bet on the winner
-	if err := s.processPayoutsForMatch(matchId); err != nil {
-		return err
-	}
-
-	s.log.Info("Updated match winner and processed payouts", zap.String("match_id", matchId))
-	return nil
-}
-
-func (s *matchServiceImpl) setMatchWinner(match *model.Match, winnerId string) error {
-	match.WinnerId = &winnerId
-	err := s.repo.UpdateWinner(match)
-	if err != nil {
-		s.log.Error("Failed to update match winner", zap.Error(err))
-		return err
-	}
-	return nil
-}
-
-func (s *matchServiceImpl) processPayoutsForMatch(matchId string) error {
-	// Fetch all bill heads associated with the match
-	billHeads, err := s.repo.GetBillHeadsForMatch(matchId)
-	if err != nil {
-		s.log.Error("Failed to fetch bill heads for match", zap.Error(err))
-		return err
-	}
-
-	// Process each bill head
-	for _, billHead := range billHeads {
-		allLinesResolved := true
-		var totalRates float64 = 1.0
-
-		for _, billLine := range billHead.Lines {
-			match, err := s.repo.GetById(billLine.MatchId)
-			if err != nil {
-				return err
-			}
-
-			// Skip already paid lines
-			if billLine.IsPaid {
-				s.log.Info("Skipping already paid bill line", zap.String("bill_id", billLine.BillId))
-				continue
-			}
-
-			// Check if the match is a draw
-			if match.IsDraw {
-				totalRates *= 1 // Use a rate of 1 for draw matches
-			} else if match.WinnerId == nil {
-				allLinesResolved = false
-				break
-			} else if match.WinnerId != nil && *match.WinnerId == billLine.BettingOn {
-				totalRates *= billLine.Rate // Normal rate for winning bets
-			} else {
-				// you are already lost your money :P
-				totalRates *= 0
-				allLinesResolved = true
-				break
-			}
-		}
-
-		// If all bill lines are resolved, calculate the payout
-		if allLinesResolved {
-			payout := calculatePayout(totalRates, billHead.Total)
-			err := s.repo.PayoutToUser(billHead.UserId, payout)
-			if err != nil {
-				s.log.Error("Failed to process payout for user", zap.Error(err))
-				return err
-			}
-
-			// Mark all bill lines as paid
-			for _, billLine := range billHead.Lines {
-				err = s.repo.MarkBillLineAsPaid(billLine.BillId, billLine.MatchId)
-				if err != nil {
-					s.log.Error("Failed to mark bill line as paid", zap.Error(err))
-					return err
-				}
-			}
-
-			s.log.Info("Processed payout for user", zap.String("user_id", billHead.UserId))
+		d.TeamBRate, e = rateFor(a, b, false)
+		if e != nil {
+			return nil, e
 		}
 	}
 
-	return nil
+	return d, nil
+}
+
+func (s *matchServiceImpl) GetAllMatches(f *model.MatchFilter) ([]*model.MatchDto, error) {
+	ms, e := s.repo.GetAll(f)
+	if e != nil {
+		return nil, e
+	}
+
+	out := make([]*model.MatchDto, 0, len(ms))
+
+	for _, m := range ms {
+		d, e := s.GetMatch(m.Id)
+		if e != nil {
+			return nil, e
+		}
+
+		out = append(out, d)
+	}
+
+	return out, nil
+}
+
+func (s *matchServiceImpl) UpdateMatchScore(id string, d *model.ScoreDto) error {
+	m, e := s.repo.GetById(id)
+	if e != nil {
+		return e
+	}
+
+	m.TeamA_Score = &d.TeamAScore
+	m.TeamB_Score = &d.TeamBScore
+
+	return s.repo.UpdateScore(m)
+}
+
+func (s *matchServiceImpl) UpdateMatch(id string, d *model.MatchDto) error {
+	m, e := s.repo.GetById(id)
+	if e != nil {
+		return e
+	}
+
+	if d.TeamAId != "" {
+		m.TeamA_Id = &d.TeamAId
+	}
+
+	if d.TeamBId != "" {
+		m.TeamB_Id = &d.TeamBId
+	}
+
+	if d.TypeId != "" {
+		m.TypeId = d.TypeId
+	}
+
+	if !d.StartTime.IsZero() {
+		m.StartTime = d.StartTime
+	}
+
+	if !d.EndTime.IsZero() {
+		m.EndTime = d.EndTime
+	}
+
+	return s.repo.UpdateMatch(m)
 }
 
 func (s *matchServiceImpl) DeleteMatch(id string) error {
-	err := s.repo.Delete(id)
-	if err != nil {
-		s.log.Named("DeleteMatch").Error("Delete", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("DeleteMatch").Info("Deleted match successful", zap.String("id", id))
-	return nil
+	return s.repo.Delete(id)
 }
 
 func (s *matchServiceImpl) GetTime() (string, error) {
 	return time.Now().UTC().Format(time.RFC3339), nil
 }
 
-func (s *matchServiceImpl) UpdateMatchDraw(matchId string) error {
-	// Fetch the match by ID
-	match, err := s.getMatchById(matchId)
-	if err != nil {
-		return err
-	}
-
-	// Set the match as a draw
-	match.IsDraw = true
-	err = s.repo.UpdateMatch(match)
-	if err != nil {
-		s.log.Error("Failed to update match as draw", zap.Error(err))
-		return err
-	}
-
-	// Process payouts with draw logic
-	err = s.processPayoutsForMatch(matchId)
-	if err != nil {
-		s.log.Error("Failed to process payouts for draw match", zap.Error(err))
-		return err
-	}
-
-	s.log.Info("Updated match as draw and processed payouts", zap.String("match_id", matchId))
-	return nil
+type settlement struct {
+	bill   *model.BillHead
+	status string
+	payout model.Money
 }
 
-func (s *matchServiceImpl) UpdateMatch(matchId string, matchDto *model.MatchDto) error {
-	// Fetch the existing match
-	existingMatch, err := s.getMatchById(matchId)
-	if err != nil {
-		s.log.Named("UpdateMatch").Error("Failed to fetch match", zap.Error(err))
-		return err
+func (s *matchServiceImpl) SetResult(id string, req *model.MatchResultRequest) error {
+	validOutcome := req != nil && (req.Outcome == "winner" || req.Outcome == "draw")
+	hasWinner := req != nil && req.WinnerId != nil && *req.WinnerId != ""
+	winnerResult := req != nil && req.Outcome == "winner"
+	drawResult := req != nil && req.Outcome == "draw"
+
+	if !validOutcome || (winnerResult && !hasWinner) || (drawResult && req.WinnerId != nil) {
+		return ErrInvalidResult
 	}
 
-	// Update the match fields
-	if matchDto.TeamAId != "" {
-		existingMatch.TeamA_Id = &matchDto.TeamAId
-	}
-	if matchDto.TeamBId != "" {
-		existingMatch.TeamB_Id = &matchDto.TeamBId
-	}
-	if matchDto.TypeId != "" {
-		existingMatch.TypeId = matchDto.TypeId
-	}
-	if !matchDto.StartTime.IsZero() {
-		existingMatch.StartTime = matchDto.StartTime
-	}
-	if !matchDto.EndTime.IsZero() {
-		existingMatch.EndTime = matchDto.EndTime
-	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var m model.Match
 
-	// Update the match in the database
-	err = s.repo.UpdateMatch(existingMatch)
-	if err != nil {
-		s.log.Named("UpdateMatch").Error("Failed to update match", zap.Error(err))
-		return err
-	}
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&m, "id = ?", id).Error; e != nil {
+			return e
+		}
 
-	s.log.Named("UpdateMatch").Info("Updated match successfully", zap.String("id", matchId))
-	return nil
+		if m.TeamA_Id == nil || m.TeamB_Id == nil {
+			return ErrInvalidResult
+		}
+
+		winnerIsKnown := req.Outcome != "winner" || *req.WinnerId == *m.TeamA_Id || *req.WinnerId == *m.TeamB_Id
+
+		if !winnerIsKnown {
+			return ErrInvalidResult
+		}
+
+		if m.IsDraw || m.WinnerId != nil {
+			sameDraw := req.Outcome == "draw" && m.IsDraw
+			sameWinner := req.Outcome == "winner" && m.WinnerId != nil && *m.WinnerId == *req.WinnerId
+			same := sameDraw || sameWinner
+
+			if same {
+				return nil
+			}
+
+			return ErrResultConflict
+		}
+
+		if req.Outcome == "draw" {
+			m.IsDraw = true
+			m.WinnerId = nil
+		} else {
+			m.WinnerId = req.WinnerId
+			m.IsDraw = false
+		}
+
+		matchUpdates := map[string]any{
+			"winner_id":  m.WinnerId,
+			"is_draw":    m.IsDraw,
+			"updated_at": time.Now(),
+		}
+
+		if e := tx.Model(&m).Updates(matchUpdates).Error; e != nil {
+			return e
+		}
+
+		var ids []string
+
+		if e := tx.
+			Table("bill_heads").
+			Select("DISTINCT bill_heads.id").
+			Joins("JOIN bill_lines ON bill_lines.bill_id=bill_heads.id").
+			Where("bill_lines.match_id=? AND bill_heads.status='PENDING'", id).
+			Order("bill_heads.id").
+			Scan(&ids).
+			Error; e != nil {
+			return e
+		}
+
+		if len(ids) == 0 {
+			return nil
+		}
+
+		var bills []*model.BillHead
+
+		if e := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id IN ?", ids).
+			Order("id").
+			Find(&bills).
+			Error; e != nil {
+			return e
+		}
+
+		var lines []model.BillLine
+
+		if e := tx.
+			Preload("Match").
+			Where("bill_id IN ?", ids).
+			Order("bill_id, match_id").
+			Find(&lines).
+			Error; e != nil {
+			return e
+		}
+
+		byBill := map[string][]model.BillLine{}
+
+		for _, l := range lines {
+			if l.MatchId == id {
+				l.Match = m
+			}
+
+			byBill[l.BillId] = append(byBill[l.BillId], l)
+		}
+
+		sets := make([]settlement, 0)
+		userSet := map[string]bool{}
+
+		for _, b := range bills {
+			if b.Status != "PENDING" {
+				continue
+			}
+
+			all := true
+			lost := false
+			rates := []model.Rate{}
+
+			for _, l := range byBill[b.Id] {
+				lm := l.Match
+
+				if lm.IsDraw {
+					continue
+				}
+
+				if lm.WinnerId == nil {
+					all = false
+					continue
+				}
+
+				if *lm.WinnerId != l.BettingOn {
+					lost = true
+					break
+				}
+
+				rates = append(rates, model.MustRateFromMicro(l.Rate))
+			}
+
+			if lost {
+				sets = append(sets, settlement{
+					bill:   b,
+					status: "LOST",
+					payout: model.MustMoneyFromMinor(0),
+				})
+				userSet[b.UserId] = true
+			} else if all {
+				p, e := model.AccumulatorPayout(model.MustMoneyFromMinor(b.Total), rates)
+				if e != nil {
+					return e
+				}
+
+				sets = append(sets, settlement{
+					bill:   b,
+					status: "WON",
+					payout: p,
+				})
+				userSet[b.UserId] = true
+			}
+		}
+
+		uids := make([]string, 0, len(userSet))
+
+		for u := range userSet {
+			uids = append(uids, u)
+		}
+
+		sort.Strings(uids)
+
+		var users []model.User
+
+		if len(uids) > 0 {
+			if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id IN ?", uids).Order("id").Find(&users).Error; e != nil {
+				return e
+			}
+		}
+
+		um := map[string]*model.User{}
+
+		for i := range users {
+			um[users[i].Id] = &users[i]
+		}
+
+		now := time.Now()
+
+		for _, st := range sets {
+			p := st.payout.MinorUnits()
+
+			if st.status == "WON" && !st.payout.IsZero() {
+				u := um[st.bill.UserId]
+				nb, e := model.MustMoneyFromMinor(u.RemainingCoin).Add(st.payout)
+
+				if e != nil {
+					return e
+				}
+
+				if e = tx.Model(u).Update("remaining_coin", nb.MinorUnits()).Error; e != nil {
+					return e
+				}
+
+				u.RemainingCoin = nb.MinorUnits()
+			}
+
+			billUpdates := map[string]any{
+				"status":     st.status,
+				"payout":     p,
+				"settled_at": now,
+				"updated_at": now,
+			}
+
+			if e := tx.Model(st.bill).Updates(billUpdates).Error; e != nil {
+				return e
+			}
+
+			ev := model.BillTerminalEvent{
+				Id:        uuid.NewString(),
+				BillId:    st.bill.Id,
+				Kind:      "SETTLED",
+				Amount:    p,
+				CreatedAt: now,
+			}
+
+			if e := tx.Create(&ev).Error; e != nil {
+				return e
+			}
+		}
+
+		return nil
+	})
 }

@@ -4,8 +4,9 @@ package stakemine
 import (
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"math/big"
+
+	"github.com/esc-chula/intania-888-backend/internal/model"
 )
 
 // Tile represents a single tile in the grid
@@ -16,51 +17,51 @@ type Tile struct {
 }
 
 // Pre-calculated multiplier lookup tables based on your probability data
-var multiplierTable = map[string]map[int]float64{
+var multiplierTable = map[string]map[int]int64{
 	"low": { // Easy (σ=0.9, 2 gn) - 2 bombs, 14 diamonds
-		0:  1.0,
-		1:  1.03,
-		2:  1.07,
-		3:  1.19,
-		4:  1.33,
-		5:  1.52,
-		6:  1.76,
-		7:  2.10,
-		8:  2.56,
-		9:  3.24,
-		10: 4.31,
-		11: 6.14,
-		12: 9.73,
-		13: 18.48,
-		14: 52.67,
+		0:  1000000,
+		1:  1030000,
+		2:  1070000,
+		3:  1190000,
+		4:  1330000,
+		5:  1520000,
+		6:  1760000,
+		7:  2100000,
+		8:  2560000,
+		9:  3240000,
+		10: 4310000,
+		11: 6140000,
+		12: 9730000,
+		13: 18480000,
+		14: 52670000,
 	},
 	"medium": { // Medium (σ=0.9, 4 gn) - 4 bombs, 12 diamonds
-		0:  1.0,
-		1:  1.14,
-		2:  1.48,
-		3:  1.96,
-		4:  2.70,
-		5:  3.84,
-		6:  5.73,
-		7:  9.08,
-		8:  15.52,
-		9:  29.50,
-		10: 65.38,
-		11: 186.36,
-		12: 885.84,
+		0:  1000000,
+		1:  1140000,
+		2:  1480000,
+		3:  1960000,
+		4:  2700000,
+		5:  3840000,
+		6:  5730000,
+		7:  9080000,
+		8:  15520000,
+		9:  29500000,
+		10: 65380000,
+		11: 186360000,
+		12: 885840000,
 	},
 	"high": { // Hard (σ=0.9, 6 gn) - 6 bombs, 10 diamonds
-		0:  1.0,
-		1:  1.37,
-		2:  2.17,
-		3:  3.60,
-		4:  6.35,
-		5:  12.07,
-		6:  25.23,
-		7:  59.91,
-		8:  170.74,
-		9:  649.00,
-		10: 4310.91,
+		0:  1000000,
+		1:  1370000,
+		2:  2170000,
+		3:  3600000,
+		4:  6350000,
+		5:  12070000,
+		6:  25230000,
+		7:  59910000,
+		8:  170740000,
+		9:  649000000,
+		10: 4310910000,
 	},
 }
 
@@ -79,16 +80,16 @@ func GetBombCount(risk string) int {
 }
 
 // CalculateMultiplier returns the pre-calculated multiplier from lookup table
-func CalculateMultiplier(diamondsFound int, risk string) float64 {
+func CalculateMultiplier(diamondsFound int, risk string) model.Rate {
 	// Get multiplier from lookup table
 	if riskTable, exists := multiplierTable[risk]; exists {
 		if multiplier, exists := riskTable[diamondsFound]; exists {
-			return multiplier
+			return model.MustRateFromMicro(multiplier)
 		}
 	}
 
 	// Fallback to 1.0 if not found (should never happen)
-	return 1.0
+	return model.MustRateFromMicro(1000000)
 }
 
 // GetMaxDiamonds returns maximum diamonds for a risk level
@@ -102,6 +103,7 @@ func SecureRandom(max int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return int(n.Int64()), nil
 }
 
@@ -120,6 +122,7 @@ func GenerateGrid(risk string) ([]Tile, error) {
 
 	//Fisher-Yates
 	indices := make([]int, 16)
+
 	for i := range indices {
 		indices[i] = i
 	}
@@ -129,6 +132,7 @@ func GenerateGrid(risk string) ([]Tile, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		indices[i], indices[j] = indices[j], indices[i]
 	}
 
@@ -145,30 +149,37 @@ func GridToJSON(grid []Tile) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(data), nil
 }
 
 // JSONToGrid converts JSON string back to grid
 func JSONToGrid(jsonStr string) ([]Tile, error) {
 	var grid []Tile
+
 	err := json.Unmarshal([]byte(jsonStr), &grid)
 	if err != nil {
 		return nil, err
 	}
+
 	return grid, nil
 }
 
 // GetSafeGrid returns grid with hidden tiles for active games
 func GetSafeGrid(grid []Tile, isActive bool) []Tile {
 	safeGrid := make([]Tile, len(grid))
+
 	for i, tile := range grid {
 		safeTile := tile
+
 		// Hide unrevealed tiles if game is still active
 		if !tile.Revealed && isActive {
 			safeTile.Type = "hidden"
 		}
+
 		safeGrid[i] = safeTile
 	}
+
 	return safeGrid
 }
 
@@ -183,24 +194,11 @@ func ValidateTileIndex(index int) bool {
 }
 
 // ValidateBetAmount
-func ValidateBetAmount(amount float64) bool {
-	return amount >= 1 && amount <= 1000000
+func ValidateBetAmount(amount model.Money) bool {
+	return amount.MinorUnits() >= 100 && amount.MinorUnits() <= 100000000
 }
 
 // CalculatePayoutSafe overflow protection
-func CalculatePayoutSafe(betAmount float64, multiplier float64) (float64, error) {
-	const maxFloat64 = 1.7976931348623157e+308
-	if betAmount > 0 && multiplier > maxFloat64/betAmount {
-		return 0, errors.New("payout calculation would overflow")
-	}
-
-	payout := betAmount * multiplier
-
-	payout = roundToTwoDecimals(payout)
-
-	return payout, nil
-}
-
-func roundToTwoDecimals(value float64) float64 {
-	return float64(int(value*100+0.5)) / 100
+func CalculatePayoutSafe(betAmount model.Money, multiplier model.Rate) (model.Money, error) {
+	return betAmount.Mul(multiplier)
 }

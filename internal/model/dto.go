@@ -9,7 +9,7 @@ type UserDto struct {
 	NickName      *string   `json:"nick_name"`
 	RoleId        string    `json:"role_id"`
 	GroupId       *string   `json:"group_id"`
-	RemainingCoin float64   `json:"remaining_coin"`
+	RemainingCoin Money     `json:"remaining_coin" swaggertype:"string" example:"888.88"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 
@@ -57,8 +57,8 @@ type MatchDto struct {
 	TeamBId    string    `json:"team_b"`
 	TeamAScore *int      `json:"team_a_score"`
 	TeamBScore *int      `json:"team_b_score"`
-	TeamARate  float64   `json:"team_a_rate"`
-	TeamBRate  float64   `json:"team_b_rate"`
+	TeamARate  Rate      `json:"team_a_rate" swaggertype:"number"`
+	TeamBRate  Rate      `json:"team_b_rate" swaggertype:"number"`
 	WinnerId   string    `json:"winner"`
 	TypeId     string    `json:"type"`
 	IsDraw     bool      `json:"is_draw"`
@@ -94,19 +94,41 @@ type MatchFilter struct {
 }
 
 type BillHeadDto struct {
-	Id     string         `json:"id"`
-	Total  float64        `json:"total"`
-	UserId string         `json:"user_id"`
-	Lines  []*BillLineDto `json:"lines"` // Nested BillLine DTO
+	Id        string         `json:"id"`
+	Total     Money          `json:"total" swaggertype:"string" example:"100.00"`
+	UserId    string         `json:"user_id"`
+	Status    string         `json:"status"`
+	Payout    *Money         `json:"payout" swaggertype:"string"`
+	SettledAt *time.Time     `json:"settled_at"`
+	VoidedAt  *time.Time     `json:"voided_at"`
+	Lines     []*BillLineDto `json:"lines"`
 }
 
 type BillLineDto struct {
 	BillId    string   `json:"bill_id"`
 	MatchId   string   `json:"match_id"`
-	Rate      float64  `json:"rate"`
+	Rate      Rate     `json:"rate" swaggertype:"number"`
 	BettingOn string   `json:"betting_on"`
 	Match     MatchDto `json:"match"`
-	IsPaid    bool     `json:"is_paid"`
+}
+
+type CreateBillRequest struct {
+	Total Money                   `json:"total" swaggertype:"string" example:"100.00"`
+	Lines []CreateBillLineRequest `json:"lines"`
+}
+
+type CreateBillLineRequest struct {
+	MatchId   string `json:"match_id"`
+	BettingOn string `json:"betting_on"`
+}
+
+type VoidBillRequest struct {
+	Reason string `json:"reason"`
+}
+
+type MatchResultRequest struct {
+	Outcome  string  `json:"outcome"`
+	WinnerId *string `json:"winner_id,omitempty"`
 }
 
 type GroupHeadDto struct {
@@ -130,7 +152,12 @@ type SportTypeDto struct {
 
 type DailyRewardCacheDto struct {
 	UserId string
-	Reward float64
+	Reward Money
+}
+
+type SetDailyRewardRequest struct {
+	Date   string `json:"date"`
+	Amount Money  `json:"amount" swaggertype:"string"`
 }
 
 type UpdateUserDto struct {
@@ -168,21 +195,21 @@ type VictimDetailDto struct {
 	Name          string  `json:"name"`
 	RoleId        string  `json:"role_id"`
 	GroupId       *string `json:"group_id"`
-	BalanceBefore float64 `json:"balance_before"`
-	AmountStolen  float64 `json:"amount_stolen"`
+	BalanceBefore Money   `json:"balance_before" swaggertype:"string"`
+	AmountStolen  Money   `json:"amount_stolen" swaggertype:"string"`
 	WasChosen     bool    `json:"was_chosen"`
 }
 
 type UseStealTokenResponseDto struct {
-	TotalStolen      float64           `json:"total_stolen"`
-	RaiderNewBalance float64           `json:"raider_new_balance"`
+	TotalStolen      Money             `json:"total_stolen" swaggertype:"string"`
+	RaiderNewBalance Money             `json:"raider_new_balance" swaggertype:"string"`
 	AllCandidates    []VictimDetailDto `json:"all_candidates"`
 	Message          string            `json:"message"`
 }
 
 type CreateMineGameRequest struct {
-	BetAmount float64 `json:"bet_amount" validate:"required,gte=1,lte=1000000"`
-	RiskLevel string  `json:"risk_level" validate:"required,oneof=low medium high"`
+	BetAmount Money  `json:"bet_amount" swaggertype:"string" validate:"required"`
+	RiskLevel string `json:"risk_level" validate:"required,oneof=low medium high"`
 }
 
 type RevealMineTileRequest struct {
@@ -199,35 +226,37 @@ type MineTileDto struct {
 type MineGameDto struct {
 	Id            string        `json:"id"`
 	UserId        string        `json:"user_id"`
-	BetAmount     float64       `json:"bet_amount"`
+	BetAmount     Money         `json:"bet_amount" swaggertype:"string"`
 	RiskLevel     string        `json:"risk_level"`
 	Grid          []MineTileDto `json:"grid"`
 	RevealedCount int           `json:"revealed_count"`
-	CurrentPayout float64       `json:"current_payout"`
-	Multiplier    float64       `json:"multiplier"`
+	CurrentPayout Money         `json:"current_payout" swaggertype:"string"`
+	Multiplier    Rate          `json:"multiplier" swaggertype:"number"`
 	Status        string        `json:"status"`
 	CreatedAt     time.Time     `json:"created_at"`
 	CompletedAt   *time.Time    `json:"completed_at,omitempty"`
 }
 
 type MineGameStatsDto struct {
-	TotalGames     int     `json:"total_games"`
-	GamesWon       int     `json:"games_won"`
-	GamesLost      int     `json:"games_lost"`
-	GamesCashedOut int     `json:"games_cashed_out"`
-	TotalWagered   float64 `json:"total_wagered"`
-	TotalWinnings  float64 `json:"total_winnings"`
-	NetProfit      float64 `json:"net_profit"`
-	WinRate        float64 `json:"win_rate"`
+	TotalGames          int         `json:"total_games"`
+	GamesWon            int         `json:"games_won"`
+	GamesLost           int         `json:"games_lost"`
+	GamesCashedOut      int         `json:"games_cashed_out"`
+	TotalWagered        Money       `json:"total_wagered" swaggertype:"string"`
+	TotalWinnings       Money       `json:"total_winnings" swaggertype:"string"`
+	NetProfit           SignedMoney `json:"net_profit" swaggertype:"string"`
+	ActiveWagered       *Money      `json:"active_wagered" swaggertype:"string"`
+	ActiveCurrentPayout *Money      `json:"active_current_payout" swaggertype:"string"`
+	WinRate             float64     `json:"win_rate"`
 }
 
 type MineGameHistoryDto struct {
 	GameId        string     `json:"game_id"`
-	BetAmount     float64    `json:"bet_amount"`
+	BetAmount     Money      `json:"bet_amount" swaggertype:"string"`
 	RiskLevel     string     `json:"risk_level"`
 	Status        string     `json:"status"`
-	FinalPayout   float64    `json:"final_payout"`
-	Multiplier    float64    `json:"multiplier"`
+	FinalPayout   Money      `json:"final_payout" swaggertype:"string"`
+	Multiplier    Rate       `json:"multiplier" swaggertype:"number"`
 	RevealedCount int        `json:"revealed_count"`
 	CreatedAt     time.Time  `json:"created_at"`
 	CompletedAt   *time.Time `json:"completed_at,omitempty"`
@@ -235,11 +264,11 @@ type MineGameHistoryDto struct {
 
 // External API DTOs
 type DeductCoinRequest struct {
-	Amount float64 `json:"amount" validate:"required,gte=1,lte=1000000"`
+	Amount Money `json:"amount" swaggertype:"string" validate:"required"`
 }
 
 type DeductCoinResponse struct {
-	Success          bool    `json:"success"`
-	DeductedAmount   float64 `json:"deducted_amount"`
-	RemainingBalance float64 `json:"remaining_balance"`
+	Success          bool  `json:"success"`
+	DeductedAmount   Money `json:"deducted_amount" swaggertype:"string"`
+	RemainingBalance Money `json:"remaining_balance" swaggertype:"string"`
 }

@@ -13,16 +13,27 @@ type EventRepository interface {
 	MarkTokenAsUsed(tokenId string) error
 	DeleteExpiredTokens() error
 
-	StealPercentageFromRandomUsers(thiefUserId string, victimCount int, percentage float64) (float64, []model.VictimDetailDto, error)
-	StealPercentageFromSpecificUser(thiefUserId string, victimUserId string, percentage float64) (float64, *model.VictimDetailDto, error)
+	StealPercentageFromRandomUsers(
+		thiefUserId string,
+		victimCount int,
+		percentage model.Rate,
+	) (model.Money, []model.VictimDetailDto, error)
+	StealPercentageFromSpecificUser(
+		thiefUserId string,
+		victimUserId string,
+		percentage model.Rate,
+	) (model.Money, *model.VictimDetailDto, error)
 	GetRandomEligibleUsers(excludeUserId string, limit int) ([]model.User, error)
 	GetUsersByIds(userIds []string) ([]model.User, error)
 }
 
 type EventService interface {
 	RedeemDailyReward(req *model.UserDto) error
-	SpinSlotMachine(req *model.UserDto, spendAmount float64) (map[string]interface{}, error)
-	SetDailyReward(date string, amount float64) error
+	SpinSlotMachine(
+		req *model.UserDto,
+		spendAmount model.Money,
+	) (map[string]interface{}, error)
+	SetDailyReward(date string, amount model.Money) error
 
 	// Use steal token
 	UseStealToken(userId string, token string, victimIndex int) (*model.UseStealTokenResponseDto, error)

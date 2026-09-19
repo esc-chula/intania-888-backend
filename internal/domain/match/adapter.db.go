@@ -12,109 +12,84 @@ type matchRepositoryImpl struct {
 }
 
 func NewMatchRepository(db *gorm.DB) MatchRepository {
-	return &matchRepositoryImpl{db}
+	return &matchRepositoryImpl{db: db}
 }
 
-func (r *matchRepositoryImpl) Create(match *model.Match) error {
-	return r.db.Create(match).Error
+func (r *matchRepositoryImpl) Create(v *model.Match) error {
+	return r.db.Create(v).Error
 }
 
-func (r *matchRepositoryImpl) GetById(matchId string) (*model.Match, error) {
-	var match model.Match
-	err := r.db.Where("id = ?", matchId).First(&match).Error
-	if err != nil {
-		return nil, err
+func (r *matchRepositoryImpl) GetById(id string) (*model.Match, error) {
+	var v model.Match
+
+	if e := r.db.First(&v, "id = ?", id).Error; e != nil {
+		return nil, e
 	}
-	return &match, nil
+
+	return &v, nil
 }
 
-func (r *matchRepositoryImpl) GetAll(filter *model.MatchFilter) ([]*model.Match, error) {
-	var matches []*model.Match
-	db := r.db
+func (r *matchRepositoryImpl) GetAll(f *model.MatchFilter) ([]*model.Match, error) {
+	var v []*model.Match
 
-	if filter != nil {
-		if filter.TypeId != "" {
-			db = db.Where("type_id = ?", filter.TypeId)
+	q := r.db
+
+	if f != nil {
+		if f.TypeId != "" {
+			q = q.Where("type_id = ?", f.TypeId)
 		}
 
-		now := time.Now()
-
-		switch filter.Schedule {
+		switch f.Schedule {
 		case model.Schedule:
-			db = db.Where("end_time > ?", now)
+			q = q.Where("end_time > ?", time.Now())
 		case model.Result:
-			db = db.Where("end_time <= ?", now)
+			q = q.Where("end_time <= ?", time.Now())
 		}
 	}
 
-	err := db.Order("start_time").Find(&matches).Error
-	if err != nil {
-		return nil, err
+	e := q.
+		Order("start_time").
+		Find(&v).
+		Error
+
+	return v, e
+}
+
+func (r *matchRepositoryImpl) CountBetsForTeam(mid, team string) (int64, error) {
+	var n int64
+
+	e := r.db.
+		Table("bill_lines").
+		Joins("JOIN bill_heads ON bill_heads.id = bill_lines.bill_id").
+		Where("bill_lines.match_id = ? AND bill_lines.betting_on = ? AND bill_heads.status = 'PENDING'", mid, team).
+		Count(&n).
+		Error
+
+	return n, e
+}
+
+func (r *matchRepositoryImpl) UpdateScore(v *model.Match) error {
+	updates := map[string]any{
+		"teama_score": v.TeamA_Score,
+		"teamb_score": v.TeamB_Score,
 	}
-	return matches, nil
+
+	return r.db.Model(v).Updates(updates).Error
 }
 
-func (r *matchRepositoryImpl) CountBetsForTeam(matchId string, teamId string) (int64, error) {
-	var count int64
-	err := r.db.Model(&model.BillLine{}).Where("match_id = ? AND betting_on = ?", matchId, teamId).Count(&count).Error
-	if err != nil {
-		return 0, err
+func (r *matchRepositoryImpl) UpdateMatch(v *model.Match) error {
+	updates := map[string]any{
+		"teama_id":   v.TeamA_Id,
+		"teamb_id":   v.TeamB_Id,
+		"type_id":    v.TypeId,
+		"start_time": v.StartTime,
+		"end_time":   v.EndTime,
+		"updated_at": time.Now(),
 	}
-	return count, nil
-}
 
-func (r *matchRepositoryImpl) UpdateScore(match *model.Match) error {
-	return r.db.Model(&model.Match{}).
-		Where("id = ?", match.Id).
-		Updates(map[string]interface{}{
-			"teama_score": match.TeamA_Score,
-			"teamb_score": match.TeamB_Score,
-		}).Error
-}
-
-func (r *matchRepositoryImpl) UpdateWinner(match *model.Match) error {
-	return r.db.Model(&model.Match{}).
-		Where("id = ?", match.Id).
-		Update("winner_id", match.WinnerId).Error
+	return r.db.Model(v).Updates(updates).Error
 }
 
 func (r *matchRepositoryImpl) Delete(id string) error {
 	return r.db.Delete(&model.Match{}, "id = ?", id).Error
-}
-
-func (r *matchRepositoryImpl) GetBillHeadsForMatch(matchId string) ([]*model.BillHead, error) {
-	var billHeads []*model.BillHead
-	err := r.db.Table("bill_heads").Preload("Lines").Preload("Lines.Match").
-		Joins("JOIN bill_lines ON bill_heads.id = bill_lines.bill_id").
-		Where("bill_lines.match_id = ?", matchId).
-		Find(&billHeads).Error
-	if err != nil {
-		return nil, err
-	}
-	return billHeads, nil
-}
-
-func (r *matchRepositoryImpl) PayoutToUser(userId string, amount float64) error {
-	return r.db.Model(&model.User{}).Where("id = ?", userId).
-		Update("remaining_coin", gorm.Expr("remaining_coin + ?", amount)).Error
-}
-
-func (r *matchRepositoryImpl) MarkBillLineAsPaid(billId string, matchId string) error {
-	return r.db.Model(&model.BillLine{}).
-		Where("bill_id = ? AND match_id = ?", billId, matchId).
-		Update("is_paid", true).Error
-}
-
-func (r *matchRepositoryImpl) UpdateMatch(match *model.Match) error {
-	return r.db.Model(&model.Match{}).
-		Where("id = ?", match.Id).
-		Updates(map[string]interface{}{
-			"teama_id":   match.TeamA_Id,
-			"teamb_id":   match.TeamB_Id,
-			"type_id":    match.TypeId,
-			"start_time": match.StartTime,
-			"end_time":   match.EndTime,
-			"is_draw":    match.IsDraw,
-			"updated_at": time.Now(),
-		}).Error
 }

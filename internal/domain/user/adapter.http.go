@@ -29,12 +29,15 @@ func (h *UserHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 
 func (h *UserHttpHandler) CreateUser(c *fiber.Ctx) error {
 	user := new(model.UserDto)
+
 	if err := c.BodyParser(user); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
 	}
+
 	if err := h.service.CreateUser(user); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+
 	return c.Status(fiber.StatusCreated).JSON(user)
 }
 
@@ -49,10 +52,12 @@ func (h *UserHttpHandler) CreateUser(c *fiber.Ctx) error {
 // @Security BearerAuth
 func (h *UserHttpHandler) GetUser(c *fiber.Ctx) error {
 	id := c.Params("id")
+
 	user, err := h.service.GetUser(id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
 	}
+
 	return c.JSON(user)
 }
 
@@ -69,6 +74,7 @@ func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+
 	return c.JSON(users)
 }
 
@@ -91,6 +97,7 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 	if err := c.BodyParser(updateUserDto); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
 	}
+
 	user := model.UserDto{
 		Id:            profile.Id,
 		Email:         profile.Email,
@@ -98,11 +105,13 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 		NickName:      updateUserDto.NickName,
 		RoleId:        profile.RoleId,
 		GroupId:       updateUserDto.GroupId,
-		RemainingCoin: 0.00,
+		RemainingCoin: model.Money{},
 	}
+
 	if err := h.service.UpdateUser(&user); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+
 	return c.JSON(user)
 }
 
@@ -168,7 +177,7 @@ func (h *UserHttpHandler) DeductCoin(c *fiber.Ctx) error {
 	}
 
 	// Validate amount range
-	if req.Amount < 1 || req.Amount > 1000000 {
+	if req.Amount.MinorUnits() < 100 || req.Amount.MinorUnits() > 100000000 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "amount must be between 1 and 1,000,000 coins",
 		})
@@ -182,6 +191,7 @@ func (h *UserHttpHandler) DeductCoin(c *fiber.Ctx) error {
 				"error": "insufficient balance",
 			})
 		}
+
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})

@@ -9,52 +9,51 @@ type billRepositoryImpl struct {
 	db *gorm.DB
 }
 
-// NewBillRepository creates a new BillRepository instance
 func NewBillRepository(db *gorm.DB) BillRepository {
-	return &billRepositoryImpl{db}
+	return &billRepositoryImpl{db: db}
 }
 
-// Create a new bill
-func (r *billRepositoryImpl) Create(bill *model.BillHead) error {
-	return r.db.Create(bill).Error
+func preload(db *gorm.DB) *gorm.DB {
+	return db.
+		Preload("Lines").
+		Preload("Lines.Match")
 }
 
-// GetById retrieves a bill by its ID
-func (r *billRepositoryImpl) GetById(billId, userId string) (*model.BillHead, error) {
-	var bill model.BillHead
-	err := r.db.Preload("Lines").Preload("Lines.Match").Where("id = ? AND user_id = ?", billId, userId).First(&bill).Error
-	if err != nil {
+func (r *billRepositoryImpl) GetById(id, userID string) (*model.BillHead, error) {
+	var v model.BillHead
+	q := preload(r.db).Where("id = ?", id)
+
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
+
+	if err := q.First(&v).Error; err != nil {
 		return nil, err
 	}
-	return &bill, nil
+
+	return &v, nil
 }
 
-// GetAll retrieves all bills for a specific user
-func (r *billRepositoryImpl) GetAll(userId string) ([]*model.BillHead, error) {
-	var bills []*model.BillHead
-	err := r.db.Preload("Lines").Preload("Lines.Match").Where("user_id = ?", userId).Find(&bills).Error
-	if err != nil {
-		return nil, err
-	}
-	return bills, nil
+func (r *billRepositoryImpl) GetAll(userID string) ([]*model.BillHead, error) {
+	var v []*model.BillHead
+
+	err := preload(r.db).
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&v).
+		Error
+
+	return v, err
 }
 
-// GetAllAdmin retrieves all bills from all users (admin only)
 func (r *billRepositoryImpl) GetAllAdmin() ([]*model.BillHead, error) {
-	var bills []*model.BillHead
-	err := r.db.Preload("Lines").Preload("Lines.Match").Preload("User").Find(&bills).Error
-	if err != nil {
-		return nil, err
-	}
-	return bills, nil
-}
+	var v []*model.BillHead
 
-// Update an existing bill
-func (r *billRepositoryImpl) Update(bill *model.BillHead) error {
-	return r.db.Model(bill).Where("id = ?", bill.Id).Updates(bill).Error
-}
+	err := preload(r.db).
+		Preload("User").
+		Order("created_at DESC").
+		Find(&v).
+		Error
 
-// Delete a bill by its ID
-func (r *billRepositoryImpl) Delete(id string) error {
-	return r.db.Delete(&model.BillHead{}, "id = ?", id).Error
+	return v, err
 }

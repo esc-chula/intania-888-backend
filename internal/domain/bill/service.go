@@ -2,6 +2,9 @@ package bill
 
 import (
 	"errors"
+	"math/big"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
@@ -12,142 +15,298 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var (
+	ErrInvalidBill         = errors.New("invalid bill")
+	ErrInsufficientBalance = errors.New("insufficient balance")
+	ErrBillConflict        = errors.New("bill lifecycle conflict")
+)
+
 type billServiceImpl struct {
-	repo     BillRepository
-	userRepo user.UserRepository
-	db       *gorm.DB
-	log      *zap.Logger
+	repo BillRepository
+	db   *gorm.DB
+	log  *zap.Logger
 }
 
-// Create a new instance of BillService
-func NewBillService(repo BillRepository, userRepo user.UserRepository, db *gorm.DB, log *zap.Logger) BillService {
-	return &billServiceImpl{repo, userRepo, db, log}
+func NewBillService(repo BillRepository, _ user.UserRepository, db *gorm.DB, log *zap.Logger) BillService {
+	return &billServiceImpl{repo: repo, db: db, log: log}
 }
 
-func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		var user model.User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", userProfile.Id).
-			First(&user).Error; err != nil {
-			s.log.Named("CreateBill").Error("Get user by Id with lock", zap.Error(err))
+func (s *billServiceImpl) CreateBill(userID string, req *model.CreateBillRequest) (*model.BillHeadDto, error) {
+	if req == nil || req.Total.IsZero() || len(req.Lines) == 0 {
+		return nil, ErrInvalidBill
+	}
+
+	lines := append([]model.CreateBillLineRequest(nil), req.Lines...)
+	sort.Slice(lines, func(i, j int) bool { return lines[i].MatchId < lines[j].MatchId })
+
+	for i, l := range lines {
+		matchIDEmpty := strings.TrimSpace(l.MatchId) == ""
+		bettingOnEmpty := strings.TrimSpace(l.BettingOn) == ""
+		duplicateMatch := i > 0 && l.MatchId == lines[i-1].MatchId
+
+		if matchIDEmpty || bettingOnEmpty || duplicateMatch {
+			return nil, ErrInvalidBill
+		}
+	}
+
+	var made model.BillHead
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var u model.User
+
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&u, "id = ?", userID).Error; err != nil {
 			return err
 		}
 
-		if user.RemainingCoin < billDto.Total {
-			err := errors.New("user does not have enough coins to cover the total bill")
-			s.log.Named("CreateBill").Error("Check for balance", zap.Error(err))
+		if u.RemainingCoin < req.Total.MinorUnits() {
+			return ErrInsufficientBalance
+		}
+
+		ids := make([]string, len(lines))
+		for i := range lines {
+			ids[i] = lines[i].MatchId
+		}
+
+		var ms []model.Match
+
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id IN ?", ids).Order("id").Find(&ms).Error; err != nil {
 			return err
 		}
 
-		currentTime := time.Now()
-		for _, lineDto := range billDto.Lines {
-			var match model.Match
-			if err := tx.Where("id = ?", lineDto.MatchId).First(&match).Error; err != nil {
-				s.log.Named("CreateBill").Error("Failed to fetch match", zap.String("match_id", lineDto.MatchId), zap.Error(err))
-				return errors.New("match not found: " + lineDto.MatchId)
+		if len(ms) != len(lines) {
+			return ErrInvalidBill
+		}
+
+		byID := map[string]model.Match{}
+		for _, m := range ms {
+			byID[m.Id] = m
+		}
+
+		made = model.BillHead{
+			Id:        uuid.NewString(),
+			Total:     req.Total.MinorUnits(),
+			UserId:    userID,
+			Status:    "PENDING",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		rates := make([]model.Rate, 0, len(lines))
+		now := time.Now()
+
+		for _, in := range lines {
+			m := byID[in.MatchId]
+			missingTeams := m.TeamA_Id == nil || m.TeamB_Id == nil
+			invalidSelection := !missingTeams && in.BettingOn != *m.TeamA_Id && in.BettingOn != *m.TeamB_Id
+			started := !now.Before(m.StartTime)
+
+			if missingTeams || invalidSelection || started || m.WinnerId != nil || m.IsDraw {
+				return ErrInvalidBill
 			}
 
-			if currentTime.After(match.StartTime) || currentTime.Equal(match.StartTime) {
-				err := errors.New("cannot bet on match that has already started or expired")
-				s.log.Named("CreateBill").Error("Betting on expired match",
-					zap.String("match_id", lineDto.MatchId),
-					zap.Time("match_start", match.StartTime),
-					zap.Time("current_time", currentTime))
+			var cs []struct {
+				BettingOn string
+				Count     int64
+			}
+			if err := tx.
+				Table("bill_lines").
+				Select("bill_lines.betting_on, count(*) AS count").
+				Joins("JOIN bill_heads ON bill_heads.id = bill_lines.bill_id").
+				Where("bill_lines.match_id = ? AND bill_heads.status = 'PENDING'", m.Id).
+				Group("bill_lines.betting_on").
+				Scan(&cs).
+				Error; err != nil {
 				return err
 			}
+
+			var a, b int64
+
+			for _, c := range cs {
+				if c.BettingOn == *m.TeamA_Id {
+					a = c.Count
+				}
+
+				if c.BettingOn == *m.TeamB_Id {
+					b = c.Count
+				}
+			}
+
+			rate, err := seededRate(a, b, in.BettingOn == *m.TeamA_Id)
+
+			if err != nil {
+				return err
+			}
+
+			rates = append(rates, rate)
+
+			made.Lines = append(made.Lines, model.BillLine{
+				BillId:    made.Id,
+				MatchId:   m.Id,
+				BettingOn: in.BettingOn,
+				Rate:      rate.MicroUnits(),
+				Match:     m,
+			})
 		}
 
-		bill := mapBillDtoToEntity(billDto)
-		bill.Id = uuid.NewString()
-		for i := range bill.Lines {
-			bill.Lines[i].BillId = bill.Id
-		}
-
-		if err := tx.Create(bill).Error; err != nil {
-			s.log.Named("CreateBill").Error("Create bill", zap.Error(err))
+		if _, err := model.AccumulatorPayout(req.Total, rates); err != nil {
 			return err
 		}
 
-		if err := tx.Model(&model.User{}).
-			Where("id = ?", user.Id).
-			Update("remaining_coin", gorm.Expr("remaining_coin - ?", bill.Total)).
-			Error; err != nil {
-			s.log.Named("CreateBill").Error("Update user balance", zap.Error(err))
+		if err := tx.Omit("Lines.Match").Create(&made).Error; err != nil {
 			return err
 		}
 
-		s.log.Named("CreateBill").Info("Created bill successful", zap.Any("bill", bill))
+		r := tx.Model(&model.User{}).Where("id = ? AND remaining_coin >= ?", userID, made.Total).Update("remaining_coin", gorm.Expr("remaining_coin - ?", made.Total))
+
+		if r.Error != nil {
+			return r.Error
+		}
+
+		if r.RowsAffected != 1 {
+			return ErrInsufficientBalance
+		}
+
 		return nil
 	})
-}
 
-// GetBill returns a bill by id
-func (s *billServiceImpl) GetBill(billId, userId string) (*model.BillHeadDto, error) {
-	bill, err := s.repo.GetById(billId, userId)
 	if err != nil {
-		s.log.Named("GetBill").Error("GetById", zap.Error(err))
 		return nil, err
 	}
 
-	if bill == nil {
-		s.log.Named("GetBill").Error("Bill not found", zap.String("id", billId))
-		return nil, errors.New("bill not found")
-	}
-
-	billDto := mapBillEntityToDto(bill)
-	s.log.Named("GetBill").Info("Retrieved bill successful", zap.String("id", billId))
-	return billDto, nil
+	return mapBillEntityToDto(&made), nil
 }
 
-// GetAllBills returns all bills
-func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, error) {
-	bills, err := s.repo.GetAll(userId)
-	if err != nil {
-		s.log.Named("GetAllBills").Error("GetAll", zap.Error(err))
-		return nil, err
+func seededRate(a, b int64, forA bool) (model.Rate, error) {
+	if a < 0 || b < 0 {
+		return model.Rate{}, model.ErrInvalidRate
 	}
 
-	billDtos := mapBillsEntityToDto(bills)
-	s.log.Named("GetAllBills").Info("Retrieved all bills successful", zap.Int("count", len(billDtos)))
-	return billDtos, nil
+	den := new(big.Int).Add(big.NewInt(a), big.NewInt(1))
+
+	if !forA {
+		den = new(big.Int).Add(big.NewInt(b), big.NewInt(1))
+	}
+
+	total := new(big.Int).Add(big.NewInt(a), big.NewInt(b))
+	total.Add(total, big.NewInt(2))
+
+	n := new(big.Int).Mul(total, big.NewInt(1_000_000))
+	q, r := new(big.Int), new(big.Int)
+	q.QuoRem(n, den, r)
+
+	if new(big.Int).Lsh(r, 1).Cmp(den) >= 0 {
+		q.Add(q, big.NewInt(1))
+	}
+
+	if !q.IsInt64() {
+		return model.Rate{}, model.ErrOverflow
+	}
+
+	return model.NewRateFromMicro(q.Int64())
 }
 
-// GetAllBillsAdmin returns all bills from all users (admin only)
+func (s *billServiceImpl) GetBill(id, uid string) (*model.BillHeadDto, error) {
+	v, e := s.repo.GetById(id, uid)
+
+	if e != nil {
+		return nil, e
+	}
+
+	return mapBillEntityToDto(v), nil
+}
+
+func (s *billServiceImpl) GetAllBills(uid string) ([]*model.BillHeadDto, error) {
+	v, e := s.repo.GetAll(uid)
+
+	if e != nil {
+		return nil, e
+	}
+
+	return mapBillsEntityToDto(v), nil
+}
+
 func (s *billServiceImpl) GetAllBillsAdmin() ([]*model.BillHeadDto, error) {
-	bills, err := s.repo.GetAllAdmin()
+	v, e := s.repo.GetAllAdmin()
+
+	if e != nil {
+		return nil, e
+	}
+
+	return mapBillsEntityToDto(v), nil
+}
+
+func (s *billServiceImpl) VoidBill(id, actor, reason string) (*model.BillHeadDto, error) {
+	reason = strings.TrimSpace(reason)
+	if len(reason) == 0 || len(reason) > 500 {
+		return nil, ErrInvalidBill
+	}
+
+	var v model.BillHead
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("Lines").Preload("Lines.Match").First(&v, "id = ?", id).Error; e != nil {
+			return e
+		}
+
+		if v.Status == "VOIDED" {
+			return nil
+		}
+
+		if v.Status != "PENDING" {
+			return ErrBillConflict
+		}
+
+		var u model.User
+
+		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&u, "id = ?", v.UserId).Error; e != nil {
+			return e
+		}
+
+		balance, e := model.MustMoneyFromMinor(u.RemainingCoin).Add(model.MustMoneyFromMinor(v.Total))
+
+		if e != nil {
+			return e
+		}
+
+		now := time.Now()
+		p := v.Total
+		updates := map[string]any{
+			"status":     "VOIDED",
+			"payout":     p,
+			"voided_at":  now,
+			"updated_at": now,
+		}
+
+		if e = tx.Model(&v).Updates(updates).Error; e != nil {
+			return e
+		}
+
+		if e = tx.Model(&u).Update("remaining_coin", balance.MinorUnits()).Error; e != nil {
+			return e
+		}
+
+		ev := model.BillTerminalEvent{
+			Id:        uuid.NewString(),
+			BillId:    v.Id,
+			Kind:      "VOIDED",
+			Amount:    v.Total,
+			ActorId:   &actor,
+			Reason:    &reason,
+			CreatedAt: now,
+		}
+
+		if e = tx.Create(&ev).Error; e != nil {
+			return e
+		}
+
+		v.Status = "VOIDED"
+		v.Payout = &p
+		v.VoidedAt = &now
+
+		return nil
+	})
+
 	if err != nil {
-		s.log.Named("GetAllBillsAdmin").Error("GetAllAdmin", zap.Error(err))
 		return nil, err
 	}
 
-	billDtos := mapBillsEntityToDto(bills)
-	s.log.Named("GetAllBillsAdmin").Info("Retrieved all bills (admin) successful", zap.Int("count", len(billDtos)))
-	return billDtos, nil
-}
-
-// UpdateBill updates an existing bill
-func (s *billServiceImpl) UpdateBill(billDto *model.BillHeadDto) error {
-	bill := mapBillDtoToEntity(billDto)
-
-	err := s.repo.Update(bill)
-	if err != nil {
-		s.log.Named("UpdateBill").Error("Update", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("UpdateBill").Info("Updated bill successful", zap.String("id", bill.Id))
-	return nil
-}
-
-// DeleteBill deletes a bill by id
-func (s *billServiceImpl) DeleteBill(id string) error {
-	err := s.repo.Delete(id)
-	if err != nil {
-		s.log.Named("DeleteBill").Error("Delete", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("DeleteBill").Info("Deleted bill successful", zap.String("id", id))
-	return nil
+	return mapBillEntityToDto(&v), nil
 }

@@ -37,6 +37,7 @@ func (s *authServiceImpl) GetOAuthUrl(redirectTo string) (string, error) {
 		s.log.Named("GetGoogleLoginUrl").Error("Parse: ", zap.Error(err))
 		return "", err
 	}
+
 	parameters := url.Values{}
 	parameters.Add("client_id", s.oauthClient.OAuthConfig().ClientID)
 	parameters.Add("scope", strings.Join(s.oauthClient.OAuthConfig().Scopes, " "))
@@ -69,9 +70,11 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 	}
 
 	isAllowed := false
+
 	if strings.HasSuffix(userInfo.Email, "@student.chula.ac.th") {
 		isAllowed = true
 	}
+
 	for _, email := range allowedEmails {
 		if userInfo.Email == email {
 			isAllowed = true
@@ -113,7 +116,7 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 			Email:         userInfo.Email,
 			Name:          userInfo.Name,
 			RoleId:        role,
-			RemainingCoin: 888.88,
+			RemainingCoin: 88888,
 		}
 
 		if err := s.userRepo.Create(&userToCreate); err != nil {
@@ -121,7 +124,12 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 			return nil, err
 		}
 
-		accessToken, err := utils.JwtSignAccessToken(userInfo.Id, role, s.cfg.GetJwt().AccessTokenSecret, s.cfg.GetJwt().AccessTokenExpiration)
+		accessToken, err := utils.JwtSignAccessToken(
+			userInfo.Id,
+			role,
+			s.cfg.GetJwt().AccessTokenSecret,
+			s.cfg.GetJwt().AccessTokenExpiration,
+		)
 		if err != nil {
 			s.log.Named("VerifyOAuthLogin").Error("Jwt sign access token: ", zap.Error(err))
 			return nil, err
@@ -135,12 +143,24 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 
 		credential := utils.NewCredentials(*accessToken, *refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration), true)
 
-		if err := s.authRepo.SetCacheValue(utils.ToAccessCacheKey(userToCreate.Id), credential, s.cfg.GetJwt().AccessTokenExpiration); err != nil {
+		if err := s.authRepo.SetCacheValue(
+			utils.ToAccessCacheKey(userToCreate.Id),
+			credential,
+			s.cfg.GetJwt().AccessTokenExpiration,
+		); err != nil {
 			s.log.Named("VerifyOAuthLogin").Error("Set access cache value: ", zap.Error(err))
 			return nil, err
 		}
 
-		if err := s.authRepo.SetCacheValue(utils.ToRefreshCacheKey(*refreshToken), model.RefreshCacheDto{UserId: userToCreate.Id, Role: role}, s.cfg.GetJwt().RefreshTokenExpiration); err != nil {
+		refreshCache := model.RefreshCacheDto{
+			UserId: userToCreate.Id,
+			Role:   role,
+		}
+		if err := s.authRepo.SetCacheValue(
+			utils.ToRefreshCacheKey(*refreshToken),
+			refreshCache,
+			s.cfg.GetJwt().RefreshTokenExpiration,
+		); err != nil {
 			s.log.Named("VerifyOAuthLogin").Error("Set access cache value: ", zap.Error(err))
 			return nil, err
 		}
@@ -179,6 +199,7 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*model.CredentialDt
 	// find in cache
 	var refreshCacheDto model.RefreshCacheDto
 	var emptyCache model.RefreshCacheDto
+
 	if err := s.authRepo.GetCacheValue(utils.ToRefreshCacheKey(refreshToken), &refreshCacheDto); err != nil {
 		s.log.Named("RefreshToken").Error("Get cache value: ", zap.Error(err))
 		return nil, err
@@ -194,6 +215,7 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*model.CredentialDt
 	}
 
 	newCredential := utils.NewCredentials(*accessToken, refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration), false)
+
 	if err := s.authRepo.SetCacheValue(utils.ToAccessCacheKey(refreshCacheDto.UserId), newCredential, s.cfg.GetJwt().AccessTokenExpiration); err != nil {
 		s.log.Named("RefreshToken").Error("Set access cache value: ", zap.Error(err))
 		return nil, err
@@ -224,6 +246,7 @@ func (s *authServiceImpl) IsAllowedRedirect(redirectUrl string) bool {
 	}
 
 	isAllowed := false
+
 	for _, allowed := range allowedDomains {
 		if hostname == allowed {
 			isAllowed = true

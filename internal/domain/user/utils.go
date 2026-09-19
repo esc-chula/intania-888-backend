@@ -10,6 +10,6 @@ func ToUserEntity(userDto *model.UserDto) *model.User {
 		RoleId:        userDto.RoleId,
 		GroupId:       userDto.GroupId,
 		NickName:      userDto.NickName,
-		RemainingCoin: userDto.RemainingCoin,
+		RemainingCoin: userDto.RemainingCoin.MinorUnits(),
 	}
 }
