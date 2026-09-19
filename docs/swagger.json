@@ -4,10 +4,10 @@
     ],
     "swagger": "2.0",
     "info": {
-        "description": "This is an Intania888 Backend API in Intania888 project.",
+        "description": "Breaking backend release: all Money fields are fixed two-decimal strings and the current frontend is incompatible until migrated.",
         "title": "Intania888 Backend - API",
         "contact": {},
-        "version": "0.0.0"
+        "version": "1.0.0-breaking"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
@@ -273,17 +273,13 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get all bills",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Bill"
                 ],
-                "summary": "Get all bills",
+                "summary": "Get the authenticated user's bills",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -292,12 +288,6 @@
                             "items": {
                                 "$ref": "#/definitions/model.BillHeadDto"
                             }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
                         }
                     }
                 }
@@ -308,7 +298,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a new bill with the input payload",
+                "description": "Breaking contract: money is a string and rates are calculated by the server.",
                 "consumes": [
                     "application/json"
                 ],
@@ -318,15 +308,15 @@
                 "tags": [
                     "Bill"
                 ],
-                "summary": "Create a new bill",
+                "summary": "Place an authoritative bill",
                 "parameters": [
                     {
-                        "description": "Create bill",
+                        "description": "Bill stake and selections",
                         "name": "bill",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.BillHeadDto"
+                            "$ref": "#/definitions/model.CreateBillRequest"
                         }
                     }
                 ],
@@ -343,8 +333,8 @@
                             "$ref": "#/definitions/bill.ErrorResponse"
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "422": {
+                        "description": "Unprocessable Entity",
                         "schema": {
                             "$ref": "#/definitions/bill.ErrorResponse"
                         }
@@ -358,10 +348,6 @@
                     {
                         "BearerAuth": []
                     }
-                ],
-                "description": "Get all bills from all users (admin only)",
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -379,9 +365,54 @@
                                 "$ref": "#/definitions/model.BillHeadDto"
                             }
                         }
+                    }
+                }
+            }
+        },
+        "/bills/admin/{id}/void": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bill"
+                ],
+                "summary": "Void and refund a pending bill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bill ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    {
+                        "description": "Audit reason",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.VoidBillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.BillHeadDto"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/bill.ErrorResponse"
                         }
@@ -395,10 +426,6 @@
                     {
                         "BearerAuth": []
                     }
-                ],
-                "description": "Get a bill by its ID",
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -421,124 +448,6 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/model.BillHeadDto"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a bill by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Bill"
-                ],
-                "summary": "Delete a bill",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bill ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update a bill with the input payload",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Bill"
-                ],
-                "summary": "Update a bill",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bill ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update bill",
-                        "name": "bill",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/model.BillHeadDto"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/model.BillHeadDto"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
                         }
                     }
                 }
@@ -672,13 +581,12 @@
                 "summary": "Set daily reward",
                 "parameters": [
                     {
-                        "description": "Daily reward request (date and amount)",
+                        "description": "Daily reward request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/model.SetDailyRewardRequest"
                         }
                     }
                 ],
@@ -779,8 +687,8 @@
                 "summary": "Spin the slot machine",
                 "parameters": [
                     {
-                        "type": "number",
-                        "description": "Coin amount to spend (50, 100, or 500)",
+                        "type": "string",
+                        "description": "Money string to spend (50, 100, or 500)",
                         "name": "spendAmount",
                         "in": "query",
                         "required": true
@@ -990,53 +898,34 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a list of matches, optionally filtered by type and schedule",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Retrieves a list of matches, optionally filtered by type and schedule",
+                "summary": "List matches",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by sport type ID",
+                        "description": "Sport type ID",
                         "name": "typeId",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Filter by schedule (schedule or result)",
+                        "description": "schedule or result",
                         "name": "schedule",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of matches grouped by date and sport type",
+                        "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/model.MatchesByDate"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid schedule parameter",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to fetch matches",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
                             }
                         }
                     }
@@ -1048,7 +937,6 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new match and stores it in the system",
                 "consumes": [
                     "application/json"
                 ],
@@ -1058,10 +946,10 @@
                 "tags": [
                     "Match"
                 ],
-                "summary": "Creates a new match",
+                "summary": "Create a match",
                 "parameters": [
                     {
-                        "description": "Match information",
+                        "description": "Match",
                         "name": "match",
                         "in": "body",
                         "required": true,
@@ -1072,25 +960,7 @@
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created match successful",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request payload",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to create match",
+                        "description": "Created",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1108,26 +978,16 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Gets the current server time used by match scheduling",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Get current match time",
+                "summary": "Get current server match time",
                 "responses": {
                     "200": {
-                        "description": "current match time",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to get time",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1145,14 +1005,13 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a single match by its ID",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Retrieves a single match by its ID",
+                "summary": "Get a match by ID",
                 "parameters": [
                     {
                         "type": "string",
@@ -1168,15 +1027,6 @@
                         "schema": {
                             "$ref": "#/definitions/model.MatchDto"
                         }
-                    },
-                    "404": {
-                        "description": "Match not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
                     }
                 }
             },
@@ -1186,17 +1036,13 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates match details including teams, sport type, start time, and end time",
                 "consumes": [
-                    "application/json"
-                ],
-                "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Updates match details (teams, type, times)",
+                "summary": "Update match details",
                 "parameters": [
                     {
                         "type": "string",
@@ -1206,7 +1052,7 @@
                         "required": true
                     },
                     {
-                        "description": "Match information",
+                        "description": "Match",
                         "name": "match",
                         "in": "body",
                         "required": true,
@@ -1217,25 +1063,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated match successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request payload",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to update match",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1251,11 +1079,10 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Deletes a match by its ID",
                 "tags": [
                     "Match"
                 ],
-                "summary": "Deletes a match by its ID",
+                "summary": "Delete a match",
                 "parameters": [
                     {
                         "type": "string",
@@ -1267,16 +1094,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Deleted match successful",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to delete match",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1287,21 +1105,23 @@
                 }
             }
         },
-        "/matches/{id}/draw": {
-            "patch": {
+        "/matches/{id}/result": {
+            "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Marks a match as a draw (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Mark a match as draw",
+                "summary": "Idempotently set a match result and settle affected bills",
                 "parameters": [
                     {
                         "type": "string",
@@ -1309,11 +1129,20 @@
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Winner or draw result",
+                        "name": "result",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.MatchResultRequest"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated match as draw successfully",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1321,8 +1150,8 @@
                             }
                         }
                     },
-                    "500": {
-                        "description": "Failed to update match as draw",
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1340,17 +1169,13 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates the score of a match",
                 "consumes": [
-                    "application/json"
-                ],
-                "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Updates the score of a match",
+                "summary": "Update a match score",
                 "parameters": [
                     {
                         "type": "string",
@@ -1360,7 +1185,7 @@
                         "required": true
                     },
                     {
-                        "description": "Score information",
+                        "description": "Score",
                         "name": "score",
                         "in": "body",
                         "required": true,
@@ -1371,78 +1196,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated match score successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request payload",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to update match score",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/matches/{id}/winner/{winner_id}": {
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Updates the winner of a match",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Match"
-                ],
-                "summary": "Updates the winner of a match",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Match ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Winner Team ID",
-                        "name": "winner_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Updated match winner successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to update match winner",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2073,16 +1827,28 @@
                     "type": "string"
                 },
                 "lines": {
-                    "description": "Nested BillLine DTO",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/model.BillLineDto"
                     }
                 },
+                "payout": {
+                    "type": "string"
+                },
+                "settled_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
                 "total": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "user_id": {
+                    "type": "string"
+                },
+                "voided_at": {
                     "type": "string"
                 }
             }
@@ -2095,9 +1861,6 @@
                 },
                 "bill_id": {
                     "type": "string"
-                },
-                "is_paid": {
-                    "type": "boolean"
                 },
                 "match": {
                     "$ref": "#/definitions/model.MatchDto"
@@ -2133,6 +1896,32 @@
                 }
             }
         },
+        "model.CreateBillLineRequest": {
+            "type": "object",
+            "properties": {
+                "betting_on": {
+                    "type": "string"
+                },
+                "match_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CreateBillRequest": {
+            "type": "object",
+            "properties": {
+                "lines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CreateBillLineRequest"
+                    }
+                },
+                "total": {
+                    "type": "string",
+                    "example": "100.00"
+                }
+            }
+        },
         "model.CreateMineGameRequest": {
             "type": "object",
             "required": [
@@ -2141,9 +1930,7 @@
             ],
             "properties": {
                 "bet_amount": {
-                    "type": "number",
-                    "maximum": 1000000,
-                    "minimum": 1
+                    "type": "string"
                 },
                 "risk_level": {
                     "type": "string",
@@ -2162,9 +1949,7 @@
             ],
             "properties": {
                 "amount": {
-                    "type": "number",
-                    "maximum": 1000000,
-                    "minimum": 1
+                    "type": "string"
                 }
             }
         },
@@ -2172,10 +1957,10 @@
             "type": "object",
             "properties": {
                 "deducted_amount": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "remaining_balance": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "success": {
                     "type": "boolean"
@@ -2223,6 +2008,17 @@
                 }
             }
         },
+        "model.MatchResultRequest": {
+            "type": "object",
+            "properties": {
+                "outcome": {
+                    "type": "string"
+                },
+                "winner_id": {
+                    "type": "string"
+                }
+            }
+        },
         "model.MatchesByDate": {
             "type": "object",
             "properties": {
@@ -2255,7 +2051,7 @@
             "type": "object",
             "properties": {
                 "bet_amount": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "completed_at": {
                     "type": "string"
@@ -2264,7 +2060,7 @@
                     "type": "string"
                 },
                 "current_payout": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "grid": {
                     "type": "array",
@@ -2295,6 +2091,12 @@
         "model.MineGameStatsDto": {
             "type": "object",
             "properties": {
+                "active_current_payout": {
+                    "type": "string"
+                },
+                "active_wagered": {
+                    "type": "string"
+                },
                 "games_cashed_out": {
                     "type": "integer"
                 },
@@ -2305,16 +2107,16 @@
                     "type": "integer"
                 },
                 "net_profit": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "total_games": {
                     "type": "integer"
                 },
                 "total_wagered": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "total_winnings": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "win_rate": {
                     "type": "number"
@@ -2376,6 +2178,17 @@
                 }
             }
         },
+        "model.SetDailyRewardRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
         "model.SportTypeDto": {
             "type": "object",
             "properties": {
@@ -2411,10 +2224,10 @@
                     "type": "string"
                 },
                 "raider_new_balance": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "total_stolen": {
-                    "type": "number"
+                    "type": "string"
                 }
             }
         },
@@ -2440,7 +2253,8 @@
                     "type": "string"
                 },
                 "remaining_coin": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "888.88"
                 },
                 "role_id": {
                     "type": "string"
@@ -2451,10 +2265,10 @@
             "type": "object",
             "properties": {
                 "amount_stolen": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "balance_before": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "group_id": {
                     "type": "string"
@@ -2473,6 +2287,14 @@
                 },
                 "was_chosen": {
                     "type": "boolean"
+                }
+            }
+        },
+        "model.VoidBillRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
                 }
             }
         },

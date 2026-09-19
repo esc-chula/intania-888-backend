@@ -276,17 +276,13 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get all bills",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Bill"
                 ],
-                "summary": "Get all bills",
+                "summary": "Get the authenticated user's bills",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -295,12 +291,6 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/model.BillHeadDto"
                             }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
                         }
                     }
                 }
@@ -311,7 +301,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a new bill with the input payload",
+                "description": "Breaking contract: money is a string and rates are calculated by the server.",
                 "consumes": [
                     "application/json"
                 ],
@@ -321,15 +311,15 @@ const docTemplate = `{
                 "tags": [
                     "Bill"
                 ],
-                "summary": "Create a new bill",
+                "summary": "Place an authoritative bill",
                 "parameters": [
                     {
-                        "description": "Create bill",
+                        "description": "Bill stake and selections",
                         "name": "bill",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.BillHeadDto"
+                            "$ref": "#/definitions/model.CreateBillRequest"
                         }
                     }
                 ],
@@ -346,8 +336,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/bill.ErrorResponse"
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "422": {
+                        "description": "Unprocessable Entity",
                         "schema": {
                             "$ref": "#/definitions/bill.ErrorResponse"
                         }
@@ -361,10 +351,6 @@ const docTemplate = `{
                     {
                         "BearerAuth": []
                     }
-                ],
-                "description": "Get all bills from all users (admin only)",
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -382,9 +368,54 @@ const docTemplate = `{
                                 "$ref": "#/definitions/model.BillHeadDto"
                             }
                         }
+                    }
+                }
+            }
+        },
+        "/bills/admin/{id}/void": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bill"
+                ],
+                "summary": "Void and refund a pending bill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bill ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    {
+                        "description": "Audit reason",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.VoidBillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.BillHeadDto"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/bill.ErrorResponse"
                         }
@@ -398,10 +429,6 @@ const docTemplate = `{
                     {
                         "BearerAuth": []
                     }
-                ],
-                "description": "Get a bill by its ID",
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -424,124 +451,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/model.BillHeadDto"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a bill by its ID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Bill"
-                ],
-                "summary": "Delete a bill",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bill ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update a bill with the input payload",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Bill"
-                ],
-                "summary": "Update a bill",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bill ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update bill",
-                        "name": "bill",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/model.BillHeadDto"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/model.BillHeadDto"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
                         }
                     }
                 }
@@ -675,13 +584,12 @@ const docTemplate = `{
                 "summary": "Set daily reward",
                 "parameters": [
                     {
-                        "description": "Daily reward request (date and amount)",
+                        "description": "Daily reward request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/model.SetDailyRewardRequest"
                         }
                     }
                 ],
@@ -782,8 +690,8 @@ const docTemplate = `{
                 "summary": "Spin the slot machine",
                 "parameters": [
                     {
-                        "type": "number",
-                        "description": "Coin amount to spend (50, 100, or 500)",
+                        "type": "string",
+                        "description": "Money string to spend (50, 100, or 500)",
                         "name": "spendAmount",
                         "in": "query",
                         "required": true
@@ -993,53 +901,34 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a list of matches, optionally filtered by type and schedule",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Retrieves a list of matches, optionally filtered by type and schedule",
+                "summary": "List matches",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by sport type ID",
+                        "description": "Sport type ID",
                         "name": "typeId",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Filter by schedule (schedule or result)",
+                        "description": "schedule or result",
                         "name": "schedule",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of matches grouped by date and sport type",
+                        "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/model.MatchesByDate"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid schedule parameter",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to fetch matches",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
                             }
                         }
                     }
@@ -1051,7 +940,6 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new match and stores it in the system",
                 "consumes": [
                     "application/json"
                 ],
@@ -1061,10 +949,10 @@ const docTemplate = `{
                 "tags": [
                     "Match"
                 ],
-                "summary": "Creates a new match",
+                "summary": "Create a match",
                 "parameters": [
                     {
-                        "description": "Match information",
+                        "description": "Match",
                         "name": "match",
                         "in": "body",
                         "required": true,
@@ -1075,25 +963,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created match successful",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request payload",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to create match",
+                        "description": "Created",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1111,26 +981,16 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Gets the current server time used by match scheduling",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Get current match time",
+                "summary": "Get current server match time",
                 "responses": {
                     "200": {
-                        "description": "current match time",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to get time",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1148,14 +1008,13 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a single match by its ID",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Retrieves a single match by its ID",
+                "summary": "Get a match by ID",
                 "parameters": [
                     {
                         "type": "string",
@@ -1171,15 +1030,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/model.MatchDto"
                         }
-                    },
-                    "404": {
-                        "description": "Match not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
                     }
                 }
             },
@@ -1189,17 +1039,13 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates match details including teams, sport type, start time, and end time",
                 "consumes": [
-                    "application/json"
-                ],
-                "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Updates match details (teams, type, times)",
+                "summary": "Update match details",
                 "parameters": [
                     {
                         "type": "string",
@@ -1209,7 +1055,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Match information",
+                        "description": "Match",
                         "name": "match",
                         "in": "body",
                         "required": true,
@@ -1220,25 +1066,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated match successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request payload",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to update match",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1254,11 +1082,10 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Deletes a match by its ID",
                 "tags": [
                     "Match"
                 ],
-                "summary": "Deletes a match by its ID",
+                "summary": "Delete a match",
                 "parameters": [
                     {
                         "type": "string",
@@ -1270,16 +1097,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Deleted match successful",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to delete match",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1290,21 +1108,23 @@ const docTemplate = `{
                 }
             }
         },
-        "/matches/{id}/draw": {
-            "patch": {
+        "/matches/{id}/result": {
+            "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Marks a match as a draw (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Mark a match as draw",
+                "summary": "Idempotently set a match result and settle affected bills",
                 "parameters": [
                     {
                         "type": "string",
@@ -1312,11 +1132,20 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Winner or draw result",
+                        "name": "result",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.MatchResultRequest"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated match as draw successfully",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1324,8 +1153,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "500": {
-                        "description": "Failed to update match as draw",
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1343,17 +1172,13 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates the score of a match",
                 "consumes": [
-                    "application/json"
-                ],
-                "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Match"
                 ],
-                "summary": "Updates the score of a match",
+                "summary": "Update a match score",
                 "parameters": [
                     {
                         "type": "string",
@@ -1363,7 +1188,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Score information",
+                        "description": "Score",
                         "name": "score",
                         "in": "body",
                         "required": true,
@@ -1374,78 +1199,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated match score successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request payload",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to update match score",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/matches/{id}/winner/{winner_id}": {
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Updates the winner of a match",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Match"
-                ],
-                "summary": "Updates the winner of a match",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Match ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Winner Team ID",
-                        "name": "winner_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Updated match winner successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Failed to update match winner",
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2076,16 +1830,28 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "lines": {
-                    "description": "Nested BillLine DTO",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/model.BillLineDto"
                     }
                 },
+                "payout": {
+                    "type": "string"
+                },
+                "settled_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
                 "total": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "user_id": {
+                    "type": "string"
+                },
+                "voided_at": {
                     "type": "string"
                 }
             }
@@ -2098,9 +1864,6 @@ const docTemplate = `{
                 },
                 "bill_id": {
                     "type": "string"
-                },
-                "is_paid": {
-                    "type": "boolean"
                 },
                 "match": {
                     "$ref": "#/definitions/model.MatchDto"
@@ -2136,6 +1899,32 @@ const docTemplate = `{
                 }
             }
         },
+        "model.CreateBillLineRequest": {
+            "type": "object",
+            "properties": {
+                "betting_on": {
+                    "type": "string"
+                },
+                "match_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CreateBillRequest": {
+            "type": "object",
+            "properties": {
+                "lines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CreateBillLineRequest"
+                    }
+                },
+                "total": {
+                    "type": "string",
+                    "example": "100.00"
+                }
+            }
+        },
         "model.CreateMineGameRequest": {
             "type": "object",
             "required": [
@@ -2144,9 +1933,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "bet_amount": {
-                    "type": "number",
-                    "maximum": 1000000,
-                    "minimum": 1
+                    "type": "string"
                 },
                 "risk_level": {
                     "type": "string",
@@ -2165,9 +1952,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "amount": {
-                    "type": "number",
-                    "maximum": 1000000,
-                    "minimum": 1
+                    "type": "string"
                 }
             }
         },
@@ -2175,10 +1960,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "deducted_amount": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "remaining_balance": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "success": {
                     "type": "boolean"
@@ -2226,6 +2011,17 @@ const docTemplate = `{
                 }
             }
         },
+        "model.MatchResultRequest": {
+            "type": "object",
+            "properties": {
+                "outcome": {
+                    "type": "string"
+                },
+                "winner_id": {
+                    "type": "string"
+                }
+            }
+        },
         "model.MatchesByDate": {
             "type": "object",
             "properties": {
@@ -2258,7 +2054,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "bet_amount": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "completed_at": {
                     "type": "string"
@@ -2267,7 +2063,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "current_payout": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "grid": {
                     "type": "array",
@@ -2298,6 +2094,12 @@ const docTemplate = `{
         "model.MineGameStatsDto": {
             "type": "object",
             "properties": {
+                "active_current_payout": {
+                    "type": "string"
+                },
+                "active_wagered": {
+                    "type": "string"
+                },
                 "games_cashed_out": {
                     "type": "integer"
                 },
@@ -2308,16 +2110,16 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "net_profit": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "total_games": {
                     "type": "integer"
                 },
                 "total_wagered": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "total_winnings": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "win_rate": {
                     "type": "number"
@@ -2379,6 +2181,17 @@ const docTemplate = `{
                 }
             }
         },
+        "model.SetDailyRewardRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
         "model.SportTypeDto": {
             "type": "object",
             "properties": {
@@ -2414,10 +2227,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "raider_new_balance": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "total_stolen": {
-                    "type": "number"
+                    "type": "string"
                 }
             }
         },
@@ -2443,7 +2256,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "remaining_coin": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "888.88"
                 },
                 "role_id": {
                     "type": "string"
@@ -2454,10 +2268,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount_stolen": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "balance_before": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "group_id": {
                     "type": "string"
@@ -2476,6 +2290,14 @@ const docTemplate = `{
                 },
                 "was_chosen": {
                     "type": "boolean"
+                }
+            }
+        },
+        "model.VoidBillRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
                 }
             }
         },
@@ -2500,12 +2322,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "0.0.0",
+	Version:          "1.0.0-breaking",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},
 	Title:            "Intania888 Backend - API",
-	Description:      "This is an Intania888 Backend API in Intania888 project.",
+	Description:      "Breaking backend release: all Money fields are fixed two-decimal strings and the current frontend is incompatible until migrated.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

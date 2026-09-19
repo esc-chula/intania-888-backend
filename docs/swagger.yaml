@@ -15,13 +15,21 @@ definitions:
       id:
         type: string
       lines:
-        description: Nested BillLine DTO
         items:
           $ref: '#/definitions/model.BillLineDto'
         type: array
+      payout:
+        type: string
+      settled_at:
+        type: string
+      status:
+        type: string
       total:
-        type: number
+        example: "100.00"
+        type: string
       user_id:
+        type: string
+      voided_at:
         type: string
     type: object
   model.BillLineDto:
@@ -30,8 +38,6 @@ definitions:
         type: string
       bill_id:
         type: string
-      is_paid:
-        type: boolean
       match:
         $ref: '#/definitions/model.MatchDto'
       match_id:
@@ -54,12 +60,27 @@ definitions:
       won:
         type: integer
     type: object
+  model.CreateBillLineRequest:
+    properties:
+      betting_on:
+        type: string
+      match_id:
+        type: string
+    type: object
+  model.CreateBillRequest:
+    properties:
+      lines:
+        items:
+          $ref: '#/definitions/model.CreateBillLineRequest'
+        type: array
+      total:
+        example: "100.00"
+        type: string
+    type: object
   model.CreateMineGameRequest:
     properties:
       bet_amount:
-        maximum: 1000000
-        minimum: 1
-        type: number
+        type: string
       risk_level:
         enum:
         - low
@@ -73,18 +94,16 @@ definitions:
   model.DeductCoinRequest:
     properties:
       amount:
-        maximum: 1000000
-        minimum: 1
-        type: number
+        type: string
     required:
     - amount
     type: object
   model.DeductCoinResponse:
     properties:
       deducted_amount:
-        type: number
+        type: string
       remaining_balance:
-        type: number
+        type: string
       success:
         type: boolean
     type: object
@@ -115,6 +134,13 @@ definitions:
       winner:
         type: string
     type: object
+  model.MatchResultRequest:
+    properties:
+      outcome:
+        type: string
+      winner_id:
+        type: string
+    type: object
   model.MatchesByDate:
     properties:
       date:
@@ -136,13 +162,13 @@ definitions:
   model.MineGameDto:
     properties:
       bet_amount:
-        type: number
+        type: string
       completed_at:
         type: string
       created_at:
         type: string
       current_payout:
-        type: number
+        type: string
       grid:
         items:
           $ref: '#/definitions/model.MineTileDto'
@@ -162,6 +188,10 @@ definitions:
     type: object
   model.MineGameStatsDto:
     properties:
+      active_current_payout:
+        type: string
+      active_wagered:
+        type: string
       games_cashed_out:
         type: integer
       games_lost:
@@ -169,13 +199,13 @@ definitions:
       games_won:
         type: integer
       net_profit:
-        type: number
+        type: string
       total_games:
         type: integer
       total_wagered:
-        type: number
+        type: string
       total_winnings:
-        type: number
+        type: string
       win_rate:
         type: number
     type: object
@@ -215,6 +245,13 @@ definitions:
       team_b_score:
         type: integer
     type: object
+  model.SetDailyRewardRequest:
+    properties:
+      amount:
+        type: string
+      date:
+        type: string
+    type: object
   model.SportTypeDto:
     properties:
       id:
@@ -238,9 +275,9 @@ definitions:
       message:
         type: string
       raider_new_balance:
-        type: number
+        type: string
       total_stolen:
-        type: number
+        type: string
     type: object
   model.UserDto:
     properties:
@@ -257,16 +294,17 @@ definitions:
       nick_name:
         type: string
       remaining_coin:
-        type: number
+        example: "888.88"
+        type: string
       role_id:
         type: string
     type: object
   model.VictimDetailDto:
     properties:
       amount_stolen:
-        type: number
+        type: string
       balance_before:
-        type: number
+        type: string
       group_id:
         type: string
       index:
@@ -280,6 +318,11 @@ definitions:
       was_chosen:
         type: boolean
     type: object
+  model.VoidBillRequest:
+    properties:
+      reason:
+        type: string
+    type: object
   sporttype.ErrorResponse:
     properties:
       message:
@@ -288,9 +331,10 @@ definitions:
 host: localhost:8080
 info:
   contact: {}
-  description: This is an Intania888 Backend API in Intania888 project.
+  description: 'Breaking backend release: all Money fields are fixed two-decimal strings
+    and the current frontend is incompatible until migrated.'
   title: Intania888 Backend - API
-  version: 0.0.0
+  version: 1.0.0-breaking
 paths:
   /auth/callback:
     get:
@@ -462,9 +506,6 @@ paths:
       - Auth
   /bills:
     get:
-      consumes:
-      - application/json
-      description: Get all bills
       produces:
       - application/json
       responses:
@@ -474,26 +515,23 @@ paths:
             items:
               $ref: '#/definitions/model.BillHeadDto'
             type: array
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/bill.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Get all bills
+      summary: Get the authenticated user's bills
       tags:
       - Bill
     post:
       consumes:
       - application/json
-      description: Create a new bill with the input payload
+      description: 'Breaking contract: money is a string and rates are calculated
+        by the server.'
       parameters:
-      - description: Create bill
+      - description: Bill stake and selections
         in: body
         name: bill
         required: true
         schema:
-          $ref: '#/definitions/model.BillHeadDto'
+          $ref: '#/definitions/model.CreateBillRequest'
       produces:
       - application/json
       responses:
@@ -505,48 +543,17 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/bill.ErrorResponse'
-        "500":
-          description: Internal Server Error
+        "422":
+          description: Unprocessable Entity
           schema:
             $ref: '#/definitions/bill.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Create a new bill
+      summary: Place an authoritative bill
       tags:
       - Bill
   /bills/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: Delete a bill by its ID
-      parameters:
-      - description: Bill ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/bill.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/bill.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Delete a bill
-      tags:
-      - Bill
     get:
-      consumes:
-      - application/json
-      description: Get a bill by its ID
       parameters:
       - description: Bill ID
         in: path
@@ -560,35 +567,27 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/model.BillHeadDto'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/bill.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/bill.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get a bill by ID
       tags:
       - Bill
-    patch:
+  /bills/admin/{id}/void:
+    put:
       consumes:
       - application/json
-      description: Update a bill with the input payload
       parameters:
       - description: Bill ID
         in: path
         name: id
         required: true
         type: string
-      - description: Update bill
+      - description: Audit reason
         in: body
-        name: bill
+        name: request
         required: true
         schema:
-          $ref: '#/definitions/model.BillHeadDto'
+          $ref: '#/definitions/model.VoidBillRequest'
       produces:
       - application/json
       responses:
@@ -596,28 +595,17 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/model.BillHeadDto'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/bill.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/bill.ErrorResponse'
-        "500":
-          description: Internal Server Error
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/bill.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Update a bill
+      summary: Void and refund a pending bill
       tags:
       - Bill
   /bills/admin/all:
     get:
-      consumes:
-      - application/json
-      description: Get all bills from all users (admin only)
       produces:
       - application/json
       responses:
@@ -627,10 +615,6 @@ paths:
             items:
               $ref: '#/definitions/model.BillHeadDto'
             type: array
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/bill.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get all bills (admin)
@@ -710,13 +694,12 @@ paths:
       - application/json
       description: Set daily reward amount for a specific date (admin only)
       parameters:
-      - description: Daily reward request (date and amount)
+      - description: Daily reward request
         in: body
         name: request
         required: true
         schema:
-          additionalProperties: true
-          type: object
+          $ref: '#/definitions/model.SetDailyRewardRequest'
       produces:
       - application/json
       responses:
@@ -778,11 +761,11 @@ paths:
     post:
       description: Spins the slot machine using the requested coin amount
       parameters:
-      - description: Coin amount to spend (50, 100, or 500)
+      - description: Money string to spend (50, 100, or 500)
         in: query
         name: spendAmount
         required: true
-        type: number
+        type: string
       produces:
       - application/json
       responses:
@@ -919,13 +902,12 @@ paths:
       - External
   /matches:
     get:
-      description: Retrieves a list of matches, optionally filtered by type and schedule
       parameters:
-      - description: Filter by sport type ID
+      - description: Sport type ID
         in: query
         name: typeId
         type: string
-      - description: Filter by schedule (schedule or result)
+      - description: schedule or result
         in: query
         name: schedule
         type: string
@@ -933,34 +915,21 @@ paths:
       - application/json
       responses:
         "200":
-          description: List of matches grouped by date and sport type
+          description: OK
           schema:
             items:
               $ref: '#/definitions/model.MatchesByDate'
             type: array
-        "400":
-          description: Invalid schedule parameter
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Failed to fetch matches
-          schema:
-            additionalProperties:
-              type: string
-            type: object
       security:
       - BearerAuth: []
-      summary: Retrieves a list of matches, optionally filtered by type and schedule
+      summary: List matches
       tags:
       - Match
     post:
       consumes:
       - application/json
-      description: Creates a new match and stores it in the system
       parameters:
-      - description: Match information
+      - description: Match
         in: body
         name: match
         required: true
@@ -970,31 +939,18 @@ paths:
       - application/json
       responses:
         "201":
-          description: Created match successful
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Invalid request payload
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Failed to create match
+          description: Created
           schema:
             additionalProperties:
               type: string
             type: object
       security:
       - BearerAuth: []
-      summary: Creates a new match
+      summary: Create a match
       tags:
       - Match
   /matches/{id}:
     delete:
-      description: Deletes a match by its ID
       parameters:
       - description: Match ID
         in: path
@@ -1003,24 +959,17 @@ paths:
         type: string
       responses:
         "200":
-          description: Deleted match successful
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Failed to delete match
+          description: OK
           schema:
             additionalProperties:
               type: string
             type: object
       security:
       - BearerAuth: []
-      summary: Deletes a match by its ID
+      summary: Delete a match
       tags:
       - Match
     get:
-      description: Retrieves a single match by its ID
       parameters:
       - description: Match ID
         in: path
@@ -1034,187 +983,116 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/model.MatchDto'
-        "404":
-          description: Match not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
       security:
       - BearerAuth: []
-      summary: Retrieves a single match by its ID
+      summary: Get a match by ID
       tags:
       - Match
     put:
       consumes:
       - application/json
-      description: Updates match details including teams, sport type, start time,
-        and end time
       parameters:
       - description: Match ID
         in: path
         name: id
         required: true
         type: string
-      - description: Match information
+      - description: Match
         in: body
         name: match
         required: true
         schema:
           $ref: '#/definitions/model.MatchDto'
-      produces:
-      - application/json
       responses:
         "200":
-          description: Updated match successfully
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Invalid request payload
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Failed to update match
+          description: OK
           schema:
             additionalProperties:
               type: string
             type: object
       security:
       - BearerAuth: []
-      summary: Updates match details (teams, type, times)
+      summary: Update match details
       tags:
       - Match
-  /matches/{id}/draw:
-    patch:
-      description: Marks a match as a draw (admin only)
+  /matches/{id}/result:
+    put:
+      consumes:
+      - application/json
       parameters:
       - description: Match ID
         in: path
         name: id
         required: true
         type: string
+      - description: Winner or draw result
+        in: body
+        name: result
+        required: true
+        schema:
+          $ref: '#/definitions/model.MatchResultRequest'
       produces:
       - application/json
       responses:
         "200":
-          description: Updated match as draw successfully
+          description: OK
           schema:
             additionalProperties:
               type: string
             type: object
-        "500":
-          description: Failed to update match as draw
+        "409":
+          description: Conflict
           schema:
             additionalProperties:
               type: string
             type: object
       security:
       - BearerAuth: []
-      summary: Mark a match as draw
+      summary: Idempotently set a match result and settle affected bills
       tags:
       - Match
   /matches/{id}/score:
     patch:
       consumes:
       - application/json
-      description: Updates the score of a match
       parameters:
       - description: Match ID
         in: path
         name: id
         required: true
         type: string
-      - description: Score information
+      - description: Score
         in: body
         name: score
         required: true
         schema:
           $ref: '#/definitions/model.ScoreDto'
-      produces:
-      - application/json
       responses:
         "200":
-          description: Updated match score successfully
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Invalid request payload
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Failed to update match score
+          description: OK
           schema:
             additionalProperties:
               type: string
             type: object
       security:
       - BearerAuth: []
-      summary: Updates the score of a match
-      tags:
-      - Match
-  /matches/{id}/winner/{winner_id}:
-    patch:
-      description: Updates the winner of a match
-      parameters:
-      - description: Match ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Winner Team ID
-        in: path
-        name: winner_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Updated match winner successfully
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Failed to update match winner
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Updates the winner of a match
+      summary: Update a match score
       tags:
       - Match
   /matches/current/time:
     get:
-      description: Gets the current server time used by match scheduling
       produces:
       - application/json
       responses:
         "200":
-          description: current match time
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Failed to get time
+          description: OK
           schema:
             additionalProperties:
               type: string
             type: object
       security:
       - BearerAuth: []
-      summary: Get current match time
+      summary: Get current server match time
       tags:
       - Match
   /mines/{id}:
