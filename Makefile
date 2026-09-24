@@ -8,13 +8,17 @@ AIR_CONFIG ?= .air.toml
 DOCKER_COMPOSE ?= docker compose
 GOLANGCI_LINT ?= golangci-lint
 APP_ENV ?= dev
+TEST_COMPOSE_FILE ?= docker-compose.test.yml
+TEST_COMPOSE_PROJECT ?= intania888-test
+TEST_POSTGRES_PORT ?= 55432
+TEST_DATABASE_URL ?= postgres://root:1234@localhost:$(TEST_POSTGRES_PORT)/intania888_test?sslmode=disable
 
 SWAG_VERSION ?= v1.16.3
 SWAG_CMD := $(GO) run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
 GO_PACKAGES := ./cmd/... ./docs/... ./internal/... ./pkg/... ./utils/...
 DESTRUCTIVE_MIGRATION_CONFIRMATION := I_UNDERSTAND_DATA_WILL_BE_LOST
 
-.PHONY: help dev deps migrate migrate-up migrate-status migrate-down migrate-reset seed test test-race \
+.PHONY: help dev deps migrate migrate-up migrate-status migrate-down migrate-reset seed test test-race test-integration \
 	build fmt-check lint docs docs-check tidy ci check-env check-air check-docker check-golangci
 
 help:
@@ -29,6 +33,7 @@ help:
 		'  make seed                                     Seed stable catalogue data' \
 		'  make test                                     Run the test suite' \
 		'  make test-race                                Run tests with the race detector' \
+		'  make test-integration                         Run PostgreSQL acceptance tests' \
 		'  make build                                    Compile all Go packages' \
 		'  make lint                                     Check formatting, vet, and run golangci-lint' \
 		'  make docs                                     Regenerate API documentation' \
@@ -50,7 +55,7 @@ check-air:
 
 check-docker:
 	@command -v "$(firstword $(DOCKER_COMPOSE))" >/dev/null 2>&1 || { \
-		echo 'Docker Compose is required for make deps or make dev'; \
+		echo 'Docker Compose is required for make deps, make dev, or make test-integration'; \
 		exit 1; \
 	}
 
@@ -97,6 +102,15 @@ test:
 
 test-race:
 	$(GO) test -race ./...
+
+test-integration: check-docker
+	@set -e; \
+		cleanup() { \
+			TEST_POSTGRES_PORT="$(TEST_POSTGRES_PORT)" $(DOCKER_COMPOSE) -f "$(TEST_COMPOSE_FILE)" -p "$(TEST_COMPOSE_PROJECT)" down --volumes --remove-orphans; \
+		}; \
+		trap cleanup EXIT; \
+		TEST_POSTGRES_PORT="$(TEST_POSTGRES_PORT)" $(DOCKER_COMPOSE) -f "$(TEST_COMPOSE_FILE)" -p "$(TEST_COMPOSE_PROJECT)" up --detach --wait postgres; \
+		INTANIA888_TEST_DATABASE_URL="$(TEST_DATABASE_URL)" $(GO) test -tags=integration -p 1 -count=1 ./...
 
 build:
 	$(GO) build ./...
