@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/billinglock"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -64,6 +65,24 @@ func rateFor(a, b int64, forA bool) (model.Rate, error) {
 	}
 
 	return model.NewRateFromMicro(q.Int64())
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) < 2 {
+		return values
+	}
+
+	unique := values[:1]
+
+	for _, value := range values[1:] {
+		if value == unique[len(unique)-1] {
+			continue
+		}
+
+		unique = append(unique, value)
+	}
+
+	return unique
 }
 
 func (s *matchServiceImpl) GetMatch(id string) (*model.MatchDto, error) {
@@ -184,10 +203,74 @@ func (s *matchServiceImpl) SetResult(id string, req *model.MatchResultRequest) e
 	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		var m model.Match
-
-		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&m, "id = ?", id).Error; e != nil {
+		if e := billinglock.Acquire(tx); e != nil {
 			return e
+		}
+
+		var candidateBillIDs []string
+
+		if e := tx.
+			Table("bill_heads").
+			Select("DISTINCT bill_heads.id").
+			Joins("JOIN bill_lines ON bill_lines.bill_id=bill_heads.id").
+			Where("bill_lines.match_id=? AND bill_heads.status='PENDING'", id).
+			Order("bill_heads.id").
+			Scan(&candidateBillIDs).
+			Error; e != nil {
+			return e
+		}
+
+		matchIDs := []string{id}
+
+		if len(candidateBillIDs) > 0 {
+			var referencedMatchIDs []string
+
+			if e := tx.
+				Table("bill_lines").
+				Select("DISTINCT match_id").
+				Where("bill_id IN ?", candidateBillIDs).
+				Order("match_id").
+				Scan(&referencedMatchIDs).
+				Error; e != nil {
+				return e
+			}
+
+			matchIDs = append(matchIDs, referencedMatchIDs...)
+		}
+
+		sort.Strings(matchIDs)
+		matchIDs = uniqueStrings(matchIDs)
+
+		var lockedMatches []model.Match
+
+		if e := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id IN ?", matchIDs).
+			Order("id").
+			Find(&lockedMatches).
+			Error; e != nil {
+			return e
+		}
+
+		if len(lockedMatches) != len(matchIDs) {
+			return gorm.ErrRecordNotFound
+		}
+
+		var m model.Match
+		found := false
+
+		for i := range lockedMatches {
+			if lockedMatches[i].Id != id {
+				continue
+			}
+
+			m = lockedMatches[i]
+			found = true
+			break
+		}
+
+		if !found {
+			return gorm.ErrRecordNotFound
 		}
 
 		if m.TeamA_Id == nil || m.TeamB_Id == nil {

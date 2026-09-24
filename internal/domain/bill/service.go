@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/billinglock"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/google/uuid"
@@ -51,14 +52,8 @@ func (s *billServiceImpl) CreateBill(userID string, req *model.CreateBillRequest
 
 	var made model.BillHead
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		var u model.User
-
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&u, "id = ?", userID).Error; err != nil {
+		if err := billinglock.Acquire(tx); err != nil {
 			return err
-		}
-
-		if u.RemainingCoin < req.Total.MinorUnits() {
-			return ErrInsufficientBalance
 		}
 
 		ids := make([]string, len(lines))
@@ -151,6 +146,16 @@ func (s *billServiceImpl) CreateBill(userID string, req *model.CreateBillRequest
 			return err
 		}
 
+		var u model.User
+
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&u, "id = ?", userID).Error; err != nil {
+			return err
+		}
+
+		if u.RemainingCoin < req.Total.MinorUnits() {
+			return ErrInsufficientBalance
+		}
+
 		if err := tx.Omit("Lines.Match").Create(&made).Error; err != nil {
 			return err
 		}
@@ -235,13 +240,47 @@ func (s *billServiceImpl) GetAllBillsAdmin() ([]*model.BillHeadDto, error) {
 }
 
 func (s *billServiceImpl) VoidBill(id, actor, reason string) (*model.BillHeadDto, error) {
+	actor = strings.TrimSpace(actor)
 	reason = strings.TrimSpace(reason)
-	if len(reason) == 0 || len(reason) > 500 {
+	if actor == "" || len(reason) == 0 || len(reason) > 500 {
 		return nil, ErrInvalidBill
 	}
 
 	var v model.BillHead
 	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if e := billinglock.Acquire(tx); e != nil {
+			return e
+		}
+
+		var matchIDs []string
+
+		if e := tx.
+			Table("bill_lines").
+			Select("match_id").
+			Where("bill_id = ?", id).
+			Order("match_id").
+			Scan(&matchIDs).
+			Error; e != nil {
+			return e
+		}
+
+		if len(matchIDs) > 0 {
+			var matches []model.Match
+
+			if e := tx.
+				Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("id IN ?", matchIDs).
+				Order("id").
+				Find(&matches).
+				Error; e != nil {
+				return e
+			}
+
+			if len(matches) != len(matchIDs) {
+				return gorm.ErrRecordNotFound
+			}
+		}
+
 		if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("Lines").Preload("Lines.Match").First(&v, "id = ?", id).Error; e != nil {
 			return e
 		}
