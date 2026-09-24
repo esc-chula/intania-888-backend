@@ -1,42 +1,133 @@
-tidy:
-	go mod tidy
+SHELL := /usr/bin/env bash
+
+.DEFAULT_GOAL := help
+
+GO ?= go
+AIR ?= air
+AIR_CONFIG ?= .air.toml
+DOCKER_COMPOSE ?= docker compose
+GOLANGCI_LINT ?= golangci-lint
+APP_ENV ?= dev
 
 SWAG_VERSION ?= v1.16.3
-SWAG_CMD = go run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
+SWAG_CMD := $(GO) run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
+GO_PACKAGES := ./cmd/... ./docs/... ./internal/... ./pkg/... ./utils/...
+DESTRUCTIVE_MIGRATION_CONFIRMATION := I_UNDERSTAND_DATA_WILL_BE_LOST
 
-swagger:
+.PHONY: help dev deps migrate migrate-up migrate-status migrate-down migrate-reset seed test test-race \
+	build fmt-check lint docs docs-check tidy ci check-env check-air check-docker check-golangci
+
+help:
+	@printf '%s\n' \
+		'Available commands:' \
+		'  make dev                                      Start Compose dependencies, migrate, and run Air' \
+		'  make deps                                     Start PostgreSQL and Redis dependencies' \
+		'  make migrate                                   Apply migrations (alias for migrate-up)' \
+		'  make migrate-status                            Show migration status' \
+		'  make migrate-down                              Roll back one migration (guarded)' \
+		'  make migrate-reset                             Roll back all migrations (guarded)' \
+		'  make seed                                     Seed stable catalogue data' \
+		'  make test                                     Run the test suite' \
+		'  make test-race                                Run tests with the race detector' \
+		'  make build                                    Compile all Go packages' \
+		'  make lint                                     Check formatting, vet, and run golangci-lint' \
+		'  make docs                                     Regenerate API documentation' \
+		'  make docs-check                               Verify generated documentation files are current' \
+		'  make tidy                                     Tidy Go modules' \
+		'  make ci                                       Run the local CI checks'
+
+check-env:
+	@test -f .env || { \
+		echo 'missing .env; copy .env.example to .env and configure local values'; \
+		exit 1; \
+	}
+
+check-air:
+	@command -v "$(AIR)" >/dev/null 2>&1 || { \
+		echo 'air is required for make dev; install it or set AIR=/path/to/air'; \
+		exit 1; \
+	}
+
+check-docker:
+	@command -v "$(firstword $(DOCKER_COMPOSE))" >/dev/null 2>&1 || { \
+		echo 'Docker Compose is required for make deps or make dev'; \
+		exit 1; \
+	}
+
+check-golangci:
+	@command -v "$(GOLANGCI_LINT)" >/dev/null 2>&1 || { \
+		echo 'golangci-lint is required for make lint; install it or set GOLANGCI_LINT=/path/to/golangci-lint'; \
+		exit 1; \
+	}
+
+deps: check-docker
+	$(DOCKER_COMPOSE) up --detach --wait postgres redis
+
+dev: check-env check-air deps
+	$(MAKE) APP_ENV=dev migrate
+	APP_ENV=dev $(AIR) -c $(AIR_CONFIG)
+
+migrate: migrate-up
+
+migrate-up: check-env
+	APP_ENV=$(APP_ENV) $(GO) run ./cmd/migrate up
+
+migrate-status: check-env
+	APP_ENV=$(APP_ENV) $(GO) run ./cmd/migrate status
+
+migrate-down: check-env
+	@test "$${ALLOW_DESTRUCTIVE_MIGRATIONS}" = "$(DESTRUCTIVE_MIGRATION_CONFIRMATION)" || { \
+		echo 'destructive migration refused; set ALLOW_DESTRUCTIVE_MIGRATIONS=I_UNDERSTAND_DATA_WILL_BE_LOST'; \
+		exit 1; \
+	}
+	APP_ENV=$(APP_ENV) $(GO) run ./cmd/migrate down
+
+migrate-reset: check-env
+	@test "$${ALLOW_DESTRUCTIVE_MIGRATIONS}" = "$(DESTRUCTIVE_MIGRATION_CONFIRMATION)" || { \
+		echo 'destructive migration refused; set ALLOW_DESTRUCTIVE_MIGRATIONS=I_UNDERSTAND_DATA_WILL_BE_LOST'; \
+		exit 1; \
+	}
+	APP_ENV=$(APP_ENV) $(GO) run ./cmd/migrate reset
+
+seed: check-env
+	APP_ENV=$(APP_ENV) $(GO) run ./cmd/seed
+
+test:
+	$(GO) test ./...
+
+test-race:
+	$(GO) test -race ./...
+
+build:
+	$(GO) build ./...
+
+fmt-check:
+	@files="$$(find . -type f -name '*.go' -not -path './vendor/*' -print)"; \
+		if test -n "$$files" && test -n "$$(gofmt -l $$files)"; then \
+			echo 'Go files are not gofmt-formatted:'; \
+			gofmt -l $$files; \
+			exit 1; \
+		fi
+
+lint: fmt-check check-golangci
+	$(GO) vet ./...
+	$(GOLANGCI_LINT) run --allow-parallel-runners $(GO_PACKAGES)
+
+docs:
 	$(SWAG_CMD) init -g cmd/main.go -o docs
 
-swagger-check:
+docs-check:
 	@set -e; \
-	tmp_root=$$(mktemp -d); \
-	tmp_dir="$$tmp_root/docs"; \
-	mkdir "$$tmp_dir"; \
-	trap 'rm -rf "$$tmp_root"' EXIT; \
-	$(SWAG_CMD) init -g cmd/main.go -o "$$tmp_dir"; \
-	diff -u docs/docs.go "$$tmp_dir/docs.go"; \
-	diff -u docs/swagger.json "$$tmp_dir/swagger.json"; \
-	diff -u docs/swagger.yaml "$$tmp_dir/swagger.yaml"
+		tmp_root=$$(mktemp -d); \
+		tmp_dir="$$tmp_root/docs"; \
+		mkdir "$$tmp_dir"; \
+		trap 'rm -rf "$$tmp_root"' EXIT; \
+		$(SWAG_CMD) init -g cmd/main.go -o "$$tmp_dir"; \
+		diff -u docs/docs.go "$$tmp_dir/docs.go"; \
+		diff -u docs/swagger.json "$$tmp_dir/swagger.json"; \
+		diff -u docs/swagger.yaml "$$tmp_dir/swagger.yaml"
 
-migrate-up:
-	APP_ENV=dev go run ./cmd/migrate up
+tidy:
+	$(GO) mod tidy
 
-migrate-status:
-	APP_ENV=dev go run ./cmd/migrate status
-
-migrate-down:
-	@test "$${ALLOW_DESTRUCTIVE_MIGRATIONS}" = "I_UNDERSTAND_DATA_WILL_BE_LOST" || (echo "refusing destructive migration; set ALLOW_DESTRUCTIVE_MIGRATIONS=I_UNDERSTAND_DATA_WILL_BE_LOST"; exit 1)
-	APP_ENV=dev go run ./cmd/migrate down
-
-migrate-reset:
-	@test "$${ALLOW_DESTRUCTIVE_MIGRATIONS}" = "I_UNDERSTAND_DATA_WILL_BE_LOST" || (echo "refusing destructive migration; set ALLOW_DESTRUCTIVE_MIGRATIONS=I_UNDERSTAND_DATA_WILL_BE_LOST"; exit 1)
-	APP_ENV=dev go run ./cmd/migrate reset
-
-migrate: migrate-status
-	@echo "'make migrate' is non-mutating; use 'make migrate-up' explicitly"
-
-seed:
-	APP_ENV=dev go run ./cmd/seed
-
-run:
-	go run ./cmd/main.go dev
+ci: lint test test-race build docs-check
