@@ -132,111 +132,121 @@ func (s *stakeMineServiceImpl) CreateGame(userId string, req *model.CreateMineGa
 }
 
 func (s *stakeMineServiceImpl) RevealTile(userId string, gameId string, req *model.RevealMineTileRequest) (*model.MineGameDto, string, error) {
-	// Get game
-	game, err := s.repo.FindById(gameId)
-	if err != nil {
-		s.log.Named("RevealTile").Error("Game not found", zap.Error(err))
-		return nil, "", errors.New("game not found")
-	}
-
-	// Verify ownership
-	if game.UserId != userId {
-		s.log.Named("RevealTile").Warn("Unauthorized access attempt", zap.String("userId", userId), zap.String("gameId", gameId))
-		return nil, "", errors.New("unauthorized: this is not your game")
-	}
-
-	// Check game status
-	if game.Status != "active" {
-		return nil, "", errors.New("game is not active")
-	}
-
-	// Validate tile index
-	if !ValidateTileIndex(req.Index) {
-		return nil, "", errors.New("invalid tile index")
-	}
-
-	// Parse grid
-	grid, err := JSONToGrid(game.GridData)
-	if err != nil {
-		s.log.Named("RevealTile").Error("Failed to parse grid", zap.Error(err))
-		return nil, "", errors.New("failed to load game data")
-	}
-
-	// Check if tile already revealed
-	if grid[req.Index].Revealed {
-		return nil, "", errors.New("tile already revealed")
-	}
-
-	// Reveal the tile
-	grid[req.Index].Revealed = true
-	game.RevealedCount++
-
-	// Calculate the resulting game state and whether winnings must be credited.
+	var game model.MineGame
 	var message string
-	var needsBalanceUpdate bool
 
-	if grid[req.Index].Type == "bomb" {
-		// Hit a bomb - game over
-		game.Status = "lost"
-		game.CurrentPayout = 0
-		now := time.Now()
-		game.CompletedAt = &now
-
-		// Reveal all tiles
-		for i := range grid {
-			grid[i].Revealed = true
+	// Get and lock the game inside the transaction so only one transition can win.
+	err := s.userDB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", gameId).
+			First(&game).
+			Error; err != nil {
+			s.log.Named("RevealTile").Error("Game not found", zap.Error(err))
+			return errors.New("game not found")
 		}
 
-		message = "💣 BOOM! You hit a bomb and lost!"
-		s.log.Named("RevealTile").Info("Player hit bomb", zap.String("gameId", gameId), zap.String("userId", userId))
-	} else {
-		// Found a diamond
-		multiplier := CalculateMultiplier(game.RevealedCount, game.RiskLevel)
-		game.Multiplier = multiplier.MicroUnits()
-
-		// Calculate payout safely with overflow protection
-		payout, err := CalculatePayoutSafe(model.MustMoneyFromMinor(game.BetAmount), multiplier)
-		if err != nil {
-			s.log.Named("RevealTile").Error("Payout calculation error", zap.Error(err))
-			return nil, "", errors.New("payout calculation failed")
+		// Verify ownership.
+		if game.UserId != userId {
+			s.log.Named("RevealTile").Warn("Unauthorized access attempt", zap.String("userId", userId), zap.String("gameId", gameId))
+			return errors.New("unauthorized: this is not your game")
 		}
 
-		game.CurrentPayout = payout.MinorUnits()
+		// Check game status while the row is locked.
+		if game.Status != "active" {
+			return errors.New("game is not active")
+		}
 
-		// Check if all safe tiles revealed (auto win)
-		totalTiles := 16
-		bombs := GetBombCount(game.RiskLevel)
+		// Validate tile index.
+		if !ValidateTileIndex(req.Index) {
+			return errors.New("invalid tile index")
+		}
 
-		if game.RevealedCount == totalTiles-bombs {
-			game.Status = "won"
+		// Parse grid.
+		grid, err := JSONToGrid(game.GridData)
+		if err != nil || req.Index >= len(grid) {
+			s.log.Named("RevealTile").Error("Failed to parse grid", zap.Error(err))
+			return errors.New("failed to load game data")
+		}
+
+		// Check if tile already revealed.
+		if grid[req.Index].Revealed {
+			return errors.New("tile already revealed")
+		}
+
+		// Reveal the tile.
+		grid[req.Index].Revealed = true
+		game.RevealedCount++
+
+		// Calculate the resulting game state and whether winnings must be credited.
+		needsBalanceUpdate := false
+		tileType := grid[req.Index].Type
+
+		if tileType == "bomb" {
+			// Hit a bomb - game over.
+			game.Status = "lost"
+			game.CurrentPayout = 0
 			now := time.Now()
 			game.CompletedAt = &now
-			needsBalanceUpdate = true
 
-			// Reveal all tiles
+			// Reveal all tiles.
 			for i := range grid {
 				grid[i].Revealed = true
 			}
 
-			message = fmt.Sprintf("🎉 Perfect! You found all diamonds! Won: %s coins", payout.String())
-			s.log.Named("RevealTile").Info("Player won game", zap.String("gameId", gameId), zap.String("userId", userId), zap.Int64("payout_minor", game.CurrentPayout))
+			message = "💣 BOOM! You hit a bomb and lost!"
+			s.log.Named("RevealTile").Info("Player hit bomb", zap.String("gameId", gameId), zap.String("userId", userId))
 		} else {
-			message = fmt.Sprintf("💎 Diamond found! Current payout: %s coins (%sx)", payout.String(), multiplier.String())
-		}
-	}
+			// Found a diamond.
+			multiplier := CalculateMultiplier(game.RevealedCount, game.RiskLevel)
+			game.Multiplier = multiplier.MicroUnits()
 
-	gridJSON, _ := GridToJSON(grid)
-	game.GridData = gridJSON
-	game.UpdatedAt = time.Now()
-
-	// Terminal games save the game, credit winnings, and create history atomically.
-	if needsBalanceUpdate {
-		err := s.userDB.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Save(game).Error; err != nil {
-				s.log.Named("RevealTile").Error("Failed to update game", zap.Error(err))
-				return errors.New("failed to update game")
+			// Calculate payout safely with overflow protection.
+			payout, err := CalculatePayoutSafe(model.MustMoneyFromMinor(game.BetAmount), multiplier)
+			if err != nil {
+				s.log.Named("RevealTile").Error("Payout calculation error", zap.Error(err))
+				return errors.New("payout calculation failed")
 			}
 
+			game.CurrentPayout = payout.MinorUnits()
+			totalTiles := 16
+			bombs := GetBombCount(game.RiskLevel)
+
+			// Check if all safe tiles revealed (auto win).
+			if game.RevealedCount == totalTiles-bombs {
+				game.Status = "won"
+				now := time.Now()
+				game.CompletedAt = &now
+				needsBalanceUpdate = true
+
+				// Reveal all tiles.
+				for i := range grid {
+					grid[i].Revealed = true
+				}
+
+				message = fmt.Sprintf("🎉 Perfect! You found all diamonds! Won: %s coins", payout.String())
+				s.log.Named("RevealTile").Info("Player won game", zap.String("gameId", gameId), zap.String("userId", userId), zap.Int64("payout_minor", game.CurrentPayout))
+			} else {
+				message = fmt.Sprintf("💎 Diamond found! Current payout: %s coins (%sx)", payout.String(), multiplier.String())
+			}
+		}
+
+		gridJSON, err := GridToJSON(grid)
+		if err != nil {
+			s.log.Named("RevealTile").Error("Failed to serialize grid", zap.Error(err))
+			return errors.New("failed to save game data")
+		}
+
+		game.GridData = gridJSON
+		game.UpdatedAt = time.Now()
+
+		// Persist the game, payout, and history atomically.
+		if err := tx.Save(&game).Error; err != nil {
+			s.log.Named("RevealTile").Error("Failed to update game", zap.Error(err))
+			return errors.New("failed to update game")
+		}
+
+		if needsBalanceUpdate {
 			if err := tx.Model(&model.User{}).
 				Where("id = ?", userId).
 				Update("remaining_coin", gorm.Expr("remaining_coin + ?", game.CurrentPayout)).
@@ -244,41 +254,10 @@ func (s *stakeMineServiceImpl) RevealTile(userId string, gameId string, req *mod
 				s.log.Named("RevealTile").Error("Failed to credit winnings", zap.Error(err))
 				return errors.New("failed to credit winnings")
 			}
-
-			history := &model.MineGameHistory{
-				Id:          uuid.New().String(),
-				GameId:      game.Id,
-				TileIndex:   req.Index,
-				TileType:    "diamond",
-				Multiplier:  game.Multiplier,
-				PayoutAtHit: game.CurrentPayout,
-				CreatedAt:   time.Now(),
-			}
-
-			if err := tx.Create(history).Error; err != nil {
-				s.log.Named("RevealTile").Error("Failed to create history", zap.Error(err))
-			}
-
-			return nil
-		})
-
-		if err != nil {
-			return nil, "", err
-		}
-	} else {
-		// Non-terminal reveals only persist the game and its history entry.
-		if err := s.repo.Update(game); err != nil {
-			s.log.Named("RevealTile").Error("Failed to update game", zap.Error(err))
-			return nil, "", errors.New("failed to update game")
 		}
 
-		tileType := "diamond"
-
-		if grid[req.Index].Type == "bomb" {
-			tileType = "bomb"
-		}
-
-		s.repo.CreateHistory(&model.MineGameHistory{
+		// Record history as part of the same transaction.
+		if err := tx.Create(&model.MineGameHistory{
 			Id:          uuid.New().String(),
 			GameId:      game.Id,
 			TileIndex:   req.Index,
@@ -286,56 +265,79 @@ func (s *stakeMineServiceImpl) RevealTile(userId string, gameId string, req *mod
 			Multiplier:  game.Multiplier,
 			PayoutAtHit: game.CurrentPayout,
 			CreatedAt:   time.Now(),
-		})
+		}).Error; err != nil {
+			s.log.Named("RevealTile").Error("Failed to create history", zap.Error(err))
+			return errors.New("failed to create history")
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, "", err
 	}
 
-	gameDto, _ := s.gameToDto(game, game.Status == "active")
+	gameDto, err := s.gameToDto(&game, game.Status == "active")
+	if err != nil {
+		return nil, "", errors.New("failed to serialize game response")
+	}
+
 	return gameDto, message, nil
 }
 
 func (s *stakeMineServiceImpl) CashOut(userId string, gameId string) (*model.MineGameDto, error) {
-	// Get game
-	game, err := s.repo.FindById(gameId)
-	if err != nil {
-		s.log.Named("CashOut").Error("Game not found", zap.Error(err))
-		return nil, errors.New("game not found")
-	}
+	var game model.MineGame
+	// Get and lock the game inside the transaction so only one cash-out can win.
+	err := s.userDB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", gameId).
+			First(&game).
+			Error; err != nil {
+			s.log.Named("CashOut").Error("Game not found", zap.Error(err))
+			return errors.New("game not found")
+		}
 
-	// Verify ownership
-	if game.UserId != userId {
-		s.log.Named("CashOut").Warn("Unauthorized cash out attempt", zap.String("userId", userId), zap.String("gameId", gameId))
-		return nil, errors.New("unauthorized: this is not your game")
-	}
+		// Verify ownership.
+		if game.UserId != userId {
+			s.log.Named("CashOut").Warn("Unauthorized cash out attempt", zap.String("userId", userId), zap.String("gameId", gameId))
+			return errors.New("unauthorized: this is not your game")
+		}
 
-	// Check game status
-	if game.Status != "active" {
-		return nil, errors.New("cannot cash out - game is not active")
-	}
+		// Check game status while the row is locked.
+		if game.Status != "active" {
+			return errors.New("cannot cash out - game is not active")
+		}
 
-	// Must reveal at least one tile
-	if game.RevealedCount == 0 {
-		return nil, errors.New("cannot cash out without revealing any tiles")
-	}
+		// Must reveal at least one tile.
+		if game.RevealedCount == 0 {
+			return errors.New("cannot cash out without revealing any tiles")
+		}
 
-	// Update game status
-	game.Status = "cashed_out"
-	now := time.Now()
-	game.CompletedAt = &now
+		// Reveal all tiles.
+		grid, err := JSONToGrid(game.GridData)
+		if err != nil {
+			s.log.Named("CashOut").Error("Failed to parse grid", zap.Error(err))
+			return errors.New("failed to load game data")
+		}
 
-	// Reveal all tiles
-	grid, _ := JSONToGrid(game.GridData)
+		for i := range grid {
+			grid[i].Revealed = true
+		}
 
-	for i := range grid {
-		grid[i].Revealed = true
-	}
+		gridJSON, err := GridToJSON(grid)
+		if err != nil {
+			s.log.Named("CashOut").Error("Failed to serialize grid", zap.Error(err))
+			return errors.New("failed to save game data")
+		}
 
-	gridJSON, _ := GridToJSON(grid)
-	game.GridData = gridJSON
-	game.UpdatedAt = time.Now()
+		game.Status = "cashed_out"
+		now := time.Now()
+		game.CompletedAt = &now
+		game.GridData = gridJSON
+		game.UpdatedAt = time.Now()
 
-	// Persist the terminal state and credit the current payout together.
-	err = s.userDB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(game).Error; err != nil {
+		// Persist the terminal state and credit the current payout atomically.
+		if err := tx.Save(&game).Error; err != nil {
 			s.log.Named("CashOut").Error("Failed to update game", zap.Error(err))
 			return errors.New("failed to update game")
 		}
@@ -350,13 +352,12 @@ func (s *stakeMineServiceImpl) CashOut(userId string, gameId string) (*model.Min
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
 	s.log.Named("CashOut").Info("Player cashed out", zap.String("gameId", gameId), zap.String("userId", userId), zap.Int64("payout_minor", game.CurrentPayout))
-	return s.gameToDto(game, false)
+	return s.gameToDto(&game, false)
 }
 
 func (s *stakeMineServiceImpl) GetGame(userId string, gameId string) (*model.MineGameDto, error) {
