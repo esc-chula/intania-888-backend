@@ -9,7 +9,7 @@ import "gorm.io/gorm"
 const lifecycleLockKey int64 = 0x494e54414e494138
 
 func Acquire(tx *gorm.DB) error {
-	if tx.Dialector.Name() != "postgres" {
+	if tx.Name() != "postgres" {
 		return nil
 	}
 
