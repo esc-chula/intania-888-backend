@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"net/url"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/docs"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -24,12 +26,17 @@ import (
 )
 
 type FiberHttpServer struct {
-	app    *fiber.App
-	cfg    config.Config
-	logger *zap.Logger
+	app            *fiber.App
+	cfg            config.Config
+	logger         *zap.Logger
+	allowedOrigins map[string]struct{}
 }
 
 func NewFiberHttpServer(cfg config.Config, logger *zap.Logger) (*FiberHttpServer, error) {
+	allowedOrigins, err := parseAllowedOrigins(cfg.GetCors().AllowOrigins)
+	if err != nil {
+		return nil, err
+	}
 	if err := configureSwaggerInfo(cfg); err != nil {
 		return nil, err
 	}
@@ -39,9 +46,10 @@ func NewFiberHttpServer(cfg config.Config, logger *zap.Logger) (*FiberHttpServer
 	}
 
 	return &FiberHttpServer{
-		app:    fiber.New(),
-		cfg:    cfg,
-		logger: logger,
+		app:            fiber.New(),
+		cfg:            cfg,
+		logger:         logger,
+		allowedOrigins: allowedOrigins,
 	}, nil
 }
 
@@ -149,6 +157,8 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 		},
 	}))
 
+	router.Use(s.CSRFGuard())
+
 	// healthcheck
 	router.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("server is running !")
@@ -180,33 +190,82 @@ func (s *FiberHttpServer) registerSwagger() {
 
 func (s *FiberHttpServer) OriginGuard() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if strings.HasPrefix(c.Path(), "/api/v1/external/") {
+		if isExternalPath(c.Path()) || c.Path() == "/api/v1/auth/callback" {
 			return c.Next()
 		}
 
-		if c.Path() == "/api/v1/auth/callback" {
+		origin := strings.TrimSpace(c.Get(fiber.HeaderOrigin))
+		if origin == "" && (c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead) {
 			return c.Next()
 		}
-
-		origin := c.Get("Origin")
-		s.logger.Info("OriginGuard", zap.String("origin", origin))
-
-		//todo: remove this redundanct shit, have fun
-		allowedOrigins := strings.Split(s.cfg.GetCors().AllowOrigins, ",")
-		isAllowed := false
-		for _, allowed := range allowedOrigins {
-			if origin == strings.TrimSpace(allowed) {
-				isAllowed = true
-				break
-			}
-		}
-
-		if !isAllowed {
+		if !s.isAllowedOrigin(origin) {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Unauthorized",
+				"message": "origin is not allowed",
 			})
 		}
 
 		return c.Next()
 	}
+}
+
+func (s *FiberHttpServer) CSRFGuard() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if isExternalPath(c.Path()) || c.Path() == "/api/v1/auth/callback" || c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead || c.Method() == fiber.MethodOptions {
+			return c.Next()
+		}
+
+		cookieToken := c.Cookies(utils.CSRFTokenCookieName)
+		headerToken := c.Get("X-CSRF-Token")
+		if cookieToken == "" || headerToken == "" || subtle.ConstantTimeCompare([]byte(cookieToken), []byte(headerToken)) != 1 {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "invalid CSRF token",
+			})
+		}
+
+		return c.Next()
+	}
+}
+
+func (s *FiberHttpServer) isAllowedOrigin(origin string) bool {
+	canonical, err := canonicalOrigin(origin)
+	if err != nil {
+		return false
+	}
+	_, ok := s.allowedOrigins[canonical]
+	return ok
+}
+
+func isExternalPath(path string) bool {
+	return path == "/api/v1/external" || strings.HasPrefix(path, "/api/v1/external/")
+}
+
+func parseAllowedOrigins(rawOrigins string) (map[string]struct{}, error) {
+	allowedOrigins := make(map[string]struct{})
+	for _, rawOrigin := range strings.Split(rawOrigins, ",") {
+		rawOrigin = strings.TrimSpace(rawOrigin)
+		if rawOrigin == "" {
+			continue
+		}
+		if rawOrigin == "*" {
+			return nil, fmt.Errorf("CORS_ALLOW_ORIGINS cannot use wildcard origins with credentials")
+		}
+		origin, err := canonicalOrigin(rawOrigin)
+		if err != nil {
+			return nil, fmt.Errorf("invalid configured CORS origin %q", rawOrigin)
+		}
+		allowedOrigins[origin] = struct{}{}
+	}
+	return allowedOrigins, nil
+}
+
+func canonicalOrigin(rawOrigin string) (string, error) {
+	parsed, err := url.Parse(rawOrigin)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("origin must contain only scheme, host, and port")
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", fmt.Errorf("origin scheme must be http or https")
+	}
+	return scheme + "://" + strings.ToLower(parsed.Host), nil
 }

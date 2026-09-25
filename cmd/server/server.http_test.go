@@ -7,6 +7,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/docs"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
 
@@ -165,5 +166,131 @@ func TestSwaggerConfigurationRequiresURLAndCredentialsWhenEnabled(t *testing.T) 
 	}, zap.NewNop())
 	if err == nil {
 		t.Fatal("NewFiberHttpServer() error = nil, want missing credential error")
+	}
+}
+
+func newOriginGuardTestServer(t *testing.T) (*FiberHttpServer, fiber.Router) {
+	t.Helper()
+
+	httpServer, err := NewFiberHttpServer(swaggerTestConfig{
+		server: config.Server{Env: "development"},
+		cors:   config.Cors{AllowOrigins: "https://frontend.example.test:8443,http://localhost:3000"},
+	}, zap.NewNop())
+	if err != nil {
+		t.Fatalf("NewFiberHttpServer() error = %v", err)
+	}
+	return httpServer, httpServer.InitHttpServer()
+}
+
+func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t *testing.T) {
+	httpServer, router := newOriginGuardTestServer(t)
+	router.Get("/safe", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+	router.Post("/mutate", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+
+	withoutOrigin, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/safe", nil))
+	if err != nil {
+		t.Fatalf("safe request error = %v", err)
+	}
+	if withoutOrigin.StatusCode != http.StatusNoContent {
+		t.Fatalf("safe request status = %d, want %d", withoutOrigin.StatusCode, http.StatusNoContent)
+	}
+
+	exactOrigin := httptest.NewRequest(http.MethodGet, "/api/v1/safe", nil)
+	exactOrigin.Header.Set("Origin", "https://frontend.example.test:8443")
+	response, err := httpServer.app.Test(exactOrigin)
+	if err != nil {
+		t.Fatalf("exact-origin request error = %v", err)
+	}
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("exact-origin status = %d, want %d", response.StatusCode, http.StatusNoContent)
+	}
+
+	unknownOrigin := httptest.NewRequest(http.MethodGet, "/api/v1/safe", nil)
+	unknownOrigin.Header.Set("Origin", "https://frontend.example.test")
+	response, err = httpServer.app.Test(unknownOrigin)
+	if err != nil {
+		t.Fatalf("unknown-origin request error = %v", err)
+	}
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unknown-origin status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	}
+
+	missingOrigin := httptest.NewRequest(http.MethodPost, "/api/v1/mutate", nil)
+	response, err = httpServer.app.Test(missingOrigin)
+	if err != nil {
+		t.Fatalf("missing-origin request error = %v", err)
+	}
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("missing-origin status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestCSRFGuardRequiresDoubleSubmitTokenForStateChanges(t *testing.T) {
+	httpServer, router := newOriginGuardTestServer(t)
+	router.Post("/mutate", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/mutate", nil)
+	request.Header.Set("Origin", "http://localhost:3000")
+	response, err := httpServer.app.Test(request)
+	if err != nil {
+		t.Fatalf("missing-CSRF request error = %v", err)
+	}
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("missing-CSRF status = %d, want %d", response.StatusCode, http.StatusForbidden)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/mutate", nil)
+	request.Header.Set("Origin", "http://localhost:3000")
+	request.Header.Set("Cookie", "csrf_token=cookie-value")
+	request.Header.Set("X-CSRF-Token", "different-value")
+	response, err = httpServer.app.Test(request)
+	if err != nil {
+		t.Fatalf("mismatched-CSRF request error = %v", err)
+	}
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("mismatched-CSRF status = %d, want %d", response.StatusCode, http.StatusForbidden)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/mutate", nil)
+	request.Header.Set("Origin", "http://localhost:3000")
+	request.Header.Set("Cookie", "csrf_token=cookie-value")
+	request.Header.Set("X-CSRF-Token", "cookie-value")
+	response, err = httpServer.app.Test(request)
+	if err != nil {
+		t.Fatalf("valid-CSRF request error = %v", err)
+	}
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("valid-CSRF status = %d, want %d", response.StatusCode, http.StatusNoContent)
+	}
+}
+
+func TestExternalAndOAuthCallbackPathsAreOriginAndCSRFExempt(t *testing.T) {
+	httpServer, router := newOriginGuardTestServer(t)
+	router.Post("/external/test", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+	router.Get("/auth/callback", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+
+	external, err := httpServer.app.Test(httptest.NewRequest(http.MethodPost, "/api/v1/external/test", nil))
+	if err != nil {
+		t.Fatalf("external request error = %v", err)
+	}
+	if external.StatusCode != http.StatusNoContent {
+		t.Fatalf("external status = %d, want %d", external.StatusCode, http.StatusNoContent)
+	}
+
+	callback, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil))
+	if err != nil {
+		t.Fatalf("callback request error = %v", err)
+	}
+	if callback.StatusCode != http.StatusNoContent {
+		t.Fatalf("callback status = %d, want %d", callback.StatusCode, http.StatusNoContent)
+	}
+}
+
+func TestWildcardCredentialOriginsAreRejected(t *testing.T) {
+	_, err := NewFiberHttpServer(swaggerTestConfig{
+		cors: config.Cors{AllowOrigins: "*"},
+	}, zap.NewNop())
+	if err == nil {
+		t.Fatal("wildcard CORS origin was accepted with credentials enabled")
 	}
 }
