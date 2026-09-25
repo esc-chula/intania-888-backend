@@ -47,11 +47,11 @@ func (s *contractService) VoidBill(id, actor, reason string) (*model.BillHeadDto
 	s.voidCalls++
 	s.voidActor = actor
 	s.voidReason = reason
-	payout := model.MustMoneyFromMinor(10000)
+	payout := model.MustMoneyFromMinor(100_00)
 
 	return &model.BillHeadDto{
 		Id:     id,
-		Total:  model.MustMoneyFromMinor(10000),
+		Total:  model.MustMoneyFromMinor(100_00),
 		Payout: &payout,
 		Status: "VOIDED",
 	}, nil

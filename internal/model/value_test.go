@@ -73,9 +73,9 @@ func TestMoneyArithmeticAndRounding(t *testing.T) {
 		MustRateFromMicro(1_500_000),
 		MustRateFromMicro(1_500_000),
 	}
-	acc, err := AccumulatorPayout(MustMoneyFromMinor(100), rates)
+	acc, err := AccumulatorPayout(MustMoneyFromMinor(1_00), rates)
 
-	if err != nil || acc.MinorUnits() != 225 {
+	if err != nil || acc.MinorUnits() != 2_25 {
 		t.Fatalf("accumulator = %v, %v", acc, err)
 	}
 }
@@ -119,7 +119,7 @@ func TestMoneyDTOContractRejectsNumbersAndEmitsStrings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	b, err := json.Marshal(UserDto{RemainingCoin: MustMoneyFromMinor(88888)})
+	b, err := json.Marshal(UserDto{RemainingCoin: MustMoneyFromMinor(888_88)})
 
 	if err != nil {
 		t.Fatal(err)

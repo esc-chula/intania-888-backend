@@ -37,7 +37,7 @@ func NewEventService(eventRepo EventRepository, userRepo user.UserRepository, cf
 func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 	// Use the Bangkok calendar date and let the database own the claim and balance transaction.
 	date := s.now().In(bangkokLocation).Format("02-01-2006")
-	dailyReward := model.MustMoneyFromMinor(30000)
+	dailyReward := model.MustMoneyFromMinor(300_00)
 
 	if _, err := s.eventRepo.RedeemDailyReward(req.Id, date, dailyReward); err != nil {
 		s.log.Named("RedeemDailyReward").Error("Redeem daily reward", zap.Error(err), zap.String("user_id", req.Id), zap.String("date", date))

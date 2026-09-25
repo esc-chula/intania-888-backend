@@ -24,7 +24,7 @@ func NewUserService(repo UserRepository, db *gorm.DB, log *zap.Logger) UserServi
 }
 
 func (s *userServiceImpl) CreateUser(userDto *model.UserDto) error {
-	userDto.RemainingCoin = model.MustMoneyFromMinor(88800)
+	userDto.RemainingCoin = model.MustMoneyFromMinor(888_00)
 
 	err := s.repo.Create(ToUserEntity(userDto))
 	if err != nil {

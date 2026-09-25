@@ -79,10 +79,11 @@ func seedStakeMineGame(t *testing.T, postgres *testutil.Postgres, gameID, userID
 
 	_, err := postgres.SQL.Exec(
 		`INSERT INTO mine_games
-		 (id, user_id, bet_amount, risk_level, status, revealed_count, current_payout, multiplier, grid_data)
-		 VALUES($1, $2, 10000, 'low', 'active', $3, $4, 1000000, $5)`,
+			 (id, user_id, bet_amount, risk_level, status, revealed_count, current_payout, multiplier, grid_data)
+		 VALUES($1, $2, $3, 'low', 'active', $4, $5, 1000000, $6)`,
 		gameID,
 		userID,
+		100_00,
 		revealedCount,
 		payout,
 		stakeMineGrid(t, revealedCount),
@@ -94,8 +95,8 @@ func seedStakeMineGame(t *testing.T, postgres *testutil.Postgres, gameID, userID
 
 func TestStakeMineConcurrentCashOutPaysOnce(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
-	seedStakeMineUser(t, postgres, "cashout-user", 50000)
-	seedStakeMineGame(t, postgres, "cashout-game", "cashout-user", 1, 25000)
+	seedStakeMineUser(t, postgres, "cashout-user", 500_00)
+	seedStakeMineGame(t, postgres, "cashout-game", "cashout-user", 1, 250_00)
 
 	service := stakemine.NewStakeMineService(
 		stakemine.NewStakeMineRepository(postgres.DB),
@@ -137,8 +138,8 @@ func TestStakeMineConcurrentCashOutPaysOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if user.RemainingCoin != 75000 {
-		t.Fatalf("user balance = %d, want 75000", user.RemainingCoin)
+	if user.RemainingCoin != 750_00 {
+		t.Fatalf("user balance = %d, want 750_00", user.RemainingCoin)
 	}
 
 	var game model.MineGame
@@ -153,8 +154,8 @@ func TestStakeMineConcurrentCashOutPaysOnce(t *testing.T) {
 
 func TestStakeMineHistoryFailureRollsBackTerminalPayout(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
-	seedStakeMineUser(t, postgres, "history-user", 50000)
-	seedStakeMineGame(t, postgres, "history-game", "history-user", 13, 25000)
+	seedStakeMineUser(t, postgres, "history-user", 500_00)
+	seedStakeMineGame(t, postgres, "history-game", "history-user", 13, 250_00)
 
 	cleanup, err := postgres.InstallFailureTrigger("mine_game_histories", "INSERT")
 	if err != nil {
@@ -182,8 +183,8 @@ func TestStakeMineHistoryFailureRollsBackTerminalPayout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if user.RemainingCoin != 50000 {
-		t.Fatalf("user balance = %d, want 50000", user.RemainingCoin)
+	if user.RemainingCoin != 500_00 {
+		t.Fatalf("user balance = %d, want 500_00", user.RemainingCoin)
 	}
 
 	var game model.MineGame

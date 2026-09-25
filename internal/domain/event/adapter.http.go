@@ -86,7 +86,7 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 	}
 
 	// Check that the spend amount is exactly 50, 100, or 500
-	if spendAmount.MinorUnits() != 5000 && spendAmount.MinorUnits() != 10000 && spendAmount.MinorUnits() != 50000 {
+	if spendAmount.MinorUnits() != 50_00 && spendAmount.MinorUnits() != 100_00 && spendAmount.MinorUnits() != 500_00 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Idiot"})
 	}
 

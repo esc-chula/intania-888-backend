@@ -15,11 +15,11 @@ import (
 
 func TestSlotSpinConcurrentCommitPreservesBalance(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
-	seedStakeMineUser(t, postgres, "slot-user", 10000)
+	seedStakeMineUser(t, postgres, "slot-user", 100_00)
 
 	repository := event.NewEventRepository(postgres.DB, cache.RedisClient{})
-	spend := model.MustMoneyFromMinor(5000)
-	reward := model.MustMoneyFromMinor(7500)
+	spend := model.MustMoneyFromMinor(50_00)
+	reward := model.MustMoneyFromMinor(75_00)
 
 	start := make(chan struct{})
 	errs := make(chan error, 2)
@@ -49,17 +49,17 @@ func TestSlotSpinConcurrentCommitPreservesBalance(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if user.RemainingCoin != 15000 {
-		t.Fatalf("user balance = %d, want 15000", user.RemainingCoin)
+	if user.RemainingCoin != 150_00 {
+		t.Fatalf("user balance = %d, want 150_00", user.RemainingCoin)
 	}
 }
 
 func TestSlotSpinRejectsConcurrentOverspend(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
-	seedStakeMineUser(t, postgres, "slot-balance-user", 5000)
+	seedStakeMineUser(t, postgres, "slot-balance-user", 50_00)
 
 	repository := event.NewEventRepository(postgres.DB, cache.RedisClient{})
-	spend := model.MustMoneyFromMinor(5000)
+	spend := model.MustMoneyFromMinor(50_00)
 	zeroReward := model.MustMoneyFromMinor(0)
 
 	start := make(chan struct{})
@@ -120,7 +120,7 @@ func seedStealToken(t *testing.T, postgres *testutil.Postgres, id, ownerID, toke
 func TestStealTokenConcurrentUseTransfersOnce(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
 	seedStakeMineUser(t, postgres, "thief-user", 0)
-	seedStakeMineUser(t, postgres, "victim-user", 10000)
+	seedStakeMineUser(t, postgres, "victim-user", 100_00)
 	seedStealToken(t, postgres, "steal-token", "thief-user", "steal-value", "victim-user")
 
 	repository := event.NewEventRepository(postgres.DB, cache.RedisClient{})
@@ -161,11 +161,11 @@ func TestStealTokenConcurrentUseTransfersOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if thief.RemainingCoin != 5000 {
-		t.Fatalf("thief balance = %d, want 5000", thief.RemainingCoin)
+	if thief.RemainingCoin != 50_00 {
+		t.Fatalf("thief balance = %d, want 50_00", thief.RemainingCoin)
 	}
-	if victim.RemainingCoin != 8000 {
-		t.Fatalf("victim balance = %d, want 8000", victim.RemainingCoin)
+	if victim.RemainingCoin != 80_00 {
+		t.Fatalf("victim balance = %d, want 80_00", victim.RemainingCoin)
 	}
 
 	var token model.StealToken
@@ -180,7 +180,7 @@ func TestStealTokenConcurrentUseTransfersOnce(t *testing.T) {
 func TestStealTokenEnforcesHundredCoinVictimFloor(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
 	seedStakeMineUser(t, postgres, "floor-thief", 0)
-	seedStakeMineUser(t, postgres, "floor-victim", 9999)
+	seedStakeMineUser(t, postgres, "floor-victim", 99_99)
 	seedStealToken(t, postgres, "floor-token", "floor-thief", "floor-value", "floor-victim")
 
 	repository := event.NewEventRepository(postgres.DB, cache.RedisClient{})
@@ -190,7 +190,7 @@ func TestStealTokenEnforcesHundredCoinVictimFloor(t *testing.T) {
 
 	if err := postgres.DB.Model(&model.User{}).
 		Where("id = ?", "floor-victim").
-		Update("remaining_coin", 10000).Error; err != nil {
+		Update("remaining_coin", 100_00).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -201,14 +201,14 @@ func TestStealTokenEnforcesHundredCoinVictimFloor(t *testing.T) {
 
 func TestDailyRewardConcurrentRedeemClaimsOnce(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
-	seedStakeMineUser(t, postgres, "daily-user", 10000)
+	seedStakeMineUser(t, postgres, "daily-user", 100_00)
 
-	if err := postgres.DB.Create(&model.DailyReward{Date: "25-09-2026", Reward: 12345}).Error; err != nil {
+	if err := postgres.DB.Create(&model.DailyReward{Date: "25-09-2026", Reward: 123_45}).Error; err != nil {
 		t.Fatal(err)
 	}
 
 	repository := event.NewEventRepository(postgres.DB, cache.RedisClient{})
-	defaultReward := model.MustMoneyFromMinor(30000)
+	defaultReward := model.MustMoneyFromMinor(300_00)
 	start := make(chan struct{})
 	errs := make(chan error, 2)
 	var wg sync.WaitGroup
@@ -242,8 +242,8 @@ func TestDailyRewardConcurrentRedeemClaimsOnce(t *testing.T) {
 	if err := postgres.DB.First(&user, "id = ?", "daily-user").Error; err != nil {
 		t.Fatal(err)
 	}
-	if user.RemainingCoin != 22345 {
-		t.Fatalf("user balance = %d, want 22345", user.RemainingCoin)
+	if user.RemainingCoin != 223_45 {
+		t.Fatalf("user balance = %d, want 223_45", user.RemainingCoin)
 	}
 
 	var claimCount int64
@@ -259,13 +259,13 @@ func TestDailyRewardConcurrentRedeemClaimsOnce(t *testing.T) {
 
 func TestDailyRewardUsesDefaultWhenUnconfigured(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
-	seedStakeMineUser(t, postgres, "default-daily-user", 10000)
+	seedStakeMineUser(t, postgres, "default-daily-user", 100_00)
 
 	repository := event.NewEventRepository(postgres.DB, cache.RedisClient{})
 	if _, err := repository.RedeemDailyReward(
 		"default-daily-user",
 		"26-09-2026",
-		model.MustMoneyFromMinor(30000),
+		model.MustMoneyFromMinor(300_00),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestDailyRewardUsesDefaultWhenUnconfigured(t *testing.T) {
 	if err := postgres.DB.First(&user, "id = ?", "default-daily-user").Error; err != nil {
 		t.Fatal(err)
 	}
-	if user.RemainingCoin != 40000 {
-		t.Fatalf("user balance = %d, want 40000", user.RemainingCoin)
+	if user.RemainingCoin != 400_00 {
+		t.Fatalf("user balance = %d, want 400_00", user.RemainingCoin)
 	}
 }

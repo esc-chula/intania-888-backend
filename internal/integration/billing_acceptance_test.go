@@ -70,20 +70,33 @@ func (s *billingSuite) reset(t *testing.T) {
 	statements := []string{
 		`INSERT INTO colors(id,title) VALUES('A','A'),('B','B'),('C','C')`,
 		`INSERT INTO sport_types(id,title) VALUES('S','Test sport')`,
-		`INSERT INTO users(id,email,name,role_id,remaining_coin) VALUES
-			('U1','u1@example.test','User One','USER',10000),
-			('U2','u2@example.test','User Two','USER',10000),
-			('ADMIN','admin@example.test','Admin','ADMIN',10000)`,
-		`INSERT INTO matches(id,teama_id,teamb_id,type_id,start_time,end_time) VALUES
-			('M1','A','B','S',now() + interval '1 hour',now() + interval '2 hours'),
-			('M2','A','B','S',now() + interval '3 hours',now() + interval '4 hours'),
-			('M3','A','B','S',now() + interval '5 hours',now() + interval '6 hours')`,
 	}
 
 	for _, statement := range statements {
 		if _, err := s.postgres.SQL.Exec(statement); err != nil {
 			t.Fatal(err)
 		}
+	}
+
+	if _, err := s.postgres.SQL.Exec(
+		`INSERT INTO users(id,email,name,role_id,remaining_coin) VALUES
+			('U1','u1@example.test','User One','USER',$1),
+			('U2','u2@example.test','User Two','USER',$2),
+			('ADMIN','admin@example.test','Admin','ADMIN',$3)`,
+		100_00,
+		100_00,
+		100_00,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.postgres.SQL.Exec(
+		`INSERT INTO matches(id,teama_id,teamb_id,type_id,start_time,end_time) VALUES
+			('M1','A','B','S',now() + interval '1 hour',now() + interval '2 hours'),
+			('M2','A','B','S',now() + interval '3 hours',now() + interval '4 hours'),
+			('M3','A','B','S',now() + interval '5 hours',now() + interval '6 hours')`,
+	); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -177,7 +190,7 @@ func TestBillPlacementSnapshotsOddsAndDeductsAtomically(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"))
 
 	if created.Status != "PENDING" {
 		t.Fatalf("status = %s; want PENDING", created.Status)
@@ -187,8 +200,8 @@ func TestBillPlacementSnapshotsOddsAndDeductsAtomically(t *testing.T) {
 		t.Fatalf("rate = %d; want 2000000", created.Lines[0].Rate.MicroUnits())
 	}
 
-	if got := s.balance(t, "U1"); got != 9000 {
-		t.Fatalf("balance = %d; want 9000", got)
+	if got := s.balance(t, "U1"); got != 90_00 {
+		t.Fatalf("balance = %d; want 90_00", got)
 	}
 }
 
@@ -203,28 +216,28 @@ func TestBillPlacementRejectsInvalidRequests(t *testing.T) {
 		{
 			name: "empty lines",
 			request: model.CreateBillRequest{
-				Total: money(1000),
+				Total: money(10_00),
 			},
 			wantError: bill.ErrInvalidBill,
-			wantCash:  10000,
+			wantCash:  100_00,
 		},
 		{
 			name: "duplicate matches",
 			request: model.CreateBillRequest{
-				Total: money(1000),
+				Total: money(10_00),
 				Lines: []model.CreateBillLineRequest{line("M1", "A"), line("M1", "B")},
 			},
 			wantError: bill.ErrInvalidBill,
-			wantCash:  10000,
+			wantCash:  100_00,
 		},
 		{
 			name: "invalid team",
 			request: model.CreateBillRequest{
-				Total: money(1000),
+				Total: money(10_00),
 				Lines: []model.CreateBillLineRequest{line("M1", "C")},
 			},
 			wantError: bill.ErrInvalidBill,
-			wantCash:  10000,
+			wantCash:  100_00,
 		},
 		{
 			name: "started match",
@@ -236,27 +249,27 @@ func TestBillPlacementRejectsInvalidRequests(t *testing.T) {
 				}
 			},
 			request: model.CreateBillRequest{
-				Total: money(1000),
+				Total: money(10_00),
 				Lines: []model.CreateBillLineRequest{line("M1", "A")},
 			},
 			wantError: bill.ErrInvalidBill,
-			wantCash:  10000,
+			wantCash:  100_00,
 		},
 		{
 			name: "insufficient balance",
 			prepare: func(t *testing.T, s *billingSuite) {
 				t.Helper()
 
-				if _, err := s.postgres.SQL.Exec(`UPDATE users SET remaining_coin = 100 WHERE id = 'U1'`); err != nil {
+				if _, err := s.postgres.SQL.Exec(`UPDATE users SET remaining_coin = $1 WHERE id = 'U1'`, 1_00); err != nil {
 					t.Fatal(err)
 				}
 			},
 			request: model.CreateBillRequest{
-				Total: money(1000),
+				Total: money(10_00),
 				Lines: []model.CreateBillLineRequest{line("M1", "A")},
 			},
 			wantError: bill.ErrInsufficientBalance,
-			wantCash:  100,
+			wantCash:  1_00,
 		},
 	}
 	s := newBillingSuite(t)
@@ -327,7 +340,7 @@ func TestBillPlacementRollsBackOnBalanceFailure(t *testing.T) {
 	}()
 
 	if _, err := s.bills.CreateBill("U1", &model.CreateBillRequest{
-		Total: money(1000),
+		Total: money(10_00),
 		Lines: []model.CreateBillLineRequest{line("M1", "A")},
 	}); err == nil {
 		t.Fatal("placement succeeded despite injected balance failure")
@@ -342,8 +355,8 @@ func TestBillPlacementRollsBackOnBalanceFailure(t *testing.T) {
 		t.Fatalf("bill count = %d; want 0", count)
 	}
 
-	if got := s.balance(t, "U1"); got != 10000 {
-		t.Fatalf("balance = %d; want 10000", got)
+	if got := s.balance(t, "U1"); got != 100_00 {
+		t.Fatalf("balance = %d; want 100_00", got)
 	}
 }
 
@@ -351,7 +364,7 @@ func TestConcurrentBillPlacementSerializesBalance(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	if _, err := s.postgres.SQL.Exec(`UPDATE users SET remaining_coin = 1000 WHERE id = 'U1'`); err != nil {
+	if _, err := s.postgres.SQL.Exec(`UPDATE users SET remaining_coin = $1 WHERE id = 'U1'`, 10_00); err != nil {
 		t.Fatal(err)
 	}
 
@@ -367,7 +380,7 @@ func TestConcurrentBillPlacementSerializesBalance(t *testing.T) {
 			<-start
 
 			_, err := s.bills.CreateBill("U1", &model.CreateBillRequest{
-				Total: money(700),
+				Total: money(7_00),
 				Lines: []model.CreateBillLineRequest{line("M1", "A")},
 			})
 			results <- err
@@ -394,8 +407,8 @@ func TestConcurrentBillPlacementSerializesBalance(t *testing.T) {
 		t.Fatalf("successes = %d, insufficient = %d; want one of each", successes, insufficient)
 	}
 
-	if got := s.balance(t, "U1"); got != 300 {
-		t.Fatalf("balance = %d; want 300", got)
+	if got := s.balance(t, "U1"); got != 3_00 {
+		t.Fatalf("balance = %d; want 3_00", got)
 	}
 }
 
@@ -417,7 +430,7 @@ func TestConcurrentBillPlacementSerializesOdds(t *testing.T) {
 			<-start
 
 			created, err := s.bills.CreateBill(userID, &model.CreateBillRequest{
-				Total: money(1000),
+				Total: money(10_00),
 				Lines: []model.CreateBillLineRequest{line("M1", "A")},
 			})
 			if err != nil {
@@ -455,7 +468,7 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"), line("M2", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"), line("M2", "A"))
 
 	if err := s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
 		t.Fatal(err)
@@ -466,8 +479,8 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 		t.Fatalf("after first leg: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
 
-	if got := s.balance(t, "U1"); got != 9000 {
-		t.Fatalf("balance after first leg = %d; want 9000", got)
+	if got := s.balance(t, "U1"); got != 90_00 {
+		t.Fatalf("balance after first leg = %d; want 90_00", got)
 	}
 
 	if err := s.matches.SetResult("M2", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
@@ -475,12 +488,12 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 	}
 
 	status, payout, settledAt, voidedAt = s.billState(t, created.Id)
-	if status != "WON" || !payout.Valid || payout.Int64 != 4000 || !settledAt.Valid || voidedAt.Valid {
+	if status != "WON" || !payout.Valid || payout.Int64 != 40_00 || !settledAt.Valid || voidedAt.Valid {
 		t.Fatalf("after settlement: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
 
-	if got := s.balance(t, "U1"); got != 13000 {
-		t.Fatalf("balance after settlement = %d; want 13000", got)
+	if got := s.balance(t, "U1"); got != 130_00 {
+		t.Fatalf("balance after settlement = %d; want 130_00", got)
 	}
 
 	if got := s.eventCount(t, created.Id); got != 1 {
@@ -491,8 +504,8 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := s.balance(t, "U1"); got != 13000 {
-		t.Fatalf("balance after retry = %d; want 13000", got)
+	if got := s.balance(t, "U1"); got != 130_00 {
+		t.Fatalf("balance after retry = %d; want 130_00", got)
 	}
 
 	if got := s.eventCount(t, created.Id); got != 1 {
@@ -516,15 +529,15 @@ func TestSetResultHandlesDrawAndLoss(t *testing.T) {
 			name:       "draw",
 			result:     &model.MatchResultRequest{Outcome: "draw"},
 			wantStatus: "WON",
-			wantPayout: 1000,
-			wantCash:   10000,
+			wantPayout: 10_00,
+			wantCash:   100_00,
 		},
 		{
 			name:       "loss",
 			result:     &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("B")},
 			wantStatus: "LOST",
 			wantPayout: 0,
-			wantCash:   9000,
+			wantCash:   90_00,
 		},
 	}
 
@@ -533,7 +546,7 @@ func TestSetResultHandlesDrawAndLoss(t *testing.T) {
 			s := newBillingSuite(t)
 			s.reset(t)
 
-			created := s.place(t, "U1", 1000, line("M1", "A"))
+			created := s.place(t, "U1", 10_00, line("M1", "A"))
 
 			if err := s.matches.SetResult("M1", tc.result); err != nil {
 				t.Fatal(err)
@@ -555,7 +568,7 @@ func TestConcurrentSetResultIsIdempotent(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"))
 	start := make(chan struct{})
 	results := make(chan error, 2)
 	var group sync.WaitGroup
@@ -585,12 +598,12 @@ func TestConcurrentSetResultIsIdempotent(t *testing.T) {
 	}
 
 	status, payout, _, _ := s.billState(t, created.Id)
-	if status != "WON" || !payout.Valid || payout.Int64 != 2000 {
-		t.Fatalf("status=%s payout=%v; want WON/2000", status, payout)
+	if status != "WON" || !payout.Valid || payout.Int64 != 20_00 {
+		t.Fatalf("status=%s payout=%v; want WON/20_00", status, payout)
 	}
 
-	if got := s.balance(t, "U1"); got != 11000 {
-		t.Fatalf("balance = %d; want 11000", got)
+	if got := s.balance(t, "U1"); got != 110_00 {
+		t.Fatalf("balance = %d; want 110_00", got)
 	}
 
 	if got := s.eventCount(t, created.Id); got != 1 {
@@ -602,7 +615,7 @@ func TestConcurrentAccumulatorResultsSettleOnce(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"), line("M2", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"), line("M2", "A"))
 	start := make(chan struct{})
 	results := make(chan error, 2)
 	var group sync.WaitGroup
@@ -633,12 +646,12 @@ func TestConcurrentAccumulatorResultsSettleOnce(t *testing.T) {
 	}
 
 	status, payout, _, _ := s.billState(t, created.Id)
-	if status != "WON" || !payout.Valid || payout.Int64 != 4000 {
-		t.Fatalf("status=%s payout=%v; want WON/4000", status, payout)
+	if status != "WON" || !payout.Valid || payout.Int64 != 40_00 {
+		t.Fatalf("status=%s payout=%v; want WON/40_00", status, payout)
 	}
 
-	if got := s.balance(t, "U1"); got != 13000 {
-		t.Fatalf("balance = %d; want 13000", got)
+	if got := s.balance(t, "U1"); got != 130_00 {
+		t.Fatalf("balance = %d; want 130_00", got)
 	}
 
 	if got := s.eventCount(t, created.Id); got != 1 {
@@ -650,7 +663,7 @@ func TestConcurrentConflictingResultsHaveOneTerminalOutcome(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"))
 	start := make(chan struct{})
 	results := make(chan error, 2)
 	var group sync.WaitGroup
@@ -695,7 +708,7 @@ func TestConcurrentConflictingResultsHaveOneTerminalOutcome(t *testing.T) {
 	}
 
 	status, payout, _, _ := s.billState(t, created.Id)
-	if status != "WON" || !payout.Valid || (payout.Int64 != 1000 && payout.Int64 != 2000) {
+	if status != "WON" || !payout.Valid || (payout.Int64 != 10_00 && payout.Int64 != 20_00) {
 		t.Fatalf("status=%s payout=%v; want WON with draw or winner payout", status, payout)
 	}
 
@@ -708,7 +721,7 @@ func TestSetResultRollsBackOnAuditFailure(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"))
 	cleanup, err := s.postgres.InstallFailureTrigger("bill_terminal_events", "INSERT")
 	if err != nil {
 		t.Fatal(err)
@@ -739,8 +752,8 @@ func TestSetResultRollsBackOnAuditFailure(t *testing.T) {
 		t.Fatalf("bill changed after rollback: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
 
-	if got := s.balance(t, "U1"); got != 9000 {
-		t.Fatalf("balance after rollback = %d; want 9000", got)
+	if got := s.balance(t, "U1"); got != 90_00 {
+		t.Fatalf("balance after rollback = %d; want 90_00", got)
 	}
 
 	if got := s.eventCount(t, created.Id); got != 0 {
@@ -752,19 +765,19 @@ func TestVoidRefundsPendingBillAndIsIdempotent(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"))
 
 	if _, err := s.bills.VoidBill(created.Id, "ADMIN", "operator correction"); err != nil {
 		t.Fatal(err)
 	}
 
 	status, payout, settledAt, voidedAt := s.billState(t, created.Id)
-	if status != "VOIDED" || !payout.Valid || payout.Int64 != 1000 || settledAt.Valid || !voidedAt.Valid {
+	if status != "VOIDED" || !payout.Valid || payout.Int64 != 10_00 || settledAt.Valid || !voidedAt.Valid {
 		t.Fatalf("voided bill: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
 
-	if got := s.balance(t, "U1"); got != 10000 {
-		t.Fatalf("balance after void = %d; want 10000", got)
+	if got := s.balance(t, "U1"); got != 100_00 {
+		t.Fatalf("balance after void = %d; want 100_00", got)
 	}
 
 	if got := s.eventCount(t, created.Id); got != 1 {
@@ -775,8 +788,8 @@ func TestVoidRefundsPendingBillAndIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := s.balance(t, "U1"); got != 10000 {
-		t.Fatalf("balance after void retry = %d; want 10000", got)
+	if got := s.balance(t, "U1"); got != 100_00 {
+		t.Fatalf("balance after void retry = %d; want 100_00", got)
 	}
 
 	if got := s.eventCount(t, created.Id); got != 1 {
@@ -788,7 +801,7 @@ func TestVoidAllowsPendingAccumulatorAfterResolvedLeg(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"), line("M2", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"), line("M2", "A"))
 
 	if err := s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
 		t.Fatal(err)
@@ -799,12 +812,12 @@ func TestVoidAllowsPendingAccumulatorAfterResolvedLeg(t *testing.T) {
 	}
 
 	status, payout, _, voidedAt := s.billState(t, created.Id)
-	if status != "VOIDED" || !payout.Valid || payout.Int64 != 1000 || !voidedAt.Valid {
+	if status != "VOIDED" || !payout.Valid || payout.Int64 != 10_00 || !voidedAt.Valid {
 		t.Fatalf("status=%s payout=%v voided=%v", status, payout, voidedAt)
 	}
 
-	if got := s.balance(t, "U1"); got != 10000 {
-		t.Fatalf("balance = %d; want 10000", got)
+	if got := s.balance(t, "U1"); got != 100_00 {
+		t.Fatalf("balance = %d; want 100_00", got)
 	}
 }
 
@@ -812,7 +825,7 @@ func TestVoidRejectsSettledBill(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"))
 
 	if err := s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
 		t.Fatal(err)
@@ -827,7 +840,7 @@ func TestVoidRollsBackOnAuditFailure(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"))
 	cleanup, err := s.postgres.InstallFailureTrigger("bill_terminal_events", "INSERT")
 	if err != nil {
 		t.Fatal(err)
@@ -848,8 +861,8 @@ func TestVoidRollsBackOnAuditFailure(t *testing.T) {
 		t.Fatalf("bill changed after rollback: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
 
-	if got := s.balance(t, "U1"); got != 9000 {
-		t.Fatalf("balance after rollback = %d; want 9000", got)
+	if got := s.balance(t, "U1"); got != 90_00 {
+		t.Fatalf("balance after rollback = %d; want 90_00", got)
 	}
 
 	if got := s.eventCount(t, created.Id); got != 0 {
@@ -861,7 +874,7 @@ func TestVoidAndResultRaceHasOneTerminalTransition(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	created := s.place(t, "U1", 1000, line("M1", "A"))
+	created := s.place(t, "U1", 10_00, line("M1", "A"))
 	start := make(chan struct{})
 	results := make(chan error, 2)
 	var group sync.WaitGroup
@@ -897,11 +910,11 @@ func TestVoidAndResultRaceHasOneTerminalTransition(t *testing.T) {
 		t.Fatalf("status = %s; want WON or VOIDED", status)
 	}
 
-	if status == "WON" && (!payout.Valid || payout.Int64 != 2000 || !settledAt.Valid || voidedAt.Valid) {
+	if status == "WON" && (!payout.Valid || payout.Int64 != 20_00 || !settledAt.Valid || voidedAt.Valid) {
 		t.Fatalf("invalid won state: payout=%v settled=%v voided=%v", payout, settledAt, voidedAt)
 	}
 
-	if status == "VOIDED" && (!payout.Valid || payout.Int64 != 1000 || settledAt.Valid || !voidedAt.Valid) {
+	if status == "VOIDED" && (!payout.Valid || payout.Int64 != 10_00 || settledAt.Valid || !voidedAt.Valid) {
 		t.Fatalf("invalid voided state: payout=%v settled=%v voided=%v", payout, settledAt, voidedAt)
 	}
 
@@ -910,8 +923,8 @@ func TestVoidAndResultRaceHasOneTerminalTransition(t *testing.T) {
 	}
 
 	balance := s.balance(t, "U1")
-	if balance != 10000 && balance != 11000 {
-		t.Fatalf("balance = %d; want 10000 or 11000", balance)
+	if balance != 100_00 && balance != 110_00 {
+		t.Fatalf("balance = %d; want 100_00 or 110_00", balance)
 	}
 }
 
@@ -932,7 +945,7 @@ func TestConcurrentResultRequestsFinishWithinTimeout(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	s.place(t, "U1", 1000, line("M1", "A"))
+	s.place(t, "U1", 10_00, line("M1", "A"))
 	start := make(chan struct{})
 	finished := make(chan struct{})
 

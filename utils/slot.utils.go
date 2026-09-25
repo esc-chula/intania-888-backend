@@ -9,7 +9,7 @@ import (
 func GetRandomSlot(userDto *model.UserDto) string {
 	var probabilities map[string]float64
 
-	if userDto.RemainingCoin.MinorUnits() > 10000000 {
+	if userDto.RemainingCoin.MinorUnits() > 100_000_00 {
 		probabilities = map[string]float64{
 			"🍇": 1.0 / 7.0,
 			"🍋": 1.0 / 7.0,
@@ -19,7 +19,7 @@ func GetRandomSlot(userDto *model.UserDto) string {
 			"💰": 1.0 / 20.0,
 			"👽": 1.0 / 7.0,
 		}
-	} else if userDto.RemainingCoin.MinorUnits() > 5000000 {
+	} else if userDto.RemainingCoin.MinorUnits() > 50_000_00 {
 		probabilities = map[string]float64{
 			"🍇": 1.0 / 7.0,
 			"🍋": 1.0 / 7.0,
@@ -29,7 +29,7 @@ func GetRandomSlot(userDto *model.UserDto) string {
 			"💰": 1.0 / 10.0,
 			"👽": 1.0 / 7.0,
 		}
-	} else if userDto.RemainingCoin.MinorUnits() > 2500000 {
+	} else if userDto.RemainingCoin.MinorUnits() > 25_000_00 {
 		probabilities = map[string]float64{
 			"🍇": 1.0 / 7.0,
 			"🍋": 1.0 / 7.0,

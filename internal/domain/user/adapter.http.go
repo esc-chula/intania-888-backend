@@ -177,7 +177,7 @@ func (h *UserHttpHandler) DeductCoin(c *fiber.Ctx) error {
 	}
 
 	// Validate amount range
-	if req.Amount.MinorUnits() < 100 || req.Amount.MinorUnits() > 100000000 {
+	if req.Amount.MinorUnits() < 1_00 || req.Amount.MinorUnits() > 1_000_000_00 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "amount must be between 1 and 1,000,000 coins",
 		})

@@ -28,11 +28,11 @@ func NewStakeMineService(repo StakeMineRepository, db *gorm.DB, log *zap.Logger)
 
 func (s *stakeMineServiceImpl) CreateGame(userId string, req *model.CreateMineGameRequest) (*model.MineGameDto, error) {
 	// Validate the requested bet and risk level before opening a transaction.
-	if req.BetAmount.MinorUnits() < 100 {
+	if req.BetAmount.MinorUnits() < 1_00 {
 		return nil, errors.New("bet amount must be at least 1 coin")
 	}
 
-	if req.BetAmount.MinorUnits() > 100000000 {
+	if req.BetAmount.MinorUnits() > 1_000_000_00 {
 		return nil, errors.New("bet amount cannot exceed 1,000,000 coins")
 	}
 

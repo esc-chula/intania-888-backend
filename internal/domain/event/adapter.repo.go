@@ -18,8 +18,8 @@ type eventRepository struct {
 }
 
 const (
-	minStealVictimBalanceMinor int64 = 10000
-	minStealAmountMinor        int64 = 5000
+	minStealVictimBalanceMinor int64 = 100_00
+	minStealAmountMinor        int64 = 50_00
 	stealPercentageMicro       int64 = 200000
 )
 
@@ -349,7 +349,7 @@ func (r *eventRepository) StealPercentageFromRandomUsers(thiefUserId string, vic
 		var victims []model.User
 
 		if err := tx.
-			Where("id != ? AND remaining_coin >= ?", thiefUserId, 10000).
+			Where("id != ? AND remaining_coin >= ?", thiefUserId, 100_00).
 			Order("RANDOM()").Limit(victimCount).Find(&victims).Error; err != nil {
 			return err
 		}
@@ -490,7 +490,7 @@ func (r *eventRepository) StealPercentageFromSpecificUser(thiefUserId string, vi
 	return totalStolen, detail, err
 }
 
-// GetRandomEligibleUsers returns random users with balance >= 100, excluding the thief
+// GetRandomEligibleUsers returns random users with balance >= 100.00, excluding the thief
 func (r *eventRepository) GetRandomEligibleUsers(excludeUserId string, limit int) ([]model.User, error) {
 	var users []model.User
 

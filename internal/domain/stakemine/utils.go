@@ -195,7 +195,7 @@ func ValidateTileIndex(index int) bool {
 
 // ValidateBetAmount
 func ValidateBetAmount(amount model.Money) bool {
-	return amount.MinorUnits() >= 100 && amount.MinorUnits() <= 100000000
+	return amount.MinorUnits() >= 1_00 && amount.MinorUnits() <= 1_000_000_00
 }
 
 // CalculatePayoutSafe overflow protection

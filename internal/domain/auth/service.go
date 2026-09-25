@@ -116,7 +116,7 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 			Email:         userInfo.Email,
 			Name:          userInfo.Name,
 			RoleId:        role,
-			RemainingCoin: 88888,
+			RemainingCoin: 888_88,
 		}
 
 		if err := s.userRepo.Create(&userToCreate); err != nil {
