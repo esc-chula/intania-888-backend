@@ -42,6 +42,8 @@ func NewViperConfig() Config {
 		// while production requires the configured Basic Auth credentials.
 		v.SetDefault("swagger_enabled", true)
 		v.SetDefault("swagger_require_auth", appEnv == "prod")
+		v.SetDefault("oauth_state_expiration", 600)
+		v.SetDefault("cookie_same_site", "lax")
 
 		// Bind environment variables to config keys
 		bindEnvVars(v)
@@ -151,7 +153,10 @@ func bindEnvVars(v *viper.Viper) {
 	bind("oauth_client_id", "OAUTH_CLIENT_ID")
 	bind("oauth_client_secret", "OAUTH_CLIENT_SECRET")
 	bind("oauth_redirect_uri", "OAUTH_REDIRECT_URI")
-	bind("oauth_frontend_url", "OAUTH_FRONTEND_URL")
+	bind("oauth_post_login_redirect_url", "OAUTH_POST_LOGIN_REDIRECT_URL")
+	bind("oauth_state_expiration", "OAUTH_STATE_EXPIRATION")
+	bind("cookie_same_site", "COOKIE_SAME_SITE")
+	bind("cookie_secure", "COOKIE_SECURE")
 
 	bind("swagger_enabled", "SWAGGER_ENABLED")
 	bind("swagger_require_auth", "SWAGGER_REQUIRE_AUTH")

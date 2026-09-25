@@ -47,10 +47,14 @@ type Jwt struct {
 }
 
 type OAuth struct {
-	ClientId     string `mapstructure:"oauth_client_id"`
-	ClientSecret string `mapstructure:"oauth_client_secret"`
-	RedirectUrl  string `mapstructure:"oauth_redirect_uri"`
-	FrontendUrl  string `mapstructure:"oauth_frontend_url"`
+	ClientId             string `mapstructure:"oauth_client_id"`
+	ClientSecret         string `mapstructure:"oauth_client_secret"`
+	RedirectUrl          string `mapstructure:"oauth_redirect_uri"`
+	PostLoginRedirectUrl string `mapstructure:"oauth_post_login_redirect_url"`
+	StateExpiration      int    `mapstructure:"oauth_state_expiration"`
+	CookieSameSite       string `mapstructure:"cookie_same_site"`
+	CookieSecure         bool   `mapstructure:"cookie_secure"`
+	FrontendUrl          string `mapstructure:"oauth_frontend_url"`
 }
 
 type Swagger struct {

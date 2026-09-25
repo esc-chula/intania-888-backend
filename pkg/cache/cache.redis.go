@@ -53,6 +53,20 @@ func (r *RedisClient) GetValue(key string, value interface{}) error {
 	return json.Unmarshal([]byte(v), value)
 }
 
+// ConsumeValue atomically reads and deletes a JSON value. It is used for
+// one-time OAuth state and other single-use cache entries.
+func (r *RedisClient) ConsumeValue(key string, value interface{}) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	v, err := r.client.GetDel(ctx, key).Result()
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal([]byte(v), value)
+}
+
 func (r *RedisClient) DeleteValue(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

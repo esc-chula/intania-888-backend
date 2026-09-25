@@ -21,5 +21,9 @@ func (r *authRepositoryImpl) GetCacheValue(key string, value interface{}) error 
 }
 
 func (r *authRepositoryImpl) DeleteCacheValue(key string) error {
-	return nil
+	return r.cache.DeleteValue(key)
+}
+
+func (r *authRepositoryImpl) ConsumeCacheValue(key string, value interface{}) error {
+	return r.cache.ConsumeValue(key, value)
 }

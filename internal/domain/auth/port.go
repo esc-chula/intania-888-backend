@@ -13,4 +13,6 @@ type AuthService interface {
 type AuthRepository interface {
 	SetCacheValue(key string, value interface{}, ttl int) error
 	GetCacheValue(key string, value interface{}) error
+	DeleteCacheValue(key string) error
+	ConsumeCacheValue(key string, value interface{}) error
 }

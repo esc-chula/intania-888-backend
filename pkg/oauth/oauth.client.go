@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/url"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"go.uber.org/zap"
@@ -56,7 +55,19 @@ func (c *googleOAuthClientImpl) GetUserInfo(code string) (*GoogleUserInfo, error
 		return nil, ErrInvalidCode
 	}
 
-	resp, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + url.QueryEscape(token.AccessToken))
+	request, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"https://www.googleapis.com/oauth2/v2/userinfo",
+		nil,
+	)
+	if err != nil {
+		c.log.Named("GetUserEmail").Error("Create request", zap.Error(err))
+		return nil, ErrHTTP
+	}
+	request.Header.Set("Authorization", "Bearer "+token.AccessToken)
+
+	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
 		c.log.Named("GetUserEmail").Error("Get: ", zap.Error(err))
 		return nil, ErrHTTP
@@ -66,6 +77,9 @@ func (c *googleOAuthClientImpl) GetUserInfo(code string) (*GoogleUserInfo, error
 			c.log.Named("GetUserEmail").Warn("Close response body", zap.Error(closeErr))
 		}
 	}()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, ErrHTTP
+	}
 
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {

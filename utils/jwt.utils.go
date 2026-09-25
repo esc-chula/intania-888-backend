@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -8,7 +10,6 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 )
 
 func JwtParseToken(reqToken, secretKey string) (jwt.MapClaims, error) {
@@ -30,29 +31,109 @@ func JwtParseToken(reqToken, secretKey string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
+type AccessTokenClaims struct {
+	UserId    string
+	SessionId string
+	Role      string
+	Issuer    string
+	Audience  string
+}
+
+// JwtSignAccessToken is retained for source compatibility with the legacy
+// service while callers migrate to JwtSignAccessTokenWithSession. Tokens made
+// by this compatibility helper intentionally have no session and cannot pass
+// the strict access-token validator.
 func JwtSignAccessToken(userID, role, secretKey string, expiration int) (*string, error) {
+	token, err := JwtSignAccessTokenWithSession(
+		userID,
+		role,
+		"",
+		secretKey,
+		config.GetConfig().GetServer().Name,
+		config.GetConfig().GetServer().Name,
+		expiration,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &token, nil
+}
+
+func JwtSignAccessTokenWithSession(userID, role, sessionID, secretKey, issuer, audience string, expiration int) (string, error) {
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":  userID,
+		"sid":  sessionID,
 		"exp":  time.Now().Add(time.Second * time.Duration(expiration)).Unix(),
 		"iat":  time.Now().Unix(),
-		"iss":  config.GetConfig().GetServer().Name,
-		"aud":  config.GetConfig().GetServer().Name,
+		"iss":  issuer,
+		"aud":  audience,
 		"type": "access",
 		"role": role,
 	})
 
 	accessTokenString, err := accessToken.SignedString([]byte(secretKey))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return &accessTokenString, nil
+	return accessTokenString, nil
+}
+
+func JwtParseAccessToken(rawToken, secretKey, issuer, audience string) (*AccessTokenClaims, error) {
+	token, err := jwt.Parse(rawToken, func(token *jwt.Token) (interface{}, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(secretKey), nil
+	}, jwt.WithIssuer(issuer), jwt.WithAudience(audience))
+	if err != nil || !token.Valid {
+		return nil, errors.New("invalid access token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("invalid access token claims")
+	}
+
+	userID, ok := claims["sub"].(string)
+	if !ok || userID == "" {
+		return nil, errors.New("missing access token subject")
+	}
+	sessionID, ok := claims["sid"].(string)
+	if !ok || sessionID == "" {
+		return nil, errors.New("missing access token session")
+	}
+	tokenType, ok := claims["type"].(string)
+	if !ok || tokenType != "access" {
+		return nil, errors.New("invalid access token type")
+	}
+	role, _ := claims["role"].(string)
+
+	return &AccessTokenClaims{
+		UserId:    userID,
+		SessionId: sessionID,
+		Role:      role,
+		Issuer:    issuer,
+		Audience:  audience,
+	}, nil
 }
 
 func JwtSignRefreshToken(expiration int) (*string, error) {
-	refreshToken := uuid.New().String()
+	refreshToken, err := NewOpaqueToken(32)
+	if err != nil {
+		return nil, err
+	}
 
 	return &refreshToken, nil
+}
+
+func NewOpaqueToken(size int) (string, error) {
+	bytes := make([]byte, size)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
 }
 
 func NewCredentials(accessToken, refreshToken string, expiresIn int32, isNewUser bool) *model.CredentialDto {
