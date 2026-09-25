@@ -119,38 +119,44 @@ func (c *viperConfig) GetCors() Cors {
 }
 
 func bindEnvVars(v *viper.Viper) {
-	v.BindEnv("server_name", "SERVER_NAME")
-	v.BindEnv("server_env", "SERVER_ENV")
-	v.BindEnv("server_url", "SERVER_URL")
-	v.BindEnv("server_host", "SERVER_HOST")
-	v.BindEnv("server_port", "SERVER_PORT")
-	v.BindEnv("server_origin", "SERVER_ORIGIN")
+	bind := func(key, env string) {
+		if err := v.BindEnv(key, env); err != nil {
+			log.Fatalf("Unable to bind %s: %v", env, err)
+		}
+	}
 
-	v.BindEnv("db_host", "DB_HOST")
-	v.BindEnv("db_port", "DB_PORT")
-	v.BindEnv("db_user", "DB_USER")
-	v.BindEnv("db_pass", "DB_PASS")
-	v.BindEnv("db_name", "DB_NAME")
-	v.BindEnv("db_ssl_mode", "DB_SSL_MODE")
-	v.BindEnv("db_timezone", "DB_TIMEZONE")
+	bind("server_name", "SERVER_NAME")
+	bind("server_env", "SERVER_ENV")
+	bind("server_url", "SERVER_URL")
+	bind("server_host", "SERVER_HOST")
+	bind("server_port", "SERVER_PORT")
+	bind("server_origin", "SERVER_ORIGIN")
 
-	v.BindEnv("cache_host", "CACHE_HOST")
-	v.BindEnv("cache_port", "CACHE_PORT")
-	v.BindEnv("cache_pass", "CACHE_PASS")
+	bind("db_host", "DB_HOST")
+	bind("db_port", "DB_PORT")
+	bind("db_user", "DB_USER")
+	bind("db_pass", "DB_PASS")
+	bind("db_name", "DB_NAME")
+	bind("db_ssl_mode", "DB_SSL_MODE")
+	bind("db_timezone", "DB_TIMEZONE")
 
-	v.BindEnv("jwt_access_token_secret", "JWT_ACCESS_TOKEN_SECRET")
-	v.BindEnv("jwt_access_token_expiration", "JWT_ACCESS_TOKEN_EXPIRATION")
-	v.BindEnv("jwt_refresh_token_expiration", "JWT_REFRESH_TOKEN_EXPIRATION")
+	bind("cache_host", "CACHE_HOST")
+	bind("cache_port", "CACHE_PORT")
+	bind("cache_pass", "CACHE_PASS")
 
-	v.BindEnv("oauth_client_id", "OAUTH_CLIENT_ID")
-	v.BindEnv("oauth_client_secret", "OAUTH_CLIENT_SECRET")
-	v.BindEnv("oauth_redirect_uri", "OAUTH_REDIRECT_URI")
-	v.BindEnv("oauth_frontend_url", "OAUTH_FRONTEND_URL")
+	bind("jwt_access_token_secret", "JWT_ACCESS_TOKEN_SECRET")
+	bind("jwt_access_token_expiration", "JWT_ACCESS_TOKEN_EXPIRATION")
+	bind("jwt_refresh_token_expiration", "JWT_REFRESH_TOKEN_EXPIRATION")
 
-	v.BindEnv("swagger_enabled", "SWAGGER_ENABLED")
-	v.BindEnv("swagger_require_auth", "SWAGGER_REQUIRE_AUTH")
-	v.BindEnv("swagger_username", "SWAGGER_USERNAME")
-	v.BindEnv("swagger_password", "SWAGGER_PASSWORD")
+	bind("oauth_client_id", "OAUTH_CLIENT_ID")
+	bind("oauth_client_secret", "OAUTH_CLIENT_SECRET")
+	bind("oauth_redirect_uri", "OAUTH_REDIRECT_URI")
+	bind("oauth_frontend_url", "OAUTH_FRONTEND_URL")
 
-	v.BindEnv("cors_allow_origins", "CORS_ALLOW_ORIGINS")
+	bind("swagger_enabled", "SWAGGER_ENABLED")
+	bind("swagger_require_auth", "SWAGGER_REQUIRE_AUTH")
+	bind("swagger_username", "SWAGGER_USERNAME")
+	bind("swagger_password", "SWAGGER_PASSWORD")
+
+	bind("cors_allow_origins", "CORS_ALLOW_ORIGINS")
 }

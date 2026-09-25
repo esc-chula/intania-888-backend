@@ -69,11 +69,7 @@ func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, e
 		"pear.nataya49@gmail.com",
 	}
 
-	isAllowed := false
-
-	if strings.HasSuffix(userInfo.Email, "@student.chula.ac.th") {
-		isAllowed = true
-	}
+	isAllowed := strings.HasSuffix(userInfo.Email, "@student.chula.ac.th")
 
 	for _, email := range allowedEmails {
 		if userInfo.Email == email {

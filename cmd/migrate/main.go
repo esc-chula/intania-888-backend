@@ -31,7 +31,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	defer sqlDB.Close()
+	defer func() {
+		if closeErr := sqlDB.Close(); closeErr != nil {
+			log.Printf("close migration database: %v", closeErr)
+		}
+	}()
 
 	if err := goose.SetDialect("postgres"); err != nil {
 		log.Fatal(err)

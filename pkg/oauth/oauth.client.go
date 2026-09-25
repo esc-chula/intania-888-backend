@@ -32,10 +32,10 @@ func NewGoogleOAuthClient(oauthConfig *oauth2.Config, log *zap.Logger) GoogleOAu
 }
 
 var (
-	InvalidCode   = errors.New("invalid code")
-	HttpError     = errors.New("unable to get user info")
-	IOError       = errors.New("unable to read google response")
-	InvalidFormat = errors.New("google sent unexpected format")
+	ErrInvalidCode   = errors.New("invalid code")
+	ErrHTTP          = errors.New("unable to get user info")
+	ErrIO            = errors.New("unable to read google response")
+	ErrInvalidFormat = errors.New("google sent unexpected format")
 )
 
 type GoogleUserInfo struct {
@@ -53,27 +53,31 @@ func (c *googleOAuthClientImpl) GetUserInfo(code string) (*GoogleUserInfo, error
 	token, err := c.oauthConfig.Exchange(context.TODO(), code)
 	if err != nil {
 		c.log.Named("GetUserEmail").Error("Exchange: ", zap.Error(err))
-		return nil, InvalidCode
+		return nil, ErrInvalidCode
 	}
 
 	resp, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + url.QueryEscape(token.AccessToken))
 	if err != nil {
 		c.log.Named("GetUserEmail").Error("Get: ", zap.Error(err))
-		return nil, HttpError
+		return nil, ErrHTTP
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.log.Named("GetUserEmail").Warn("Close response body", zap.Error(closeErr))
+		}
+	}()
 
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.log.Named("GetUserEmail").Error("ReadAll: ", zap.Error(err))
-		return nil, IOError
+		return nil, ErrIO
 	}
 
 	// var parsedResponse dto.GoogleUserEmailResponse
 	var parsedResponse GoogleUserInfo
 	if err = json.Unmarshal(response, &parsedResponse); err != nil {
 		c.log.Named("GetUserEmail").Error("Unmarshal: ", zap.Error(err))
-		return nil, InvalidFormat
+		return nil, ErrInvalidFormat
 	}
 
 	return &parsedResponse, nil
