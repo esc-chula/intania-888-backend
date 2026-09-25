@@ -12,6 +12,7 @@ type EventRepository interface {
 	GetStealTokenByToken(token string) (*model.StealToken, error)
 	MarkTokenAsUsed(tokenId string) error
 	DeleteExpiredTokens() error
+	CommitSlotSpin(userId string, spendAmount model.Money, reward model.Money, token *model.StealToken) error
 
 	StealPercentageFromRandomUsers(
 		thiefUserId string,

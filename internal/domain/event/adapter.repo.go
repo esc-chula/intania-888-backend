@@ -69,6 +69,58 @@ func (r *eventRepository) DeleteExpiredTokens() error {
 	return r.db.Where("expires_at < ?", time.Now()).Delete(&model.StealToken{}).Error
 }
 
+// CommitSlotSpin applies the debit, reward, and optional token creation atomically.
+func (r *eventRepository) CommitSlotSpin(userId string, spendAmount model.Money, reward model.Money, token *model.StealToken) error {
+	if spendAmount.MinorUnits() <= 0 {
+		return errors.New("invalid spend amount")
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", userId).
+			First(&user).
+			Error; err != nil {
+			return err
+		}
+
+		balance, err := model.NewMoneyFromMinor(user.RemainingCoin)
+		if err != nil {
+			return err
+		}
+
+		remaining, err := balance.Sub(spendAmount)
+		if err != nil {
+			return errors.New("insufficient coins")
+		}
+
+		newBalance, err := remaining.Add(reward)
+		if err != nil {
+			return err
+		}
+
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userId).
+			Update("remaining_coin", newBalance.MinorUnits()).
+			Error; err != nil {
+			return err
+		}
+
+		if token != nil {
+			if token.UserId != userId {
+				return errors.New("slot token owner mismatch")
+			}
+
+			if err := tx.Create(token).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
 // StealPercentageFromRandomUsers steals a percentage from random users and transfers to the thief
 func (r *eventRepository) StealPercentageFromRandomUsers(thiefUserId string, victimCount int, percentage model.Rate) (model.Money, []model.VictimDetailDto, error) {
 	var totalStolen model.Money

@@ -94,30 +94,24 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount model.Mon
 		s.log.Named("SpinSlotMachine").Warn("failed to cleanup expired tokens", zap.Error(err))
 	}
 
+	// Load the current balance for selecting the slot probability tier.
 	user, err := s.userRepo.GetById(req.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	if user.RemainingCoin < spendAmount.MinorUnits() {
-		return nil, errors.New("insufficient coins")
-	}
-
-	// Deduct the stake before generating the result.
-	user.RemainingCoin -= spendAmount.MinorUnits()
-
-	err = s.userRepo.Update(user)
-	if err != nil {
-		return nil, err
-	}
+	spinProfile := *req
+	spinProfile.RemainingCoin = model.MustMoneyFromMinor(user.RemainingCoin)
 
 	// Spin the slots
-	slot1 := utils.GetRandomSlot(req)
-	slot2 := utils.GetRandomSlot(req)
-	slot3 := utils.GetRandomSlot(req)
+	slot1 := utils.GetRandomSlot(&spinProfile)
+	slot2 := utils.GetRandomSlot(&spinProfile)
+	slot3 := utils.GetRandomSlot(&spinProfile)
 
 	// Calculate reward based on new rules
 	var reward model.Money
+	var stealToken *model.StealToken
+	var previews []model.CandidatePreviewDto
 
 	multiply := func(micro int64) {
 		reward, _ = spendAmount.Mul(model.MustRateFromMicro(micro))
@@ -147,27 +141,11 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount model.Mon
 			AllowedVictimIds: joinCSV(ids),
 			ExpiresAt:        time.Now().Add(60 * time.Second),
 		}
-		if err := s.eventRepo.CreateStealToken(token); err != nil {
-			s.log.Named("SpinSlotMachine").Error("Failed to create steal token", zap.Error(err))
-			multiply(4000000)
-		} else {
-			previews := make([]model.CandidatePreviewDto, 0, len(candidates))
+		stealToken = token
+		previews = make([]model.CandidatePreviewDto, 0, len(candidates))
 
-			for i, u := range candidates {
-				previews = append(previews, model.CandidatePreviewDto{Index: i, Name: u.Name, RoleId: u.RoleId, GroupId: u.GroupId})
-			}
-
-			return map[string]interface{}{
-				"slots":  []string{slot1, slot2, slot3},
-				"reward": model.Money{},
-				"stealToken": model.StealTokenDto{
-					Token:       token.Token,
-					ExpiresAt:   token.ExpiresAt,
-					VictimCount: 3,
-					Message:     "👽 ALIEN POWER! Use this token to steal from other players!",
-				},
-				"candidates": previews,
-			}, nil
+		for i, u := range candidates {
+			previews = append(previews, model.CandidatePreviewDto{Index: i, Name: u.Name, RoleId: u.RoleId, GroupId: u.GroupId})
 		}
 	// 3 matching gold symbols
 	case slot1 == "💰" && slot2 == "💰" && slot3 == "💰":
@@ -203,19 +181,29 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount model.Mon
 		reward = model.Money{}
 	}
 
-	// Add reward to user's balance
-	user.RemainingCoin += reward.MinorUnits()
-
-	err = s.userRepo.Update(user)
-	if err != nil {
+	// Commit the debit, reward, and optional token as one transaction.
+	if err := s.eventRepo.CommitSlotSpin(req.Id, spendAmount, reward, stealToken); err != nil {
 		return nil, err
 	}
 
 	// Return the generated slots and reward.
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"slots":  []string{slot1, slot2, slot3},
 		"reward": reward,
-	}, nil
+	}
+
+	if stealToken != nil {
+		result["reward"] = model.Money{}
+		result["stealToken"] = model.StealTokenDto{
+			Token:       stealToken.Token,
+			ExpiresAt:   stealToken.ExpiresAt,
+			VictimCount: 3,
+			Message:     "👽 ALIEN POWER! Use this token to steal from other players!",
+		}
+		result["candidates"] = previews
+	}
+
+	return result, nil
 }
 
 func (s *eventService) UseStealToken(userId string, token string, victimIndex int) (*model.UseStealTokenResponseDto, error) {
