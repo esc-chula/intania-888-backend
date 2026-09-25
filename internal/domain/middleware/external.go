@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
@@ -10,25 +8,16 @@ import (
 // ExternalAPIMiddleware is a middleware for external API endpoints that bypasses browser-only validation
 // but keeps JWT authentication, user retrieval, and blacklist enforcement
 func (h *MiddlewareHttpHandler) ExternalAPIMiddleware(c *fiber.Ctx) error {
-	// Extract token from the header
-	header := c.Get("Authorization")
-	if header == "" {
+	token, ok := parseBearerToken(c.Get("Authorization"))
+	if !ok {
 		h.log.Named("ExternalAPIMiddleware").Error("Missing authorization header")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "missing authorization header",
 		})
 	}
 
-	token := strings.Split(header, " ")
-	if len(token) != 2 || token[0] != "Bearer" || token[1] == "" {
-		h.log.Named("ExternalAPIMiddleware").Error("Invalid authorization header format")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "invalid authorization header",
-		})
-	}
-
 	// Verify the token
-	userId, err := h.service.VerifyToken(token[1])
+	claims, err := h.service.VerifyToken(token)
 	if err != nil {
 		h.log.Named("ExternalAPIMiddleware").Error("Token verification failed", zap.Error(err))
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -37,7 +26,7 @@ func (h *MiddlewareHttpHandler) ExternalAPIMiddleware(c *fiber.Ctx) error {
 	}
 
 	// Get the user profile
-	userDto, err := h.service.GetMe(*userId)
+	userDto, err := h.service.GetMe(claims.UserId)
 	if err != nil {
 		h.log.Named("ExternalAPIMiddleware").Error("User not found", zap.Error(err))
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -48,8 +37,7 @@ func (h *MiddlewareHttpHandler) ExternalAPIMiddleware(c *fiber.Ctx) error {
 	// Check blacklist (MUST enforce for security)
 	if isInBlacklists(userDto) {
 		h.log.Named("ExternalAPIMiddleware").Warn("Blacklisted user attempted external API access",
-			zap.String("userId", userDto.Id),
-			zap.String("email", userDto.Email))
+			zap.String("endpoint", c.Path()))
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "unauthorized",
 		})
@@ -57,6 +45,7 @@ func (h *MiddlewareHttpHandler) ExternalAPIMiddleware(c *fiber.Ctx) error {
 
 	// Store user in context for downstream handlers
 	c.Locals("user", userDto)
+	c.Locals("session_id", claims.SessionId)
 
 	return c.Next()
 }

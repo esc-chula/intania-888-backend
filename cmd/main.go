@@ -46,7 +46,7 @@ func main() {
 
 	authRepo := auth.NewAuthRepository(*cache)
 	authSvc := auth.NewAuthService(authRepo, userRepo, cfg, logger.Named("AuthSvc"), oauth.NewGoogleOAuthClient(oauthConfig, logger))
-	authHttp := auth.NewAuthHttpHandler(authSvc)
+	authHttp := auth.NewAuthHttpHandler(authSvc, cfg)
 
 	midRepo := middleware.NewMiddlewareRepository(db)
 	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger.Named("MiddlewareSvc"), cfg)

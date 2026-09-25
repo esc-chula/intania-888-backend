@@ -1,13 +1,35 @@
 package auth
 
-import "github.com/esc-chula/intania-888-backend/internal/model"
+import (
+	"errors"
+)
+
+var (
+	ErrInvalidOAuthState = errors.New("invalid OAuth state")
+	ErrUnverifiedEmail   = errors.New("google email is not verified")
+	ErrEmailNotAllowed   = errors.New("email is not allowed")
+	ErrInvalidRefresh    = errors.New("invalid refresh token")
+	ErrRefreshReplay     = errors.New("refresh token replay detected")
+)
+
+type OAuthLogin struct {
+	URL   string
+	State string
+}
+
+type SessionCredentials struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresIn    int32
+	IsNewUser    bool
+}
 
 type AuthService interface {
-	GetOAuthUrl(redirectTo string) (string, error)
-	VerifyOAuthLogin(code string) (*model.CredentialDto, error)
-	RefreshToken(refreshToken string) (*model.CredentialDto, error)
-	IsAllowedRedirect(redirectUrl string) bool
-	GetFrontendUrl() string
+	StartOAuthLogin() (*OAuthLogin, error)
+	VerifyOAuthLogin(code, state, cookieState string) (*SessionCredentials, error)
+	RefreshToken(refreshToken string) (*SessionCredentials, error)
+	Logout(sessionID string) error
+	GetPostLoginRedirectURL() string
 }
 
 type AuthRepository interface {

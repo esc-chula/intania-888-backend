@@ -17,35 +17,48 @@ const docTemplate = `{
     "paths": {
         "/auth/callback": {
             "get": {
-                "description": "Handles OAuth callback from Google, exchanges code for tokens, and redirects appropriately",
+                "description": "Exchanges a state-bound Google authorization code and establishes a cookie session.",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Auth"
                 ],
-                "summary": "OAuth Callback (Google redirects here)",
+                "summary": "OAuth Callback",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "OAuth authorization code from Google",
+                        "description": "OAuth authorization code",
                         "name": "code",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "State parameter with redirect URL for third parties",
+                        "description": "OAuth state nonce",
                         "name": "state",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "302": {
-                        "description": "redirect to frontend or third-party site",
+                        "description": "fixed frontend redirect",
                         "schema": {
                             "type": "string"
                         }
                     },
                     "400": {
-                        "description": "missing code",
+                        "description": "invalid OAuth request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "email is not allowed",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -67,7 +80,7 @@ const docTemplate = `{
         },
         "/auth/login": {
             "get": {
-                "description": "Retrieves the OAuth login URL",
+                "description": "Retrieves a Google OAuth login URL and binds it to a short-lived browser cookie.",
                 "produces": [
                     "application/json"
                 ],
@@ -75,17 +88,9 @@ const docTemplate = `{
                     "Auth"
                 ],
                 "summary": "Login URL",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "URL to redirect to after successful authentication",
-                        "name": "redirect_to",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
-                        "description": "url",
+                        "description": "authorization URL",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -94,7 +99,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "invalid redirect URL",
+                        "description": "redirect_to is not supported",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -114,58 +119,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/login/callback": {
+        "/auth/logout": {
             "post": {
-                "description": "Verifies the OAuth login and returns credentials or redirects to third-party site",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
+                "description": "Revokes the active server-side session and clears authentication cookies.",
                 "tags": [
                     "Auth"
                 ],
-                "summary": "OAuth Login Callback",
-                "parameters": [
-                    {
-                        "description": "OAuth Code",
-                        "name": "oauthCode",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/model.OAuthCodeDto"
-                        }
-                    },
-                    {
-                        "type": "string",
-                        "description": "State parameter with redirect URL",
-                        "name": "state",
-                        "in": "query"
-                    }
-                ],
+                "summary": "Logout",
                 "responses": {
-                    "200": {
-                        "description": "credential",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "302": {
-                        "description": "redirect to third-party site with credentials",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "cannot parse body",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
+                    "204": {
+                        "description": "logged out"
                     },
                     "500": {
                         "description": "internal server error",
@@ -181,12 +144,7 @@ const docTemplate = `{
         },
         "/auth/me": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieves user profile data",
+                "description": "Retrieves the profile associated with the access cookie.",
                 "produces": [
                     "application/json"
                 ],
@@ -204,8 +162,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "400": {
-                        "description": "bad request error",
+                    "401": {
+                        "description": "unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -218,47 +176,17 @@ const docTemplate = `{
         },
         "/auth/refresh": {
             "post": {
-                "description": "Refreshes the access token using the refresh token",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
+                "description": "Rotates the refresh token from the HttpOnly cookie and replaces the session cookies.",
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Refresh Token",
-                "parameters": [
-                    {
-                        "description": "Refresh Token",
-                        "name": "refreshToken",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/model.RefreshTokenDto"
-                        }
-                    }
-                ],
+                "summary": "Refresh Session",
                 "responses": {
-                    "200": {
-                        "description": "credential",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
+                    "204": {
+                        "description": "session refreshed"
                     },
-                    "400": {
-                        "description": "cannot parse body",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "internal server error",
+                    "401": {
+                        "description": "invalid or replayed refresh token",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -857,7 +785,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves user profile data through the external API middleware",
+                "description": "Retrieves user profile data through Bearer authentication.",
                 "produces": [
                     "application/json"
                 ],
@@ -871,15 +799,6 @@ const docTemplate = `{
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "bad request error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
                         }
                     },
                     "401": {
@@ -2137,22 +2056,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "description": "diamond, bomb, hidden",
-                    "type": "string"
-                }
-            }
-        },
-        "model.OAuthCodeDto": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.RefreshTokenDto": {
-            "type": "object",
-            "properties": {
-                "refresh_token": {
                     "type": "string"
                 }
             }

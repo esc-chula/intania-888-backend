@@ -219,16 +219,6 @@ definitions:
         description: diamond, bomb, hidden
         type: string
     type: object
-  model.OAuthCodeDto:
-    properties:
-      code:
-        type: string
-    type: object
-  model.RefreshTokenDto:
-    properties:
-      refresh_token:
-        type: string
-    type: object
   model.RevealMineTileRequest:
     properties:
       index:
@@ -338,25 +328,34 @@ info:
 paths:
   /auth/callback:
     get:
-      description: Handles OAuth callback from Google, exchanges code for tokens,
-        and redirects appropriately
+      description: Exchanges a state-bound Google authorization code and establishes
+        a cookie session.
       parameters:
-      - description: OAuth authorization code from Google
+      - description: OAuth authorization code
         in: query
         name: code
         required: true
         type: string
-      - description: State parameter with redirect URL for third parties
+      - description: OAuth state nonce
         in: query
         name: state
+        required: true
         type: string
+      produces:
+      - application/json
       responses:
         "302":
-          description: redirect to frontend or third-party site
+          description: fixed frontend redirect
           schema:
             type: string
         "400":
-          description: missing code
+          description: invalid OAuth request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: email is not allowed
           schema:
             additionalProperties:
               type: string
@@ -367,28 +366,24 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: OAuth Callback (Google redirects here)
+      summary: OAuth Callback
       tags:
       - Auth
   /auth/login:
     get:
-      description: Retrieves the OAuth login URL
-      parameters:
-      - description: URL to redirect to after successful authentication
-        in: query
-        name: redirect_to
-        type: string
+      description: Retrieves a Google OAuth login URL and binds it to a short-lived
+        browser cookie.
       produces:
       - application/json
       responses:
         "200":
-          description: url
+          description: authorization URL
           schema:
             additionalProperties:
               type: string
             type: object
         "400":
-          description: invalid redirect URL
+          description: redirect_to is not supported
           schema:
             additionalProperties:
               type: string
@@ -402,53 +397,25 @@ paths:
       summary: Login URL
       tags:
       - Auth
-  /auth/login/callback:
+  /auth/logout:
     post:
-      consumes:
-      - application/json
-      description: Verifies the OAuth login and returns credentials or redirects to
-        third-party site
-      parameters:
-      - description: OAuth Code
-        in: body
-        name: oauthCode
-        required: true
-        schema:
-          $ref: '#/definitions/model.OAuthCodeDto'
-      - description: State parameter with redirect URL
-        in: query
-        name: state
-        type: string
-      produces:
-      - application/json
+      description: Revokes the active server-side session and clears authentication
+        cookies.
       responses:
-        "200":
-          description: credential
-          schema:
-            additionalProperties: true
-            type: object
-        "302":
-          description: redirect to third-party site with credentials
-          schema:
-            type: string
-        "400":
-          description: cannot parse body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+        "204":
+          description: logged out
         "500":
           description: internal server error
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: OAuth Login Callback
+      summary: Logout
       tags:
       - Auth
   /auth/me:
     get:
-      description: Retrieves user profile data
+      description: Retrieves the profile associated with the access cookie.
       produces:
       - application/json
       responses:
@@ -458,50 +425,29 @@ paths:
             additionalProperties:
               type: string
             type: object
-        "400":
-          description: bad request error
+        "401":
+          description: unauthorized
           schema:
             additionalProperties:
               type: string
             type: object
-      security:
-      - BearerAuth: []
       summary: GetMe
       tags:
       - Auth
   /auth/refresh:
     post:
-      consumes:
-      - application/json
-      description: Refreshes the access token using the refresh token
-      parameters:
-      - description: Refresh Token
-        in: body
-        name: refreshToken
-        required: true
-        schema:
-          $ref: '#/definitions/model.RefreshTokenDto'
-      produces:
-      - application/json
+      description: Rotates the refresh token from the HttpOnly cookie and replaces
+        the session cookies.
       responses:
-        "200":
-          description: credential
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: cannot parse body
+        "204":
+          description: session refreshed
+        "401":
+          description: invalid or replayed refresh token
           schema:
             additionalProperties:
               type: string
             type: object
-        "500":
-          description: internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Refresh Token
+      summary: Refresh Session
       tags:
       - Auth
   /bills:
@@ -874,7 +820,7 @@ paths:
       - External
   /external/me:
     get:
-      description: Retrieves user profile data through the external API middleware
+      description: Retrieves user profile data through Bearer authentication.
       produces:
       - application/json
       responses:
@@ -882,12 +828,6 @@ paths:
           description: profile
           schema:
             additionalProperties: true
-            type: object
-        "400":
-          description: bad request error
-          schema:
-            additionalProperties:
-              type: string
             type: object
         "401":
           description: missing or invalid authorization

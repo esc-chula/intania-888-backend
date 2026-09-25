@@ -81,7 +81,7 @@ func JwtSignAccessTokenWithSession(userID, role, sessionID, secretKey, issuer, a
 
 func JwtParseAccessToken(rawToken, secretKey, issuer, audience string) (*AccessTokenClaims, error) {
 	token, err := jwt.Parse(rawToken, func(token *jwt.Token) (interface{}, error) {
-		if token.Method != jwt.SigningMethodHS256 {
+		if token.Method == nil || token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(secretKey), nil
