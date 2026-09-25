@@ -207,89 +207,21 @@ func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount model.Mon
 }
 
 func (s *eventService) UseStealToken(userId string, token string, victimIndex int) (*model.UseStealTokenResponseDto, error) {
-	stealToken, err := s.eventRepo.GetStealTokenByToken(token)
+	// Validate and consume the token, transfer the coins, and apply the minimum
+	// payout in one transaction.
+	result, err := s.eventRepo.ConsumeStealToken(userId, token, victimIndex)
 	if err != nil {
-		return nil, errors.New("invalid or expired token")
+		return nil, err
 	}
 
-	if stealToken.UserId != userId {
-		return nil, errors.New("Idiot")
-	}
-
-	if stealToken.IsUsed {
-		return nil, errors.New("token already used")
-	}
-
-	if time.Now().After(stealToken.ExpiresAt) {
-		return nil, errors.New("token expired")
-	}
-
-	candidateIds := splitCSV(stealToken.AllowedVictimIds)
-
-	if victimIndex < 0 || victimIndex >= len(candidateIds) {
-		return nil, errors.New("Idiot")
-	}
-
-	chosenVictimId := candidateIds[victimIndex]
-
-	allCandidates, err := s.eventRepo.GetUsersByIds(candidateIds)
-	if err != nil {
-		return nil, errors.New("failed to fetch candidates")
-	}
-
-	candidateMap := make(map[string]model.User)
-
-	for _, u := range allCandidates {
+	candidateMap := make(map[string]model.User, len(result.Candidates))
+	for _, u := range result.Candidates {
 		candidateMap[u.Id] = u
-	}
-
-	chosenVictim, exists := candidateMap[chosenVictimId]
-	minVictimBalance := int64(10000)
-
-	if !exists {
-		return nil, errors.New("chosen victim no longer exists")
-	}
-
-	if chosenVictim.RemainingCoin < minVictimBalance {
-		return nil, errors.New("chosen victim has insufficient balance")
-	}
-
-	// Apply the fixed steal rate, then enforce the minimum payout.
-	percentage := model.MustRateFromMicro(200000)
-	stolenAmount, _, err := s.eventRepo.StealPercentageFromSpecificUser(userId, chosenVictimId, percentage)
-	if err != nil {
-		return nil, fmt.Errorf("raid failed: %v", err)
-	}
-
-	minStealAmount := model.MustMoneyFromMinor(5000)
-
-	if !stolenAmount.IsZero() && stolenAmount.MinorUnits() < minStealAmount.MinorUnits() {
-		difference := minStealAmount.MinorUnits() - stolenAmount.MinorUnits()
-		raider, err := s.userRepo.GetById(userId)
-
-		if err == nil {
-			raider.RemainingCoin += difference
-
-			if err := s.userRepo.Update(raider); err != nil {
-				s.log.Named("UseStealToken").Warn("failed to apply minimum bonus", zap.Error(err))
-			} else {
-				stolenAmount = minStealAmount
-			}
-		}
-	}
-
-	if err := s.eventRepo.MarkTokenAsUsed(stealToken.Id); err != nil {
-		s.log.Named("UseStealToken").Error("mark token used", zap.Error(err))
-	}
-
-	raider, err := s.userRepo.GetById(userId)
-	if err != nil {
-		s.log.Named("UseStealToken").Warn("failed to get raider balance", zap.Error(err))
 	}
 
 	allCandidatesDto := make([]model.VictimDetailDto, 0, 3)
 
-	for i, victimId := range candidateIds {
+	for i, victimId := range result.CandidateIDs {
 		victim, found := candidateMap[victimId]
 
 		if !found {
@@ -301,16 +233,16 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 				GroupId:       nil,
 				BalanceBefore: model.Money{},
 				AmountStolen:  model.Money{},
-				WasChosen:     (victimId == chosenVictimId),
+				WasChosen:     (victimId == result.ChosenVictimID),
 			})
 			continue
 		}
 
-		wasChosen := (victimId == chosenVictimId)
-		amountStolen := model.Money{}
+		wasChosen := victimId == result.ChosenVictimID
+		var amountStolen model.Money
 
 		if wasChosen {
-			amountStolen = stolenAmount
+			amountStolen = result.StolenAmount
 		}
 
 		allCandidatesDto = append(allCandidatesDto, model.VictimDetailDto{
@@ -325,11 +257,16 @@ func (s *eventService) UseStealToken(userId string, token string, victimIndex in
 		})
 	}
 
-	message := fmt.Sprintf("👽 You raided %s and stole %s coins!", chosenVictim.Name, stolenAmount.String())
+	chosenVictim, exists := candidateMap[result.ChosenVictimID]
+	if !exists {
+		return nil, errors.New("chosen victim no longer exists")
+	}
+
+	message := fmt.Sprintf("👽 You raided %s and stole %s coins!", chosenVictim.Name, result.StolenAmount.String())
 
 	return &model.UseStealTokenResponseDto{
-		TotalStolen:      stolenAmount,
-		RaiderNewBalance: model.MustMoneyFromMinor(raider.RemainingCoin),
+		TotalStolen:      result.StolenAmount,
+		RaiderNewBalance: result.RaiderBalance,
 		AllCandidates:    allCandidatesDto,
 		Message:          message,
 	}, nil

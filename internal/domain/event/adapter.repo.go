@@ -3,6 +3,7 @@ package event
 import (
 	"errors"
 	"math/rand/v2"
+	"sort"
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
@@ -15,6 +16,12 @@ type eventRepository struct {
 	db    *gorm.DB
 	cache cache.RedisClient
 }
+
+const (
+	minStealVictimBalanceMinor int64 = 10000
+	minStealAmountMinor        int64 = 5000
+	stealPercentageMicro       int64 = 200000
+)
 
 func NewEventRepository(db *gorm.DB, cache cache.RedisClient) EventRepository {
 	return &eventRepository{
@@ -119,6 +126,131 @@ func (r *eventRepository) CommitSlotSpin(userId string, spendAmount model.Money,
 
 		return nil
 	})
+}
+
+// ConsumeStealToken atomically validates and consumes a token while transferring
+// the resulting amount to the thief.
+func (r *eventRepository) ConsumeStealToken(userId string, tokenValue string, victimIndex int) (*StealTokenUseResult, error) {
+	result := &StealTokenUseResult{}
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var token model.StealToken
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("token = ?", tokenValue).
+			First(&token).
+			Error; err != nil {
+			return errors.New("invalid or expired token")
+		}
+
+		if token.UserId != userId {
+			return errors.New("Idiot")
+		}
+
+		if token.IsUsed {
+			return errors.New("token already used")
+		}
+
+		if time.Now().After(token.ExpiresAt) {
+			return errors.New("token expired")
+		}
+
+		candidateIDs := splitCSV(token.AllowedVictimIds)
+		if victimIndex < 0 || victimIndex >= len(candidateIDs) {
+			return errors.New("Idiot")
+		}
+
+		chosenVictimID := candidateIDs[victimIndex]
+		if chosenVictimID == userId {
+			return errors.New("cannot steal from yourself")
+		}
+
+		// Lock users in a deterministic order so reciprocal raids cannot deadlock.
+		lockIDs := []string{userId, chosenVictimID}
+		sort.Strings(lockIDs)
+		lockedUsers := make(map[string]model.User, len(lockIDs))
+		for _, id := range lockIDs {
+			var user model.User
+			if err := tx.
+				Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("id = ?", id).
+				First(&user).
+				Error; err != nil {
+				return err
+			}
+			lockedUsers[id] = user
+		}
+
+		victim := lockedUsers[chosenVictimID]
+		thief := lockedUsers[userId]
+		if victim.RemainingCoin < minStealVictimBalanceMinor {
+			return errors.New("chosen victim has insufficient balance")
+		}
+
+		percentage := model.MustRateFromMicro(stealPercentageMicro)
+		stolen, err := model.MustMoneyFromMinor(victim.RemainingCoin).Mul(percentage)
+		if err != nil {
+			return err
+		}
+
+		if stolen.IsZero() {
+			return errors.New("calculated steal is zero")
+		}
+
+		var candidates []model.User
+		if err := tx.Where("id IN ?", candidateIDs).Find(&candidates).Error; err != nil {
+			return err
+		}
+
+		credit := stolen
+		if stolen.MinorUnits() < minStealAmountMinor {
+			credit = model.MustMoneyFromMinor(minStealAmountMinor)
+		}
+
+		victimBalance, err := model.MustMoneyFromMinor(victim.RemainingCoin).Sub(stolen)
+		if err != nil {
+			return err
+		}
+		thiefBalance, err := model.MustMoneyFromMinor(thief.RemainingCoin).Add(credit)
+		if err != nil {
+			return err
+		}
+
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", victim.Id).
+			Update("remaining_coin", victimBalance.MinorUnits()).
+			Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", thief.Id).
+			Update("remaining_coin", thiefBalance.MinorUnits()).
+			Error; err != nil {
+			return err
+		}
+
+		if update := tx.Model(&model.StealToken{}).
+			Where("id = ? AND is_used = false", token.Id).
+			Update("is_used", true); update.Error != nil {
+			return update.Error
+		} else if update.RowsAffected != 1 {
+			return errors.New("token already used")
+		}
+
+		result.CandidateIDs = candidateIDs
+		result.Candidates = candidates
+		result.ChosenVictimID = chosenVictimID
+		result.StolenAmount = credit
+		result.RaiderBalance = thiefBalance
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // StealPercentageFromRandomUsers steals a percentage from random users and transfers to the thief
@@ -246,7 +378,7 @@ func (r *eventRepository) StealPercentageFromSpecificUser(thiefUserId string, vi
 			return err
 		}
 
-		if victim.RemainingCoin < 100 {
+		if victim.RemainingCoin < minStealVictimBalanceMinor {
 			return errors.New("victim has insufficient balance")
 		}
 
@@ -290,7 +422,7 @@ func (r *eventRepository) StealPercentageFromSpecificUser(thiefUserId string, vi
 func (r *eventRepository) GetRandomEligibleUsers(excludeUserId string, limit int) ([]model.User, error) {
 	var users []model.User
 
-	if err := r.db.Where("id != ? AND remaining_coin >= ?", excludeUserId, 10000).Order("RANDOM()").Limit(limit).Find(&users).Error; err != nil {
+	if err := r.db.Where("id != ? AND remaining_coin >= ?", excludeUserId, minStealVictimBalanceMinor).Order("RANDOM()").Limit(limit).Find(&users).Error; err != nil {
 		return nil, err
 	}
 

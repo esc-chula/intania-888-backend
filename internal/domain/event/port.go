@@ -13,6 +13,7 @@ type EventRepository interface {
 	MarkTokenAsUsed(tokenId string) error
 	DeleteExpiredTokens() error
 	CommitSlotSpin(userId string, spendAmount model.Money, reward model.Money, token *model.StealToken) error
+	ConsumeStealToken(userId string, token string, victimIndex int) (*StealTokenUseResult, error)
 
 	StealPercentageFromRandomUsers(
 		thiefUserId string,
@@ -26,6 +27,14 @@ type EventRepository interface {
 	) (model.Money, *model.VictimDetailDto, error)
 	GetRandomEligibleUsers(excludeUserId string, limit int) ([]model.User, error)
 	GetUsersByIds(userIds []string) ([]model.User, error)
+}
+
+type StealTokenUseResult struct {
+	CandidateIDs   []string
+	Candidates     []model.User
+	ChosenVictimID string
+	StolenAmount   model.Money
+	RaiderBalance  model.Money
 }
 
 type EventService interface {
