@@ -198,3 +198,83 @@ func TestStealTokenEnforcesHundredCoinVictimFloor(t *testing.T) {
 		t.Fatalf("steal at exactly 100.00 coins failed: %v", err)
 	}
 }
+
+func TestDailyRewardConcurrentRedeemClaimsOnce(t *testing.T) {
+	postgres := openStakeMinePostgres(t)
+	seedStakeMineUser(t, postgres, "daily-user", 10000)
+
+	if err := postgres.DB.Create(&model.DailyReward{Date: "25-09-2026", Reward: 12345}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	repository := event.NewEventRepository(postgres.DB, cache.RedisClient{})
+	defaultReward := model.MustMoneyFromMinor(30000)
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := repository.RedeemDailyReward("daily-user", "25-09-2026", defaultReward)
+			errs <- err
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	for err := range errs {
+		if err == nil {
+			successes++
+		}
+	}
+
+	if successes != 1 {
+		t.Fatalf("concurrent daily reward successes = %d, want 1", successes)
+	}
+
+	var user model.User
+	if err := postgres.DB.First(&user, "id = ?", "daily-user").Error; err != nil {
+		t.Fatal(err)
+	}
+	if user.RemainingCoin != 22345 {
+		t.Fatalf("user balance = %d, want 22345", user.RemainingCoin)
+	}
+
+	var claimCount int64
+	if err := postgres.DB.Model(&model.DailyRewardClaim{}).
+		Where("user_id = ? AND reward_date = ?", "daily-user", "25-09-2026").
+		Count(&claimCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if claimCount != 1 {
+		t.Fatalf("daily reward claims = %d, want 1", claimCount)
+	}
+}
+
+func TestDailyRewardUsesDefaultWhenUnconfigured(t *testing.T) {
+	postgres := openStakeMinePostgres(t)
+	seedStakeMineUser(t, postgres, "default-daily-user", 10000)
+
+	repository := event.NewEventRepository(postgres.DB, cache.RedisClient{})
+	if _, err := repository.RedeemDailyReward(
+		"default-daily-user",
+		"26-09-2026",
+		model.MustMoneyFromMinor(30000),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	var user model.User
+	if err := postgres.DB.First(&user, "id = ?", "default-daily-user").Error; err != nil {
+		t.Fatal(err)
+	}
+	if user.RemainingCoin != 40000 {
+		t.Fatalf("user balance = %d, want 40000", user.RemainingCoin)
+	}
+}

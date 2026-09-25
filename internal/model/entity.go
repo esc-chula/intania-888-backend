@@ -153,6 +153,15 @@ type DailyReward struct {
 	UpdatedAt time.Time ``
 }
 
+type DailyRewardClaim struct {
+	UserId    string    `gorm:"column:user_id;primaryKey;type:varchar(100)"`
+	Date      string    `gorm:"column:reward_date;primaryKey;type:varchar(100)"`
+	Reward    int64     `gorm:"column:reward;type:bigint;not null"`
+	CreatedAt time.Time ``
+
+	User User `gorm:"foreignKey:UserId"`
+}
+
 type StealToken struct {
 	Id               string    `gorm:"primaryKey;type:varchar(100)"`
 	UserId           string    `gorm:"type:varchar(100);not null;index"`

@@ -52,6 +52,78 @@ func (r *eventRepository) SetReward(reward *model.DailyReward) error {
 	return r.db.Save(reward).Error
 }
 
+// RedeemDailyReward applies the configured reward and records the claim atomically.
+func (r *eventRepository) RedeemDailyReward(userID string, date string, defaultReward model.Money) (model.Money, error) {
+	var credited model.Money
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		rewardMinor := defaultReward.MinorUnits()
+
+		var configured model.DailyReward
+		err := tx.Where("date = ?", date).First(&configured).Error
+		switch {
+		case err == nil:
+			rewardMinor = configured.Reward
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			// Use the default reward when no date-specific configuration exists.
+		default:
+			return err
+		}
+
+		reward, err := model.NewMoneyFromMinor(rewardMinor)
+		if err != nil {
+			return err
+		}
+
+		var user model.User
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", userID).
+			First(&user).
+			Error; err != nil {
+			return err
+		}
+
+		claim := &model.DailyRewardClaim{
+			UserId: userID,
+			Date:   date,
+			Reward: reward.MinorUnits(),
+		}
+		insert := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(claim)
+		if insert.Error != nil {
+			return insert.Error
+		}
+		if insert.RowsAffected != 1 {
+			return errors.New("already redeemed daily reward")
+		}
+
+		balance, err := model.NewMoneyFromMinor(user.RemainingCoin)
+		if err != nil {
+			return err
+		}
+
+		newBalance, err := balance.Add(reward)
+		if err != nil {
+			return err
+		}
+
+		update := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Update("remaining_coin", newBalance.MinorUnits())
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+
+		credited = reward
+		return nil
+	})
+
+	return credited, err
+}
+
 // --- Steal token repositories ---
 
 func (r *eventRepository) CreateStealToken(token *model.StealToken) error {

@@ -7,6 +7,7 @@ type EventRepository interface {
 	GetDailyRewardCache(key string, value interface{}) error
 	GetReward(date string) (*model.DailyReward, error)
 	SetReward(reward *model.DailyReward) error
+	RedeemDailyReward(userID string, date string, defaultReward model.Money) (model.Money, error)
 
 	CreateStealToken(token *model.StealToken) error
 	GetStealTokenByToken(token string) (*model.StealToken, error)
