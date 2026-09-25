@@ -42,6 +42,11 @@ func NewViperConfig() Config {
 		// while production requires the configured Basic Auth credentials.
 		v.SetDefault("swagger_enabled", true)
 		v.SetDefault("swagger_require_auth", appEnv == "prod")
+		if appEnv == "prod" {
+			v.SetDefault("server_env", "production")
+		} else {
+			v.SetDefault("server_env", "development")
+		}
 		v.SetDefault("oauth_state_expiration", 600)
 		v.SetDefault("cookie_same_site", "lax")
 

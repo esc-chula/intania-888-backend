@@ -33,26 +33,6 @@ type RoleDto struct {
 	Id string `json:"id"`
 }
 
-type CredentialDto struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int32  `json:"expires_in"`
-	IsNewUser    bool   `json:"is_new_user"`
-}
-
-type OAuthCodeDto struct {
-	Code string `json:"code"`
-}
-
-type RefreshTokenDto struct {
-	RefreshToken string `json:"refresh_token"`
-}
-
-type RefreshCacheDto struct {
-	UserId string
-	Role   string
-}
-
 type ColorDto struct {
 	Id         string `json:"id"`
 	Title      string `json:"title,omitempty"`

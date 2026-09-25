@@ -8,12 +8,6 @@ import (
 
 const authCacheNamespace = "auth:v1"
 
-// ToAccessCacheKey is retained while the legacy handler is being removed.
-// New session code uses ToSessionCacheKey with a server-generated session ID.
-func ToAccessCacheKey(userID string) string {
-	return ToSessionCacheKey(userID)
-}
-
 func ToOAuthStateCacheKey(state string) string {
 	return fmt.Sprintf("%s:oauth-state:%s", authCacheNamespace, HashOpaqueToken(state))
 }

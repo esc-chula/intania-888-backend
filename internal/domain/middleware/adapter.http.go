@@ -3,7 +3,6 @@ package middleware
 import (
 	"strings"
 
-	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
@@ -66,20 +65,7 @@ func (h *MiddlewareHttpHandler) AdminMiddleware(c *fiber.Ctx) error {
 		})
 	}
 
-	authorizedAdmins := []string{
-		"6633165121@student.chula.ac.th",
-		"6738086221@student.chula.ac.th",
-		"6633149121@student.chula.ac.th",
-	}
-	isAuthorizedAdmin := false
-	for _, adminEmail := range authorizedAdmins {
-		if user.Email == adminEmail {
-			isAuthorizedAdmin = true
-			break
-		}
-	}
-
-	if !isAuthorizedAdmin && user.RoleId != "ADMIN" {
+	if !security.IsAdmin(user.Email, user.RoleId) {
 		h.log.Named("AdminMiddleware").Warn("Non-admin attempted admin action",
 			zap.String("role", user.RoleId),
 			zap.String("endpoint", c.Path()))
@@ -97,11 +83,4 @@ func parseBearerToken(header string) (string, bool) {
 		return "", false
 	}
 	return parts[1], true
-}
-
-func isInBlacklists(user *model.UserDto) bool {
-	if user == nil {
-		return false
-	}
-	return security.IsBlacklisted(user.Email, user.Id)
 }

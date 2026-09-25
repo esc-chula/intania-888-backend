@@ -23,6 +23,12 @@ var blacklistedIDs = map[string]struct{}{
 	"101935624102444830754": {},
 }
 
+var adminEmails = map[string]struct{}{
+	"6633165121@student.chula.ac.th": {},
+	"6738086221@student.chula.ac.th": {},
+	"6633149121@student.chula.ac.th": {},
+}
+
 func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
@@ -41,5 +47,13 @@ func IsBlacklisted(email, userID string) bool {
 		return true
 	}
 	_, ok := blacklistedIDs[strings.TrimSpace(userID)]
+	return ok
+}
+
+func IsAdmin(email, role string) bool {
+	if role == "ADMIN" {
+		return true
+	}
+	_, ok := adminEmails[NormalizeEmail(email)]
 	return ok
 }

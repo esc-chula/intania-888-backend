@@ -54,7 +54,6 @@ type OAuth struct {
 	StateExpiration      int    `mapstructure:"oauth_state_expiration"`
 	CookieSameSite       string `mapstructure:"cookie_same_site"`
 	CookieSecure         bool   `mapstructure:"cookie_secure"`
-	FrontendUrl          string `mapstructure:"oauth_frontend_url"`
 }
 
 type Swagger struct {
