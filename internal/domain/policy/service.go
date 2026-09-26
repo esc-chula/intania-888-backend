@@ -110,9 +110,7 @@ func (s *service) Create(input CreateInput) (*AccessPolicy, error) {
 		}
 		return nil, err
 	}
-	if err := s.RefreshCache(); err != nil {
-		return nil, err
-	}
+	s.refreshCacheBestEffort("create")
 	return policy, nil
 }
 
@@ -146,9 +144,7 @@ func (s *service) Update(id string, input UpdateInput) (*AccessPolicy, error) {
 	if err := s.repo.Update(policy); err != nil {
 		return nil, err
 	}
-	if err := s.RefreshCache(); err != nil {
-		return nil, err
-	}
+	s.refreshCacheBestEffort("update")
 	return policy, nil
 }
 
@@ -168,10 +164,17 @@ func (s *service) Disable(id string) (*AccessPolicy, error) {
 	if err := s.repo.Update(policy); err != nil {
 		return nil, err
 	}
-	if err := s.RefreshCache(); err != nil {
-		return nil, err
-	}
+	s.refreshCacheBestEffort("disable")
 	return policy, nil
+}
+
+func (s *service) refreshCacheBestEffort(operation string) {
+	if err := s.RefreshCache(); err != nil {
+		s.log.Warn("Policy mutation committed but cache refresh failed",
+			zap.String("operation", operation),
+			zap.Error(err),
+		)
+	}
 }
 
 func (s *service) RefreshCache() error {

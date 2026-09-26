@@ -386,6 +386,65 @@ func TestConcurrentRefreshRotationAcceptsOnlyOneRequestAndRevokesOnReplay(t *tes
 	}
 }
 
+func TestRefreshRotationAcceptsRoleChanges(t *testing.T) {
+	tests := []struct {
+		name    string
+		oldRole string
+		newRole string
+	}{
+		{name: "promote user", oldRole: security.RoleUser, newRole: security.RoleAdmin},
+		{name: "demote admin", oldRole: security.RoleAdmin, newRole: security.RoleUser},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			userID := uuid.NewString()
+			service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
+				Id:            userID,
+				Email:         "student@student.chula.ac.th",
+				Name:          "Student",
+				VerifiedEmail: true,
+			})
+			users.users["student@student.chula.ac.th"] = &model.User{
+				Id:     userID,
+				Email:  "student@student.chula.ac.th",
+				RoleId: test.oldRole,
+			}
+
+			state := createOAuthState(t, service)
+			credentials, err := service.VerifyOAuthLogin("code", state, state)
+			if err != nil {
+				t.Fatalf("VerifyOAuthLogin() error = %v", err)
+			}
+
+			users.users["student@student.chula.ac.th"].RoleId = test.newRole
+			rotated, err := service.RefreshToken(credentials.RefreshToken)
+			if err != nil {
+				t.Fatalf("RefreshToken() after role change error = %v", err)
+			}
+			if rotated.RefreshToken == credentials.RefreshToken {
+				t.Fatal("refresh token was not rotated")
+			}
+
+			claims, err := utils.JwtParseAccessToken(rotated.AccessToken, "access-secret", "intania-test", "intania-test")
+			if err != nil {
+				t.Fatalf("JwtParseAccessToken() error = %v", err)
+			}
+			if claims.Role != test.newRole {
+				t.Fatalf("access token role = %q, want %q", claims.Role, test.newRole)
+			}
+
+			var session model.SessionRecord
+			if err := repo.GetCacheValue(utils.ToSessionCacheKey(claims.SessionId), &session); err != nil {
+				t.Fatalf("session lookup error = %v", err)
+			}
+			if session.Role != test.newRole {
+				t.Fatalf("stored session role = %q, want %q", session.Role, test.newRole)
+			}
+		})
+	}
+}
+
 func TestOAuthRequiresVerifiedAllowlistedEmailAndCreatesHashedSession(t *testing.T) {
 	service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
 		Id:            uuid.NewString(),

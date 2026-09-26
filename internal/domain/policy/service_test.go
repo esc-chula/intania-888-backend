@@ -252,6 +252,72 @@ func TestCreateRefreshesPolicyCache(t *testing.T) {
 	}
 }
 
+func TestPolicyMutationsSucceedWhenCacheRefreshFails(t *testing.T) {
+	t.Run("create", func(t *testing.T) {
+		repo := newFakeRepository()
+		cache := newFakeCache()
+		cache.setErr = errors.New("redis unavailable")
+		service := NewService(repo, cache, zap.NewNop())
+
+		created, err := service.Create(CreateInput{
+			Kind:          KindAllowlist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "new@example.com",
+			Reason:        "approved",
+		})
+		if err != nil {
+			t.Fatalf("create policy error = %v; database write should remain successful", err)
+		}
+		if _, err := repo.FindByID(created.ID); err != nil {
+			t.Fatalf("persisted policy lookup error = %v", err)
+		}
+	})
+
+	t.Run("update", func(t *testing.T) {
+		repo := newFakeRepository(&AccessPolicy{
+			ID:            "policy-id",
+			Kind:          KindBlacklist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "blocked@example.com",
+			Reason:        "old reason",
+			Enabled:       true,
+		})
+		cache := newFakeCache()
+		cache.setErr = errors.New("redis unavailable")
+		service := NewService(repo, cache, zap.NewNop())
+
+		updated, err := service.Update("policy-id", UpdateInput{Reason: "new reason", ReasonSet: true})
+		if err != nil {
+			t.Fatalf("update policy error = %v; database write should remain successful", err)
+		}
+		if updated.Reason != "new reason" {
+			t.Fatalf("updated reason = %q, want %q", updated.Reason, "new reason")
+		}
+	})
+
+	t.Run("disable", func(t *testing.T) {
+		repo := newFakeRepository(&AccessPolicy{
+			ID:            "policy-id",
+			Kind:          KindBlacklist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "blocked@example.com",
+			Reason:        "blocked",
+			Enabled:       true,
+		})
+		cache := newFakeCache()
+		cache.setErr = errors.New("redis unavailable")
+		service := NewService(repo, cache, zap.NewNop())
+
+		disabled, err := service.Disable("policy-id")
+		if err != nil {
+			t.Fatalf("disable policy error = %v; database write should remain successful", err)
+		}
+		if disabled.Enabled {
+			t.Fatal("policy remains enabled after successful disable")
+		}
+	})
+}
+
 func TestValidateCreateInputRejectsInvalidPolicyCombinations(t *testing.T) {
 	cases := []CreateInput{
 		{Kind: KindAllowlist, PrincipalType: PrincipalGoogleSubject, Principal: "subject", Reason: "invalid"},

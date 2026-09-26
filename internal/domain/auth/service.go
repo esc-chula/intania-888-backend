@@ -244,7 +244,9 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*SessionCredentials
 		s.revokeSession(session.Id)
 		return nil, ErrEmailNotAllowed
 	}
-	session.Role = currentUser.RoleId
+	storedSession := session
+	updatedSession := session
+	updatedSession.Role = currentUser.RoleId
 
 	newRefreshToken, err := utils.JwtSignRefreshToken(s.cfg.GetJwt().RefreshTokenExpiration)
 	if err != nil {
@@ -252,9 +254,9 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*SessionCredentials
 	}
 	newRefreshHash := utils.HashOpaqueToken(*newRefreshToken)
 	accessToken, err := utils.JwtSignAccessTokenWithSession(
-		session.UserId,
-		session.Role,
-		session.Id,
+		updatedSession.UserId,
+		updatedSession.Role,
+		updatedSession.Id,
 		s.cfg.GetJwt().AccessTokenSecret,
 		s.cfg.GetServer().Name,
 		s.cfg.GetServer().Name,
@@ -267,19 +269,19 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*SessionCredentials
 	refreshTTL := s.cfg.GetJwt().RefreshTokenExpiration
 	usedRefreshRecord := refreshRecord
 	usedRefreshRecord.Status = refreshTokenUsed
-	newSession := session
+	newSession := updatedSession
 	newSession.RefreshTokenHash = newRefreshHash
 	newRefreshRecord := model.RefreshTokenRecord{
-		SessionId: session.Id,
-		UserId:    session.UserId,
-		Role:      session.Role,
+		SessionId: updatedSession.Id,
+		UserId:    updatedSession.UserId,
+		Role:      updatedSession.Role,
 		Status:    refreshTokenActive,
 	}
 
 	rotated, err := s.authRepo.CompareAndSwapCacheValues(
 		map[string]interface{}{
-			utils.ToRefreshHashCacheKey(refreshHash): refreshRecord,
-			utils.ToSessionCacheKey(session.Id):      session,
+			utils.ToRefreshHashCacheKey(refreshHash):  refreshRecord,
+			utils.ToSessionCacheKey(storedSession.Id): storedSession,
 		},
 		map[string]interface{}{
 			utils.ToRefreshHashCacheKey(refreshHash):    usedRefreshRecord,
