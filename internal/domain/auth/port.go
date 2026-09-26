@@ -1,8 +1,6 @@
 package auth
 
-import (
-	"errors"
-)
+import "errors"
 
 var (
 	ErrInvalidOAuthState = errors.New("invalid OAuth state")
@@ -36,5 +34,7 @@ type AuthRepository interface {
 	SetCacheValue(key string, value interface{}, ttl int) error
 	GetCacheValue(key string, value interface{}) error
 	DeleteCacheValue(key string) error
+	DeleteCacheValues(keys ...string) error
 	ConsumeCacheValue(key string, value interface{}) error
+	CompareAndSwapCacheValues(expected map[string]interface{}, replacements map[string]interface{}, ttl int) (bool, error)
 }

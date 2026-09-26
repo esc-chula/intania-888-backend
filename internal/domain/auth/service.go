@@ -4,7 +4,6 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/url"
-	"strings"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/model"
@@ -13,6 +12,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/pkg/oauth"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
 
@@ -41,38 +41,41 @@ func NewAuthService(authRepo AuthRepository, userRepo user.UserRepository, cfg c
 }
 
 func (s *authServiceImpl) StartOAuthLogin() (*OAuthLogin, error) {
+	if s.oauthClient == nil {
+		return nil, errors.New("OAuth client is not configured")
+	}
+	oauthConfig := s.oauthClient.OAuthConfig()
+	if oauthConfig == nil || oauthConfig.ClientID == "" || oauthConfig.RedirectURL == "" || oauthConfig.Endpoint.AuthURL == "" {
+		return nil, errors.New("OAuth client is not configured")
+	}
+	authorizationURL, err := url.Parse(oauthConfig.Endpoint.AuthURL)
+	if err != nil || authorizationURL.Scheme == "" || authorizationURL.Host == "" || authorizationURL.User != nil {
+		return nil, errors.New("invalid OAuth authorization URL")
+	}
+
 	state, err := utils.NewOpaqueToken(32)
+	if err != nil {
+		return nil, err
+	}
+	codeVerifier, err := utils.NewOpaqueToken(32)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := s.authRepo.SetCacheValue(
 		utils.ToOAuthStateCacheKey(state),
-		true,
+		model.OAuthStateRecord{CodeVerifier: codeVerifier},
 		s.oauthStateExpiration(),
 	); err != nil {
 		return nil, err
 	}
 
-	oauthConfig := s.oauthClient.OAuthConfig()
-	if oauthConfig == nil {
-		return nil, errors.New("OAuth client is not configured")
-	}
-	authURL, err := url.Parse(oauthConfig.Endpoint.AuthURL)
-	if err != nil || authURL.Scheme == "" || authURL.Host == "" {
-		return nil, errors.New("invalid OAuth authorization URL")
-	}
-
-	parameters := authURL.Query()
-	parameters.Set("client_id", oauthConfig.ClientID)
-	parameters.Set("scope", strings.Join(oauthConfig.Scopes, " "))
-	parameters.Set("redirect_uri", oauthConfig.RedirectURL)
-	parameters.Set("response_type", "code")
-	parameters.Set("hd", "student.chula.ac.th")
-	parameters.Set("state", state)
-	authURL.RawQuery = parameters.Encode()
-
-	return &OAuthLogin{URL: authURL.String(), State: state}, nil
+	authURL := oauthConfig.AuthCodeURL(
+		state,
+		oauth2.S256ChallengeOption(codeVerifier),
+		oauth2.SetAuthURLParam("hd", "student.chula.ac.th"),
+	)
+	return &OAuthLogin{URL: authURL, State: state}, nil
 }
 
 func (s *authServiceImpl) VerifyOAuthLogin(code, state, cookieState string) (*SessionCredentials, error) {
@@ -80,12 +83,12 @@ func (s *authServiceImpl) VerifyOAuthLogin(code, state, cookieState string) (*Se
 		return nil, ErrInvalidOAuthState
 	}
 
-	var stateMarker bool
-	if err := s.authRepo.ConsumeCacheValue(utils.ToOAuthStateCacheKey(state), &stateMarker); err != nil || !stateMarker {
+	var stateRecord model.OAuthStateRecord
+	if err := s.authRepo.ConsumeCacheValue(utils.ToOAuthStateCacheKey(state), &stateRecord); err != nil || stateRecord.CodeVerifier == "" {
 		return nil, ErrInvalidOAuthState
 	}
 
-	userInfo, err := s.oauthClient.GetUserInfo(code)
+	userInfo, err := s.oauthClient.GetUserInfo(code, stateRecord.CodeVerifier)
 	if err != nil {
 		s.log.Named("VerifyOAuthLogin").Error("Get Google user info", zap.Error(err))
 		return nil, err
@@ -229,25 +232,34 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*SessionCredentials
 	}
 
 	refreshTTL := s.cfg.GetJwt().RefreshTokenExpiration
-	refreshRecord.Status = refreshTokenUsed
-	if err := s.authRepo.SetCacheValue(utils.ToRefreshHashCacheKey(refreshHash), refreshRecord, refreshTTL); err != nil {
-		return nil, err
+	usedRefreshRecord := refreshRecord
+	usedRefreshRecord.Status = refreshTokenUsed
+	newSession := session
+	newSession.RefreshTokenHash = newRefreshHash
+	newRefreshRecord := model.RefreshTokenRecord{
+		SessionId: session.Id,
+		UserId:    session.UserId,
+		Role:      session.Role,
+		Status:    refreshTokenActive,
 	}
-	if err := s.authRepo.SetCacheValue(
-		utils.ToRefreshHashCacheKey(newRefreshHash),
-		model.RefreshTokenRecord{
-			SessionId: session.Id,
-			UserId:    session.UserId,
-			Role:      session.Role,
-			Status:    refreshTokenActive,
+
+	rotated, err := s.authRepo.CompareAndSwapCacheValues(
+		map[string]interface{}{
+			utils.ToRefreshHashCacheKey(refreshHash): refreshRecord,
+			utils.ToSessionCacheKey(session.Id):      session,
+		},
+		map[string]interface{}{
+			utils.ToRefreshHashCacheKey(refreshHash):    usedRefreshRecord,
+			utils.ToRefreshHashCacheKey(newRefreshHash): newRefreshRecord,
+			utils.ToSessionCacheKey(session.Id):         newSession,
 		},
 		refreshTTL,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, err
 	}
-	session.RefreshTokenHash = newRefreshHash
-	if err := s.authRepo.SetCacheValue(utils.ToSessionCacheKey(session.Id), session, refreshTTL); err != nil {
-		return nil, err
+	if !rotated {
+		return nil, s.refreshRotationConflict(refreshRecord.SessionId, refreshHash)
 	}
 
 	return &SessionCredentials{
@@ -255,6 +267,27 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*SessionCredentials
 		RefreshToken: *newRefreshToken,
 		ExpiresIn:    int32(s.cfg.GetJwt().AccessTokenExpiration),
 	}, nil
+}
+
+func (s *authServiceImpl) refreshRotationConflict(sessionID, presentedHash string) error {
+	var currentRefreshRecord model.RefreshTokenRecord
+	if err := s.authRepo.GetCacheValue(utils.ToRefreshHashCacheKey(presentedHash), &currentRefreshRecord); err != nil {
+		return ErrInvalidRefresh
+	}
+	if currentRefreshRecord.Status == refreshTokenUsed {
+		s.revokeSession(currentRefreshRecord.SessionId)
+		return ErrRefreshReplay
+	}
+
+	var currentSession model.SessionRecord
+	if err := s.authRepo.GetCacheValue(utils.ToSessionCacheKey(sessionID), &currentSession); err != nil {
+		return ErrInvalidRefresh
+	}
+	if currentSession.RefreshTokenHash != presentedHash {
+		s.revokeSession(sessionID)
+		return ErrRefreshReplay
+	}
+	return ErrInvalidRefresh
 }
 
 func (s *authServiceImpl) Logout(sessionID string) error {
@@ -266,10 +299,10 @@ func (s *authServiceImpl) Logout(sessionID string) error {
 	if err := s.authRepo.GetCacheValue(utils.ToSessionCacheKey(sessionID), &session); err != nil {
 		return err
 	}
-	if err := s.authRepo.DeleteCacheValue(utils.ToRefreshHashCacheKey(session.RefreshTokenHash)); err != nil {
-		return err
-	}
-	return s.authRepo.DeleteCacheValue(utils.ToSessionCacheKey(sessionID))
+	return s.authRepo.DeleteCacheValues(
+		utils.ToRefreshHashCacheKey(session.RefreshTokenHash),
+		utils.ToSessionCacheKey(sessionID),
+	)
 }
 
 func (s *authServiceImpl) revokeSession(sessionID string) {
@@ -277,10 +310,11 @@ func (s *authServiceImpl) revokeSession(sessionID string) {
 		return
 	}
 	var session model.SessionRecord
+	keys := []string{utils.ToSessionCacheKey(sessionID)}
 	if err := s.authRepo.GetCacheValue(utils.ToSessionCacheKey(sessionID), &session); err == nil {
-		_ = s.authRepo.DeleteCacheValue(utils.ToRefreshHashCacheKey(session.RefreshTokenHash))
+		keys = append(keys, utils.ToRefreshHashCacheKey(session.RefreshTokenHash))
 	}
-	_ = s.authRepo.DeleteCacheValue(utils.ToSessionCacheKey(sessionID))
+	_ = s.authRepo.DeleteCacheValues(keys...)
 }
 
 func (s *authServiceImpl) oauthStateExpiration() int {

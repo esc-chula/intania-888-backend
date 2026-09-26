@@ -24,6 +24,14 @@ func (r *authRepositoryImpl) DeleteCacheValue(key string) error {
 	return r.cache.DeleteValue(key)
 }
 
+func (r *authRepositoryImpl) DeleteCacheValues(keys ...string) error {
+	return r.cache.DeleteValues(keys...)
+}
+
 func (r *authRepositoryImpl) ConsumeCacheValue(key string, value interface{}) error {
 	return r.cache.ConsumeValue(key, value)
+}
+
+func (r *authRepositoryImpl) CompareAndSwapCacheValues(expected map[string]interface{}, replacements map[string]interface{}, ttl int) (bool, error) {
+	return r.cache.CompareAndSwapValues(expected, replacements, ttl)
 }

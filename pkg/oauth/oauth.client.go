@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"go.uber.org/zap"
@@ -14,7 +15,7 @@ import (
 )
 
 type GoogleOAuthClient interface {
-	GetUserInfo(code string) (*GoogleUserInfo, error)
+	GetUserInfo(code, codeVerifier string) (*GoogleUserInfo, error)
 	OAuthConfig() *oauth2.Config
 }
 
@@ -48,33 +49,40 @@ type GoogleUserInfo struct {
 	Locale        string `json:"locale"`
 }
 
-func (c *googleOAuthClientImpl) GetUserInfo(code string) (*GoogleUserInfo, error) {
-	token, err := c.oauthConfig.Exchange(context.TODO(), code)
+func (c *googleOAuthClientImpl) GetUserInfo(code, codeVerifier string) (*GoogleUserInfo, error) {
+	if c.oauthConfig == nil || code == "" || codeVerifier == "" {
+		return nil, ErrInvalidCode
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	token, err := c.oauthConfig.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {
-		c.log.Named("GetUserEmail").Error("Exchange: ", zap.Error(err))
+		c.log.Named("GetUserEmail").Error("OAuth code exchange failed")
 		return nil, ErrInvalidCode
 	}
 
 	request, err := http.NewRequestWithContext(
-		context.Background(),
+		ctx,
 		http.MethodGet,
 		"https://www.googleapis.com/oauth2/v2/userinfo",
 		nil,
 	)
 	if err != nil {
-		c.log.Named("GetUserEmail").Error("Create request", zap.Error(err))
+		c.log.Named("GetUserEmail").Error("Create Google userinfo request failed")
 		return nil, ErrHTTP
 	}
 	request.Header.Set("Authorization", "Bearer "+token.AccessToken)
 
 	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
-		c.log.Named("GetUserEmail").Error("Get: ", zap.Error(err))
+		c.log.Named("GetUserEmail").Error("Google userinfo request failed")
 		return nil, ErrHTTP
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			c.log.Named("GetUserEmail").Warn("Close response body", zap.Error(closeErr))
+			c.log.Named("GetUserEmail").Warn("Close Google userinfo response failed", zap.Error(closeErr))
 		}
 	}()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
@@ -83,14 +91,14 @@ func (c *googleOAuthClientImpl) GetUserInfo(code string) (*GoogleUserInfo, error
 
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.log.Named("GetUserEmail").Error("ReadAll: ", zap.Error(err))
+		c.log.Named("GetUserEmail").Error("Read Google userinfo response failed")
 		return nil, ErrIO
 	}
 
 	// var parsedResponse dto.GoogleUserEmailResponse
 	var parsedResponse GoogleUserInfo
 	if err = json.Unmarshal(response, &parsedResponse); err != nil {
-		c.log.Named("GetUserEmail").Error("Unmarshal: ", zap.Error(err))
+		c.log.Named("GetUserEmail").Error("Parse Google userinfo response failed")
 		return nil, ErrInvalidFormat
 	}
 

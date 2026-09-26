@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
@@ -33,14 +35,17 @@ func (c authTestConfig) GetSwagger() config.Swagger {
 func (c authTestConfig) GetCors() config.Cors { return config.Cors{} }
 
 type memoryAuthRepository struct {
-	values map[string][]byte
-	ttls   map[string]int
+	mu      sync.Mutex
+	values  map[string][]byte
+	ttls    map[string]int
+	expires map[string]time.Time
 }
 
 func newMemoryAuthRepository() *memoryAuthRepository {
 	return &memoryAuthRepository{
-		values: make(map[string][]byte),
-		ttls:   make(map[string]int),
+		values:  make(map[string][]byte),
+		ttls:    make(map[string]int),
+		expires: make(map[string]time.Time),
 	}
 }
 
@@ -49,13 +54,28 @@ func (r *memoryAuthRepository) SetCacheValue(key string, value interface{}, ttl 
 	if err != nil {
 		return err
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.values[key] = encoded
 	r.ttls[key] = ttl
+	if ttl > 0 {
+		r.expires[key] = time.Now().Add(time.Duration(ttl) * time.Second)
+	}
 	return nil
 }
 
 func (r *memoryAuthRepository) GetCacheValue(key string, value interface{}) error {
+	r.mu.Lock()
+	if expiresAt, ok := r.expires[key]; ok && !time.Now().Before(expiresAt) {
+		delete(r.values, key)
+		delete(r.ttls, key)
+		delete(r.expires, key)
+	}
 	encoded, ok := r.values[key]
+	if ok {
+		encoded = append([]byte(nil), encoded...)
+	}
+	r.mu.Unlock()
 	if !ok {
 		return errors.New("cache miss")
 	}
@@ -63,22 +83,80 @@ func (r *memoryAuthRepository) GetCacheValue(key string, value interface{}) erro
 }
 
 func (r *memoryAuthRepository) DeleteCacheValue(key string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if _, ok := r.values[key]; !ok {
 		return errors.New("cache miss")
 	}
 	delete(r.values, key)
 	delete(r.ttls, key)
+	delete(r.expires, key)
+	return nil
+}
+
+func (r *memoryAuthRepository) DeleteCacheValues(keys ...string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, key := range keys {
+		delete(r.values, key)
+		delete(r.ttls, key)
+		delete(r.expires, key)
+	}
 	return nil
 }
 
 func (r *memoryAuthRepository) ConsumeCacheValue(key string, value interface{}) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if expiresAt, ok := r.expires[key]; ok && !time.Now().Before(expiresAt) {
+		delete(r.values, key)
+		delete(r.ttls, key)
+		delete(r.expires, key)
+	}
 	encoded, ok := r.values[key]
 	if !ok {
 		return errors.New("cache miss")
 	}
 	delete(r.values, key)
 	delete(r.ttls, key)
+	delete(r.expires, key)
 	return json.Unmarshal(encoded, value)
+}
+
+func (r *memoryAuthRepository) CompareAndSwapCacheValues(expected map[string]interface{}, replacements map[string]interface{}, ttl int) (bool, error) {
+	encodedExpected := make(map[string][]byte, len(expected))
+	for key, value := range expected {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return false, err
+		}
+		encodedExpected[key] = encoded
+	}
+	encodedReplacements := make(map[string][]byte, len(replacements))
+	for key, value := range replacements {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return false, err
+		}
+		encodedReplacements[key] = encoded
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key, expectedValue := range encodedExpected {
+		actual, ok := r.values[key]
+		if !ok || string(actual) != string(expectedValue) {
+			return false, nil
+		}
+	}
+	for key, value := range encodedReplacements {
+		r.values[key] = value
+		r.ttls[key] = ttl
+		if ttl > 0 {
+			r.expires[key] = time.Now().Add(time.Duration(ttl) * time.Second)
+		}
+	}
+	return true, nil
 }
 
 type memoryUserRepository struct {
@@ -121,12 +199,16 @@ func (r *memoryUserRepository) DeductCoin(string, model.Money) (model.Money, err
 }
 
 type fakeGoogleOAuthClient struct {
-	config *oauth2.Config
-	info   *oauthpkg.GoogleUserInfo
-	err    error
+	config   *oauth2.Config
+	info     *oauthpkg.GoogleUserInfo
+	err      error
+	verifier *string
 }
 
-func (c fakeGoogleOAuthClient) GetUserInfo(string) (*oauthpkg.GoogleUserInfo, error) {
+func (c fakeGoogleOAuthClient) GetUserInfo(_, codeVerifier string) (*oauthpkg.GoogleUserInfo, error) {
+	if c.verifier != nil {
+		*c.verifier = codeVerifier
+	}
 	return c.info, c.err
 }
 
@@ -147,7 +229,8 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*authServiceImpl, *memor
 			PostLoginRedirectUrl: "https://frontend.example.test/after-login?source=oauth",
 		},
 	}
-	client := fakeGoogleOAuthClient{
+	verifier := new(string)
+	client := &fakeGoogleOAuthClient{
 		config: &oauth2.Config{
 			ClientID:    "client-id",
 			RedirectURL: "https://api.example.test/api/v1/auth/callback",
@@ -156,7 +239,8 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*authServiceImpl, *memor
 			},
 			Scopes: []string{"openid", "email"},
 		},
-		info: info,
+		info:     info,
+		verifier: verifier,
 	}
 	service := NewAuthService(repo, users, cfg, zap.NewNop(), client).(*authServiceImpl)
 	return service, repo, users
@@ -178,6 +262,19 @@ func createOAuthState(t *testing.T, service *authServiceImpl) string {
 	if parsed.Query().Get("state") != login.State {
 		t.Fatal("OAuth URL state does not match returned state")
 	}
+	if parsed.Query().Get("code_challenge") == "" || parsed.Query().Get("code_challenge_method") != "S256" {
+		t.Fatalf("OAuth URL is missing S256 PKCE parameters: %q", parsed.Query())
+	}
+	if parsed.Query().Get("code_verifier") != "" {
+		t.Fatal("OAuth URL contains the PKCE verifier")
+	}
+	var stateRecord model.OAuthStateRecord
+	if err := service.authRepo.GetCacheValue(utils.ToOAuthStateCacheKey(login.State), &stateRecord); err != nil {
+		t.Fatalf("OAuth state lookup error: %v", err)
+	}
+	if stateRecord.CodeVerifier == "" {
+		t.Fatal("OAuth state did not store a PKCE verifier")
+	}
 	return login.State
 }
 
@@ -194,8 +291,84 @@ func TestOAuthStateIsBoundAndConsumedOnce(t *testing.T) {
 	if _, err := service.VerifyOAuthLogin("code", state, state); !errors.Is(err, ErrUnverifiedEmail) {
 		t.Fatalf("unverified email error = %v, want ErrUnverifiedEmail", err)
 	}
+	if client, ok := service.oauthClient.(*fakeGoogleOAuthClient); !ok || client.verifier == nil || *client.verifier == "" {
+		t.Fatal("OAuth code exchange did not receive the server-side PKCE verifier")
+	}
 	if _, err := service.VerifyOAuthLogin("code", state, state); !errors.Is(err, ErrInvalidOAuthState) {
 		t.Fatalf("replayed state error = %v, want ErrInvalidOAuthState", err)
+	}
+}
+
+func TestExpiredOAuthStateCannotBeConsumed(t *testing.T) {
+	service, repo, _ := newAuthTestService(&oauthpkg.GoogleUserInfo{
+		Email:         "student@student.chula.ac.th",
+		VerifiedEmail: true,
+	})
+	state := createOAuthState(t, service)
+	repo.mu.Lock()
+	repo.expires[utils.ToOAuthStateCacheKey(state)] = time.Now().Add(-time.Second)
+	repo.mu.Unlock()
+
+	if _, err := service.VerifyOAuthLogin("code", state, state); !errors.Is(err, ErrInvalidOAuthState) {
+		t.Fatalf("expired OAuth state error = %v, want ErrInvalidOAuthState", err)
+	}
+}
+
+func TestConcurrentRefreshRotationAcceptsOnlyOneRequestAndRevokesOnReplay(t *testing.T) {
+	service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
+		Id:            uuid.NewString(),
+		Email:         "student@student.chula.ac.th",
+		Name:          "Student",
+		VerifiedEmail: true,
+	})
+	users.users["student@student.chula.ac.th"] = &model.User{Id: "user-id", Email: "student@student.chula.ac.th", RoleId: "USER"}
+	state := createOAuthState(t, service)
+	credentials, err := service.VerifyOAuthLogin("code", state, state)
+	if err != nil {
+		t.Fatalf("VerifyOAuthLogin() error = %v", err)
+	}
+
+	results := make(chan struct {
+		credentials *SessionCredentials
+		err         error
+	}, 2)
+	var wait sync.WaitGroup
+	for range 2 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			rotated, refreshErr := service.RefreshToken(credentials.RefreshToken)
+			results <- struct {
+				credentials *SessionCredentials
+				err         error
+			}{rotated, refreshErr}
+		}()
+	}
+	wait.Wait()
+	close(results)
+
+	successes := 0
+	replays := 0
+	for result := range results {
+		if result.err == nil {
+			successes++
+			continue
+		}
+		if errors.Is(result.err, ErrRefreshReplay) {
+			replays++
+		}
+	}
+	if successes != 1 || replays != 1 {
+		t.Fatalf("concurrent refresh results = successes %d, replays %d; want one of each", successes, replays)
+	}
+
+	claims, err := utils.JwtParseAccessToken(credentials.AccessToken, "access-secret", "intania-test", "intania-test")
+	if err != nil {
+		t.Fatalf("JwtParseAccessToken() error = %v", err)
+	}
+	var session model.SessionRecord
+	if err := repo.GetCacheValue(utils.ToSessionCacheKey(claims.SessionId), &session); err == nil {
+		t.Fatal("session remains active after concurrent refresh replay")
 	}
 }
 

@@ -22,6 +22,12 @@ type SessionRecord struct {
 	RefreshTokenHash string `json:"refresh_token_hash"`
 }
 
+// OAuthStateRecord contains the server-side PKCE verifier for one OAuth flow.
+// The verifier must never be sent to the browser or included in an OAuth URL.
+type OAuthStateRecord struct {
+	CodeVerifier string `json:"code_verifier"`
+}
+
 type RefreshTokenRecord struct {
 	SessionId string `json:"session_id"`
 	UserId    string `json:"user_id"`
