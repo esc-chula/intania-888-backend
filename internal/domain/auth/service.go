@@ -25,15 +25,21 @@ const (
 type authServiceImpl struct {
 	authRepo    AuthRepository
 	userRepo    user.UserRepository
+	policy      security.AccessPolicyChecker
 	cfg         config.Config
 	log         *zap.Logger
 	oauthClient oauth.GoogleOAuthClient
 }
 
-func NewAuthService(authRepo AuthRepository, userRepo user.UserRepository, cfg config.Config, log *zap.Logger, oauthClient oauth.GoogleOAuthClient) AuthService {
+func NewAuthService(authRepo AuthRepository, userRepo user.UserRepository, cfg config.Config, log *zap.Logger, oauthClient oauth.GoogleOAuthClient, policies ...security.AccessPolicyChecker) AuthService {
+	policyChecker := security.AccessPolicyChecker(security.DefaultPolicyChecker{})
+	if len(policies) > 0 && policies[0] != nil {
+		policyChecker = policies[0]
+	}
 	return &authServiceImpl{
 		authRepo:    authRepo,
 		userRepo:    userRepo,
+		policy:      policyChecker,
 		cfg:         cfg,
 		log:         log,
 		oauthClient: oauthClient,
@@ -97,34 +103,47 @@ func (s *authServiceImpl) VerifyOAuthLogin(code, state, cookieState string) (*Se
 		return nil, ErrUnverifiedEmail
 	}
 
-	email := security.NormalizeEmail(userInfo.Email)
-	if !security.IsAllowedEmail(email) || security.IsBlacklisted(email, userInfo.Id) {
-		return nil, ErrEmailNotAllowed
-	}
 	if userInfo.Id == "" {
 		return nil, errors.New("google user ID is empty")
 	}
 
+	email := security.NormalizeEmail(userInfo.Email)
 	existedUser, err := s.userRepo.GetByEmail(email)
 	isNewUser := false
 	switch {
 	case err == nil:
 	case errors.Is(err, gorm.ErrRecordNotFound):
+		existedUser = nil
+	case err != nil:
+		s.log.Named("VerifyOAuthLogin").Error("Find user", zap.Error(err))
+		return nil, err
+	}
+
+	role := ""
+	if existedUser != nil {
+		role = existedUser.RoleId
+	}
+	decision, err := s.policy.EvaluateLogin(email, userInfo.Id, role)
+	if err != nil {
+		return nil, err
+	}
+	if decision.Blacklisted || !decision.Allowed {
+		return nil, ErrEmailNotAllowed
+	}
+
+	if existedUser == nil {
 		isNewUser = true
 		existedUser = &model.User{
 			Id:            userInfo.Id,
 			Email:         email,
 			Name:          userInfo.Name,
-			RoleId:        "USER",
+			RoleId:        security.RoleUser,
 			RemainingCoin: 888_88,
 		}
 		if err := s.userRepo.Create(existedUser); err != nil {
 			s.log.Named("VerifyOAuthLogin").Error("Create user", zap.Error(err))
 			return nil, err
 		}
-	default:
-		s.log.Named("VerifyOAuthLogin").Error("Find user", zap.Error(err))
-		return nil, err
 	}
 
 	return s.createSession(existedUser.Id, existedUser.RoleId, isNewUser)
@@ -212,6 +231,20 @@ func (s *authServiceImpl) RefreshToken(refreshToken string) (*SessionCredentials
 		s.revokeSession(refreshRecord.SessionId)
 		return nil, ErrRefreshReplay
 	}
+
+	currentUser, err := s.userRepo.GetById(session.UserId)
+	if err != nil {
+		return nil, ErrInvalidRefresh
+	}
+	blacklisted, err := s.policy.IsBlacklisted(currentUser.Email, currentUser.Id)
+	if err != nil {
+		return nil, err
+	}
+	if blacklisted {
+		s.revokeSession(session.Id)
+		return nil, ErrEmailNotAllowed
+	}
+	session.Role = currentUser.RoleId
 
 	newRefreshToken, err := utils.JwtSignRefreshToken(s.cfg.GetJwt().RefreshTokenExpiration)
 	if err != nil {

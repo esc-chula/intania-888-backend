@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	oauthpkg "github.com/esc-chula/intania-888-backend/pkg/oauth"
 	"github.com/esc-chula/intania-888-backend/utils"
@@ -203,6 +204,19 @@ type fakeGoogleOAuthClient struct {
 	info     *oauthpkg.GoogleUserInfo
 	err      error
 	verifier *string
+}
+
+type testPolicyChecker struct {
+	blacklisted bool
+	err         error
+}
+
+func (c testPolicyChecker) EvaluateLogin(string, string, string) (security.PolicyDecision, error) {
+	return security.PolicyDecision{Allowed: true}, c.err
+}
+
+func (c testPolicyChecker) IsBlacklisted(string, string) (bool, error) {
+	return c.blacklisted, c.err
 }
 
 func (c fakeGoogleOAuthClient) GetUserInfo(_, codeVerifier string) (*oauthpkg.GoogleUserInfo, error) {
@@ -407,6 +421,54 @@ func TestOAuthRequiresVerifiedAllowlistedEmailAndCreatesHashedSession(t *testing
 	}
 	if string(repo.values[utils.ToSessionCacheKey(claims.SessionId)]) == credentials.RefreshToken {
 		t.Fatal("raw refresh token was stored in session")
+	}
+}
+
+func TestExistingAdminIsImplicitlyAllowlisted(t *testing.T) {
+	userID := uuid.NewString()
+	service, _, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
+		Id:            userID,
+		Email:         "admin@example.com",
+		Name:          "Admin",
+		VerifiedEmail: true,
+	})
+	users.users["admin@example.com"] = &model.User{Id: userID, Email: "admin@example.com", RoleId: "ADMIN"}
+
+	state := createOAuthState(t, service)
+	credentials, err := service.VerifyOAuthLogin("code", state, state)
+	if err != nil {
+		t.Fatalf("VerifyOAuthLogin() error = %v", err)
+	}
+	if credentials.IsNewUser {
+		t.Fatal("existing admin was treated as a new user")
+	}
+}
+
+func TestRefreshRejectsAndRevokesBlacklistedUser(t *testing.T) {
+	service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
+		Id:            uuid.NewString(),
+		Email:         "student@student.chula.ac.th",
+		Name:          "Student",
+		VerifiedEmail: true,
+	})
+	users.users["student@student.chula.ac.th"] = &model.User{Id: "user-id", Email: "student@student.chula.ac.th", RoleId: "USER"}
+	state := createOAuthState(t, service)
+	credentials, err := service.VerifyOAuthLogin("code", state, state)
+	if err != nil {
+		t.Fatalf("VerifyOAuthLogin() error = %v", err)
+	}
+
+	service.policy = testPolicyChecker{blacklisted: true}
+	if _, err := service.RefreshToken(credentials.RefreshToken); !errors.Is(err, ErrEmailNotAllowed) {
+		t.Fatalf("blacklisted refresh error = %v, want ErrEmailNotAllowed", err)
+	}
+	claims, err := utils.JwtParseAccessToken(credentials.AccessToken, "access-secret", "intania-test", "intania-test")
+	if err != nil {
+		t.Fatalf("JwtParseAccessToken() error = %v", err)
+	}
+	var session model.SessionRecord
+	if err := repo.GetCacheValue(utils.ToSessionCacheKey(claims.SessionId), &session); err == nil {
+		t.Fatal("blacklisted user's session remains active")
 	}
 }
 

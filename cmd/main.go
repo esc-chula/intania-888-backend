@@ -8,6 +8,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/event"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/domain/policy"
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
@@ -46,13 +47,16 @@ func main() {
 	userRepo := user.NewUserRepository(db)
 	userSvc := user.NewUserService(userRepo, db, logger.Named("UserSvc"))
 	userHttp := user.NewUserHttpHandler(userSvc)
+	policyRepo := policy.NewRepository(db)
+	policySvc := policy.NewService(policyRepo, cache, logger.Named("PolicySvc"))
+	policyHttp := policy.NewHttpHandler(policySvc)
 
 	authRepo := auth.NewAuthRepository(*cache)
-	authSvc := auth.NewAuthService(authRepo, userRepo, cfg, logger.Named("AuthSvc"), oauth.NewGoogleOAuthClient(oauthConfig, logger))
+	authSvc := auth.NewAuthService(authRepo, userRepo, cfg, logger.Named("AuthSvc"), oauth.NewGoogleOAuthClient(oauthConfig, logger), policySvc)
 	authHttp := auth.NewAuthHttpHandler(authSvc, cfg)
 
 	midRepo := middleware.NewMiddlewareRepository(db)
-	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger.Named("MiddlewareSvc"), cfg)
+	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger.Named("MiddlewareSvc"), cfg, policySvc)
 	midHttp := middleware.NewMiddlewareHttpHandler(midSvc, logger)
 
 	billRepo := bill.NewBillRepository(db)
@@ -90,6 +94,7 @@ func main() {
 	// register routes
 	userHttp.RegisterRoutes(router, midHttp)
 	authHttp.RegisterRoutes(router, midHttp)
+	policyHttp.RegisterRoutes(router, midHttp.AuthMiddleware, midHttp.AdminMiddleware)
 	billHttp.RegisterRoutes(router, midHttp)
 	matchHttp.RegisterRoutes(router, midHttp)
 	colorHttp.RegisterRoutes(router, midHttp)

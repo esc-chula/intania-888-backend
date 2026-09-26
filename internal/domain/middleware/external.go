@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
@@ -36,7 +35,14 @@ func (h *MiddlewareHttpHandler) ExternalAPIMiddleware(c *fiber.Ctx) error {
 	}
 
 	// Check blacklist (MUST enforce for security)
-	if security.IsBlacklisted(userDto.Email, userDto.Id) {
+	blacklisted, err := h.service.IsBlacklisted(userDto.Email, userDto.Id)
+	if err != nil {
+		h.log.Named("ExternalAPIMiddleware").Error("Evaluate access policy", zap.Error(err))
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "access policy is unavailable",
+		})
+	}
+	if blacklisted {
 		h.log.Named("ExternalAPIMiddleware").Warn("Blacklisted user attempted external API access",
 			zap.String("endpoint", c.Path()))
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{

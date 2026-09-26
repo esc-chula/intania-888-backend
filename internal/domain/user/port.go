@@ -15,6 +15,6 @@ type UserService interface {
 	GetUser(id string) (*model.UserDto, error)
 	GetAllUsers() ([]*model.UserDto, error)
 	UpdateUser(userDto *model.UserDto) error
-	AdminUpdateUser(userId string, userDto *model.UserDto) error
+	AdminUpdateUser(userId string, userDto *model.AdminUpdateUserDto) error
 	DeductCoin(userId string, amount model.Money) (model.Money, error)
 }

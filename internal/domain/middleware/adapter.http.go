@@ -45,7 +45,14 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 		})
 	}
 
-	if security.IsBlacklisted(userDto.Email, userDto.Id) {
+	blacklisted, err := h.service.IsBlacklisted(userDto.Email, userDto.Id)
+	if err != nil {
+		h.log.Named("AuthMiddleware").Error("Evaluate access policy", zap.Error(err))
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "access policy is unavailable",
+		})
+	}
+	if blacklisted {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "unauthorized",
 		})
@@ -65,7 +72,7 @@ func (h *MiddlewareHttpHandler) AdminMiddleware(c *fiber.Ctx) error {
 		})
 	}
 
-	if !security.IsAdmin(user.Email, user.RoleId) {
+	if !security.IsAdminRole(user.RoleId) {
 		h.log.Named("AdminMiddleware").Warn("Non-admin attempted admin action",
 			zap.String("role", user.RoleId),
 			zap.String("endpoint", c.Path()))

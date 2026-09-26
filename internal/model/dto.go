@@ -171,6 +171,15 @@ type UpdateUserDto struct {
 	GroupId  *string `json:"group_id"`
 }
 
+// AdminUpdateUserDto intentionally excludes RoleId. Admin promotion and
+// demotion are controlled by the operator database workflow.
+type AdminUpdateUserDto struct {
+	Name          string  `json:"name"`
+	NickName      *string `json:"nick_name"`
+	GroupId       *string `json:"group_id"`
+	RemainingCoin Money   `json:"remaining_coin" swaggertype:"string" example:"888.88"`
+}
+
 // Steal token DTOs
 type StealTokenDto struct {
 	Token       string    `json:"token"`

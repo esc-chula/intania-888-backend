@@ -1,12 +1,19 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
+	"fmt"
 	"log"
+	"os"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/policy"
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/pkg/database"
 	"github.com/esc-chula/intania-888-backend/utils/constant"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -14,6 +21,20 @@ import (
 // seed installs mutable catalogue data without deleting or replacing existing rows.
 // Historical match schedules are intentionally excluded.
 func main() {
+	policyFile := flag.String("policy-file", "", "import allowlist/blacklist entries from an external JSON file")
+	policyDryRun := flag.Bool("policy-dry-run", false, "validate a policy import without writing it")
+	flag.Parse()
+
+	if *policyFile != "" || *policyDryRun {
+		if *policyFile == "" {
+			log.Fatal("--policy-dry-run requires --policy-file")
+		}
+		if err := importPolicies(*policyFile, *policyDryRun); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	db := database.NewGormDatabase(config.GetConfig())
 	err := db.Transaction(func(tx *gorm.DB) error {
 		colors := []model.Color{
@@ -70,4 +91,47 @@ func main() {
 	}
 
 	log.Print("catalogue seed complete; no match schedule was imported")
+}
+
+func importPolicies(filename string, dryRun bool) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("open policy import: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			log.Printf("close policy import: %v", closeErr)
+		}
+	}()
+
+	var input policy.BootstrapFile
+	decoder := json.NewDecoder(file)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		return fmt.Errorf("decode policy import: %w", err)
+	}
+	if len(input.Entries) == 0 {
+		return fmt.Errorf("policy import contains no entries")
+	}
+	if dryRun {
+		for index, entry := range input.Entries {
+			if _, err := policy.ValidateCreateInput(entry); err != nil {
+				return fmt.Errorf("policy import entry %d: %w", index+1, err)
+			}
+		}
+		log.Printf("validated %d policy entries", len(input.Entries))
+		return nil
+	}
+
+	cfg := config.GetConfig()
+	db := database.NewGormDatabase(cfg)
+	policyCache := cache.NewRedisClient(cfg)
+	service := policy.NewService(policy.NewRepository(db), policyCache, zap.NewNop())
+	for index, entry := range input.Entries {
+		if _, err := service.Create(entry); err != nil {
+			return fmt.Errorf("policy import entry %d: %w", index+1, err)
+		}
+	}
+	log.Printf("imported %d policy entries", len(input.Entries))
+	return nil
 }

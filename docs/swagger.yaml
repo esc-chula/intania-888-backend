@@ -10,6 +10,18 @@ definitions:
       message:
         type: string
     type: object
+  model.AdminUpdateUserDto:
+    properties:
+      group_id:
+        type: string
+      name:
+        type: string
+      nick_name:
+        type: string
+      remaining_coin:
+        example: "888.88"
+        type: string
+    type: object
   model.BillHeadDto:
     properties:
       id:
@@ -249,6 +261,21 @@ definitions:
       title:
         type: string
     type: object
+  model.UpdateUserDto:
+    properties:
+      email:
+        type: string
+      group_id:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      nick_name:
+        type: string
+      role_id:
+        type: string
+    type: object
   model.UseStealTokenRequestDto:
     properties:
       token:
@@ -310,6 +337,58 @@ definitions:
     type: object
   model.VoidBillRequest:
     properties:
+      reason:
+        type: string
+    type: object
+  policy.AccessPolicy:
+    properties:
+      created_at:
+        type: string
+      enabled:
+        type: boolean
+      expires_at:
+        type: string
+      id:
+        type: string
+      kind:
+        type: string
+      principal:
+        type: string
+      principal_type:
+        type: string
+      reason:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  policy.CreatePolicyRequest:
+    properties:
+      expires_at:
+        type: string
+      kind:
+        type: string
+      principal:
+        type: string
+      principal_type:
+        type: string
+      reason:
+        type: string
+    type: object
+  policy.PolicyListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/policy.AccessPolicy'
+        type: array
+      next_cursor:
+        type: string
+    type: object
+  policy.UpdatePolicyRequest:
+    properties:
+      enabled:
+        type: boolean
+      expires_at:
+        type: string
       reason:
         type: string
     type: object
@@ -434,6 +513,181 @@ paths:
       summary: GetMe
       tags:
       - Auth
+  /auth/policies:
+    get:
+      description: Lists allowlist and blacklist entries for an administrator.
+      parameters:
+      - description: allowlist or blacklist
+        in: query
+        name: kind
+        type: string
+      - description: email or google_subject
+        in: query
+        name: principal_type
+        type: string
+      - description: active, inactive, or all
+        in: query
+        name: status
+        type: string
+      - description: page size, maximum 200
+        in: query
+        name: limit
+        type: integer
+      - description: opaque pagination cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/policy.PolicyListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List access policies
+      tags:
+      - Auth Policy
+    post:
+      consumes:
+      - application/json
+      description: Creates an allowlist or blacklist entry.
+      parameters:
+      - description: access policy
+        in: body
+        name: policy
+        required: true
+        schema:
+          $ref: '#/definitions/policy.CreatePolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/policy.AccessPolicy'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create access policy
+      tags:
+      - Auth Policy
+  /auth/policies/{id}:
+    delete:
+      description: Disables an allowlist or blacklist entry.
+      parameters:
+      - description: policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: policy disabled
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Disable access policy
+      tags:
+      - Auth Policy
+    patch:
+      consumes:
+      - application/json
+      description: Updates reason, expiry, or enabled state. Identity and kind are
+        immutable.
+      parameters:
+      - description: policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: policy changes
+        in: body
+        name: policy
+        required: true
+        schema:
+          $ref: '#/definitions/policy.UpdatePolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/policy.AccessPolicy'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update access policy
+      tags:
+      - Auth Policy
   /auth/refresh:
     post:
       description: Rotates the refresh token from the HttpOnly cookie and replaces
@@ -1353,7 +1607,7 @@ paths:
         name: user
         required: true
         schema:
-          $ref: '#/definitions/model.UserDto'
+          $ref: '#/definitions/model.UpdateUserDto'
       produces:
       - application/json
       responses:
@@ -1382,7 +1636,8 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Allows admin to update any user including role and coins
+      description: Allows admin to update user profile and coins. Role changes use
+        the operator database workflow.
       parameters:
       - description: User ID
         in: path
@@ -1394,7 +1649,7 @@ paths:
         name: user
         required: true
         schema:
-          $ref: '#/definitions/model.UserDto'
+          $ref: '#/definitions/model.AdminUpdateUserDto'
       produces:
       - application/json
       responses:

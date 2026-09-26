@@ -8,6 +8,8 @@ import (
 
 const authCacheNamespace = "auth:v2"
 
+const policyCacheKey = "authz:v1:policy-snapshot"
+
 func ToOAuthStateCacheKey(state string) string {
 	return fmt.Sprintf("%s:oauth-state:%s", authCacheNamespace, HashOpaqueToken(state))
 }
@@ -22,6 +24,10 @@ func ToRefreshCacheKey(refreshToken string) string {
 
 func ToRefreshHashCacheKey(refreshTokenHash string) string {
 	return fmt.Sprintf("%s:refresh:%s", authCacheNamespace, refreshTokenHash)
+}
+
+func ToPolicySnapshotCacheKey() string {
+	return policyCacheKey
 }
 
 func HashOpaqueToken(token string) string {

@@ -101,17 +101,17 @@ func (s *userServiceImpl) UpdateUser(userDto *model.UserDto) error {
 	return nil
 }
 
-func (s *userServiceImpl) AdminUpdateUser(userId string, userDto *model.UserDto) error {
+func (s *userServiceImpl) AdminUpdateUser(userId string, userDto *model.AdminUpdateUserDto) error {
 	existed, err := s.repo.GetById(userId)
 	if err != nil {
 		s.log.Named("AdminUpdateUser").Error("Failed to get existed user", zap.Error(err))
 		return err
 	}
 
-	// Admin can update all fields including role and coins
+	// Role changes are intentionally excluded from this application API. They
+	// are performed by the operator database workflow.
 	existed.Name = userDto.Name
 	existed.NickName = userDto.NickName
-	existed.RoleId = userDto.RoleId
 	existed.RemainingCoin = userDto.RemainingCoin.MinorUnits()
 
 	if userDto.GroupId != nil {

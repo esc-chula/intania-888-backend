@@ -1,59 +1,59 @@
 package security
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
-var allowedIndividualEmails = map[string]struct{}{
-	"phanthawasjira@gmail.com": {},
-	"bububiib@gmail.com":       {},
-	"pear.nataya49@gmail.com":  {},
+const (
+	RoleUser  = "USER"
+	RoleAdmin = "ADMIN"
+)
+
+var ErrPolicyUnavailable = errors.New("access policy is unavailable")
+
+// PolicyDecision is the result of evaluating an identity against the
+// database-backed access policy.
+type PolicyDecision struct {
+	Allowed     bool
+	Blacklisted bool
 }
 
-var blacklistedEmails = map[string]struct{}{
-	"6530162621@student.chula.ac.th": {},
-	"6633129621@student.chula.ac.th": {},
-	"6733023821@student.chula.ac.th": {},
-	"6630054621@student.chula.ac.th": {},
-	"6538004621@student.chula.ac.th": {},
-	"6733291621@student.chula.ac.th": {},
-	"6430039021@student.chula.ac.th": {},
+// AccessPolicyChecker is the policy boundary required by authentication and
+// request middleware. The persistence implementation lives in the policy
+// domain package so these consumers do not depend on its adapters.
+type AccessPolicyChecker interface {
+	EvaluateLogin(email, googleSubject, role string) (PolicyDecision, error)
+	IsBlacklisted(email, userID string) (bool, error)
 }
 
-var blacklistedIDs = map[string]struct{}{
-	"115982048644097094953": {},
-	"101935624102444830754": {},
+// DefaultPolicyChecker keeps isolated unit tests useful when they do not need
+// a persistence-backed policy. Production wiring always supplies the policy
+// service.
+type DefaultPolicyChecker struct{}
+
+func (DefaultPolicyChecker) EvaluateLogin(email, _ string, role string) (PolicyDecision, error) {
+	return PolicyDecision{
+		Allowed: IsStudentEmail(email) || IsAdminRole(role),
+	}, nil
 }
 
-var adminEmails = map[string]struct{}{
-	"6633165121@student.chula.ac.th": {},
-	"6738086221@student.chula.ac.th": {},
-	"6633149121@student.chula.ac.th": {},
+func (DefaultPolicyChecker) IsBlacklisted(string, string) (bool, error) {
+	return false, nil
 }
 
 func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-func IsAllowedEmail(email string) bool {
-	email = NormalizeEmail(email)
-	if strings.HasSuffix(email, "@student.chula.ac.th") {
-		return true
-	}
-	_, ok := allowedIndividualEmails[email]
-	return ok
+func NormalizeGoogleSubject(subject string) string {
+	return strings.TrimSpace(subject)
 }
 
-func IsBlacklisted(email, userID string) bool {
-	if _, ok := blacklistedEmails[NormalizeEmail(email)]; ok {
-		return true
-	}
-	_, ok := blacklistedIDs[strings.TrimSpace(userID)]
-	return ok
+func IsStudentEmail(email string) bool {
+	return strings.HasSuffix(NormalizeEmail(email), "@student.chula.ac.th")
 }
 
-func IsAdmin(email, role string) bool {
-	if role == "ADMIN" {
-		return true
-	}
-	_, ok := adminEmails[NormalizeEmail(email)]
-	return ok
+func IsAdminRole(role string) bool {
+	return strings.TrimSpace(role) == RoleAdmin
 }

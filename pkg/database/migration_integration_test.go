@@ -107,6 +107,18 @@ func assertMigrationConstraints(t *testing.T, p *testutil.Postgres) {
 		t.Fatalf("role count = %d; want 2", roleCount)
 	}
 
+	var policyTables int
+	if err := p.SQL.QueryRow(`
+SELECT count(*)
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name = 'auth_access_policies'`).Scan(&policyTables); err != nil {
+		t.Fatal(err)
+	}
+	if policyTables != 1 {
+		t.Fatalf("policy table count = %d; want 1", policyTables)
+	}
+
 	var catalogueCount int
 	if err := p.SQL.QueryRow(`
 SELECT (SELECT count(*) FROM colors) + (SELECT count(*) FROM matches) + (SELECT count(*) FROM sport_types)`).Scan(&catalogueCount); err != nil {
@@ -168,6 +180,13 @@ SELECT (SELECT count(*) FROM colors) + (SELECT count(*) FROM matches) + (SELECT 
 		if _, err := p.SQL.Exec(statement.sql); err == nil {
 			t.Fatalf("%s constraint did not reject row", statement.name)
 		}
+	}
+
+	if _, err := p.SQL.Exec(`INSERT INTO auth_access_policies(id,kind,principal_type,principal,reason) VALUES('P','allowlist','email','partner@example.test','approved')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.SQL.Exec(`INSERT INTO auth_access_policies(id,kind,principal_type,principal,reason) VALUES('invalid-principal','allowlist','google_subject','subject','invalid')`); err == nil {
+		t.Fatal("allowlist google subject constraint did not reject row")
 	}
 
 	if _, err := p.SQL.Exec(`INSERT INTO bill_heads(id,total,user_id) VALUES('B','100','U')`); err != nil {

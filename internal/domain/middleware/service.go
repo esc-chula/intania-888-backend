@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/utils"
@@ -11,18 +12,24 @@ import (
 )
 
 type middlewareServiceImpl struct {
-	repo  MiddlewareRepository
-	cache *cache.RedisClient
-	log   *zap.Logger
-	cfg   config.Config
+	repo   MiddlewareRepository
+	cache  *cache.RedisClient
+	policy security.AccessPolicyChecker
+	log    *zap.Logger
+	cfg    config.Config
 }
 
-func NewMiddlewareService(repo MiddlewareRepository, cache *cache.RedisClient, log *zap.Logger, cfg config.Config) MiddlewareService {
+func NewMiddlewareService(repo MiddlewareRepository, cache *cache.RedisClient, log *zap.Logger, cfg config.Config, policies ...security.AccessPolicyChecker) MiddlewareService {
+	policyChecker := security.AccessPolicyChecker(security.DefaultPolicyChecker{})
+	if len(policies) > 0 && policies[0] != nil {
+		policyChecker = policies[0]
+	}
 	return &middlewareServiceImpl{
-		repo:  repo,
-		cache: cache,
-		log:   log,
-		cfg:   cfg,
+		repo:   repo,
+		cache:  cache,
+		policy: policyChecker,
+		log:    log,
+		cfg:    cfg,
 	}
 }
 
@@ -66,4 +73,8 @@ func (s *middlewareServiceImpl) GetMe(userId string) (*model.UserDto, error) {
 		GroupId:       user.GroupId,
 		NickName:      user.NickName,
 	}, nil
+}
+
+func (s *middlewareServiceImpl) IsBlacklisted(email, userID string) (bool, error) {
+	return s.policy.IsBlacklisted(email, userID)
 }

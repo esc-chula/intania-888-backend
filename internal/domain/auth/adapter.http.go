@@ -8,6 +8,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
@@ -112,6 +113,10 @@ func (h *AuthHttpHandler) OAuthCallback(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "email is not allowed",
 			})
+		case errors.Is(err, security.ErrPolicyUnavailable):
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "access policy is unavailable",
+			})
 		default:
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "unable to complete OAuth login",
@@ -158,6 +163,11 @@ func (h *AuthHttpHandler) RefreshToken(c *fiber.Ctx) error {
 	credentials, err := h.service.RefreshToken(refreshToken)
 	if err != nil {
 		h.clearAuthenticationCookies(c)
+		if errors.Is(err, security.ErrPolicyUnavailable) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "access policy is unavailable",
+			})
+		}
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "invalid or replayed refresh token",
 		})

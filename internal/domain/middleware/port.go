@@ -8,6 +8,7 @@ import (
 type MiddlewareService interface {
 	VerifyToken(token string) (*utils.AccessTokenClaims, error)
 	GetMe(userId string) (*model.UserDto, error)
+	IsBlacklisted(email, userID string) (bool, error)
 }
 
 type MiddlewareRepository interface {
