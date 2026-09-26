@@ -106,6 +106,9 @@ func TestOAuthCallbackSetsCookiesAndOnlyFixedRedirectMetadata(t *testing.T) {
 	if response.StatusCode != http.StatusFound {
 		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusFound)
 	}
+	if response.Header.Get("Cache-Control") != "no-store" || response.Header.Get("Referrer-Policy") != "no-referrer" {
+		t.Fatalf("callback response is cacheable or referrable: cache-control=%q referrer-policy=%q", response.Header.Get("Cache-Control"), response.Header.Get("Referrer-Policy"))
+	}
 	location := response.Header.Get("Location")
 	if !strings.Contains(location, "is_new_user=true") || strings.Contains(location, "access-secret-value") || strings.Contains(location, "refresh-secret-value") {
 		t.Fatalf("unsafe callback redirect = %q", location)
@@ -119,6 +122,54 @@ func TestOAuthCallbackSetsCookiesAndOnlyFixedRedirectMetadata(t *testing.T) {
 	}
 	if !strings.Contains(setCookies, "access_token=access-secret-value; max-age=300; path=/; HttpOnly") {
 		t.Fatalf("access cookie is not HttpOnly: %q", setCookies)
+	}
+}
+
+func TestProductionSessionCookiesAreSecureAndHostOnly(t *testing.T) {
+	service := &fakeAuthService{
+		credentials: &SessionCredentials{
+			AccessToken:  "access-value",
+			RefreshToken: "refresh-value",
+			ExpiresIn:    300,
+		},
+		redirect: "https://frontend.example.test/app",
+	}
+	config := authTestConfig{
+		server: config.Server{Env: "production"},
+		jwt: config.Jwt{
+			RefreshTokenExpiration: 3600,
+		},
+		oauth: config.OAuth{
+			StateExpiration:      600,
+			CookieSameSite:       "lax",
+			CookieSecure:         true,
+			PostLoginRedirectUrl: "https://frontend.example.test/app",
+		},
+	}
+	handler := NewAuthHttpHandler(service, config)
+	app := fiber.New()
+	app.Get("/callback", handler.OAuthCallback)
+
+	request := httptest.NewRequest(http.MethodGet, "/callback?code=google-code&state=state-value", nil)
+	request.Header.Set("Cookie", "oauth_state=state-value")
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	for _, cookie := range response.Cookies() {
+		switch cookie.Name {
+		case utils.AccessTokenCookieName, utils.RefreshTokenCookieName, utils.CSRFTokenCookieName:
+			if !cookie.Secure {
+				t.Fatalf("cookie %q is not Secure", cookie.Name)
+			}
+			if cookie.Domain != "" {
+				t.Fatalf("cookie %q has a Domain: %q", cookie.Name, cookie.Domain)
+			}
+		case utils.OAuthStateCookieName:
+			if !cookie.Secure {
+				t.Fatalf("OAuth state cookie is not Secure")
+			}
+		}
 	}
 }
 

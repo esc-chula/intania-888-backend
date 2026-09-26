@@ -34,6 +34,9 @@ import (
 func main() {
 	// config setup
 	cfg := config.GetConfig()
+	if err := config.ValidateSecurity(cfg); err != nil {
+		panic("invalid security configuration: " + err.Error())
+	}
 	db := database.NewGormDatabase(cfg)
 	cache := cache.NewRedisClient(cfg)
 	logger := logger.NewLogger(cfg)

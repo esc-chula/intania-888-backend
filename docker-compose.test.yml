@@ -14,3 +14,15 @@ services:
       interval: 2s
       timeout: 5s
       retries: 15
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${TEST_REDIS_PORT:-56379}:6379"
+    tmpfs:
+      - /data
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 15

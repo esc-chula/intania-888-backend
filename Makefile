@@ -11,6 +11,7 @@ APP_ENV ?= dev
 TEST_COMPOSE_FILE ?= docker-compose.test.yml
 TEST_COMPOSE_PROJECT ?= intania888-test
 TEST_POSTGRES_PORT ?= 55432
+TEST_REDIS_PORT ?= 56379
 TEST_DATABASE_URL ?= postgres://root:1234@localhost:$(TEST_POSTGRES_PORT)/intania888_test?sslmode=disable
 
 SWAG_VERSION ?= v1.16.3
@@ -106,11 +107,11 @@ test-race:
 test-integration: check-docker
 	@set -e; \
 		cleanup() { \
-			TEST_POSTGRES_PORT="$(TEST_POSTGRES_PORT)" $(DOCKER_COMPOSE) -f "$(TEST_COMPOSE_FILE)" -p "$(TEST_COMPOSE_PROJECT)" down --volumes --remove-orphans; \
+			TEST_POSTGRES_PORT="$(TEST_POSTGRES_PORT)" TEST_REDIS_PORT="$(TEST_REDIS_PORT)" $(DOCKER_COMPOSE) -f "$(TEST_COMPOSE_FILE)" -p "$(TEST_COMPOSE_PROJECT)" down --volumes --remove-orphans; \
 		}; \
 		trap cleanup EXIT; \
-		TEST_POSTGRES_PORT="$(TEST_POSTGRES_PORT)" $(DOCKER_COMPOSE) -f "$(TEST_COMPOSE_FILE)" -p "$(TEST_COMPOSE_PROJECT)" up --detach --wait postgres; \
-		INTANIA888_TEST_DATABASE_URL="$(TEST_DATABASE_URL)" $(GO) test -tags=integration -p 1 -count=1 ./...
+		TEST_POSTGRES_PORT="$(TEST_POSTGRES_PORT)" TEST_REDIS_PORT="$(TEST_REDIS_PORT)" $(DOCKER_COMPOSE) -f "$(TEST_COMPOSE_FILE)" -p "$(TEST_COMPOSE_PROJECT)" up --detach --wait postgres redis; \
+		INTANIA888_TEST_DATABASE_URL="$(TEST_DATABASE_URL)" INTANIA888_TEST_REDIS_ADDR="localhost:$(TEST_REDIS_PORT)" $(GO) test -tags=integration -p 1 -count=1 ./...
 
 build:
 	$(GO) build ./...

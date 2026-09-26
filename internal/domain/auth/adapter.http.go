@@ -51,6 +51,7 @@ func (h *AuthHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middl
 // @Failure 500 {object} map[string]string "internal server error"
 // @Router /auth/login [get]
 func (h *AuthHttpHandler) Login(c *fiber.Ctx) error {
+	setNoStoreHeaders(c)
 	if _, supplied := c.Queries()["redirect_to"]; supplied {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "redirect_to is not supported",
@@ -58,7 +59,7 @@ func (h *AuthHttpHandler) Login(c *fiber.Ctx) error {
 	}
 
 	login, err := h.service.StartOAuthLogin()
-	if err != nil {
+	if err != nil || login == nil || login.URL == "" || login.State == "" {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "unable to start OAuth login",
 		})
@@ -90,6 +91,7 @@ func (h *AuthHttpHandler) Login(c *fiber.Ctx) error {
 // @Failure 500 {object} map[string]string "internal server error"
 // @Router /auth/callback [get]
 func (h *AuthHttpHandler) OAuthCallback(c *fiber.Ctx) error {
+	setNoStoreHeaders(c)
 	code := c.Query("code")
 	state := c.Query("state")
 	cookieState := c.Cookies(utils.OAuthStateCookieName)
@@ -117,19 +119,23 @@ func (h *AuthHttpHandler) OAuthCallback(c *fiber.Ctx) error {
 		}
 	}
 
-	if err := h.setSessionCookies(c, credentials); err != nil {
+	if credentials == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "unable to establish session",
+			"error": "unable to complete OAuth login",
 		})
 	}
-	h.clearCookie(c, utils.OAuthStateCookieName, true)
-
 	redirectURL, err := h.postLoginRedirect(credentials.IsNewUser)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "post-login redirect is not configured",
 		})
 	}
+	if err := h.setSessionCookies(c, credentials); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "unable to establish session",
+		})
+	}
+	h.clearCookie(c, utils.OAuthStateCookieName, true)
 	return c.Redirect(redirectURL)
 }
 
@@ -140,6 +146,7 @@ func (h *AuthHttpHandler) OAuthCallback(c *fiber.Ctx) error {
 // @Failure 401 {object} map[string]string "invalid or replayed refresh token"
 // @Router /auth/refresh [post]
 func (h *AuthHttpHandler) RefreshToken(c *fiber.Ctx) error {
+	setNoStoreHeaders(c)
 	refreshToken := c.Cookies(utils.RefreshTokenCookieName)
 	if refreshToken == "" {
 		h.clearAuthenticationCookies(c)
@@ -170,6 +177,7 @@ func (h *AuthHttpHandler) RefreshToken(c *fiber.Ctx) error {
 // @Failure 500 {object} map[string]string "internal server error"
 // @Router /auth/logout [post]
 func (h *AuthHttpHandler) Logout(c *fiber.Ctx) error {
+	setNoStoreHeaders(c)
 	sessionID, _ := c.Locals("session_id").(string)
 	err := h.service.Logout(sessionID)
 	h.clearAuthenticationCookies(c)
@@ -189,6 +197,7 @@ func (h *AuthHttpHandler) Logout(c *fiber.Ctx) error {
 // @Failure 401 {object} map[string]string "unauthorized"
 // @Router /auth/me [get]
 func (h *AuthHttpHandler) GetMe(c *fiber.Ctx) error {
+	setNoStoreHeaders(c)
 	userDto, ok := c.Locals("user").(*model.UserDto)
 	if !ok {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "user profile not found"})
@@ -296,8 +305,6 @@ func (h *AuthHttpHandler) cookiePolicy() (bool, string) {
 		secure = secure || serverEnv == "prod" || serverEnv == "production"
 		if strings.EqualFold(oauthConfig.CookieSameSite, fiber.CookieSameSiteNoneMode) {
 			sameSite = fiber.CookieSameSiteNoneMode
-		} else if strings.EqualFold(oauthConfig.CookieSameSite, fiber.CookieSameSiteStrictMode) {
-			sameSite = fiber.CookieSameSiteStrictMode
 		}
 	}
 	if sameSite == fiber.CookieSameSiteNoneMode && !secure {
@@ -318,4 +325,10 @@ func (h *AuthHttpHandler) refreshTokenMaxAge() int {
 		return h.cfg.GetJwt().RefreshTokenExpiration
 	}
 	return 24 * 60 * 60
+}
+
+func setNoStoreHeaders(c *fiber.Ctx) {
+	c.Set(fiber.HeaderCacheControl, "no-store")
+	c.Set(fiber.HeaderPragma, "no-cache")
+	c.Set("Referrer-Policy", "no-referrer")
 }

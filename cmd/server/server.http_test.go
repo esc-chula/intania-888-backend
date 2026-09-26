@@ -264,6 +264,42 @@ func TestCSRFGuardRequiresDoubleSubmitTokenForStateChanges(t *testing.T) {
 	}
 }
 
+func TestRefreshRequiresExactOriginAndDoubleSubmitCSRF(t *testing.T) {
+	httpServer, router := newOriginGuardTestServer(t)
+	router.Post("/auth/refresh", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	response, err := httpServer.app.Test(request)
+	if err != nil {
+		t.Fatalf("missing-origin refresh error = %v", err)
+	}
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("missing-origin refresh status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	request.Header.Set("Origin", "https://frontend.example.test:8443")
+	response, err = httpServer.app.Test(request)
+	if err != nil {
+		t.Fatalf("missing-CSRF refresh error = %v", err)
+	}
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("missing-CSRF refresh status = %d, want %d", response.StatusCode, http.StatusForbidden)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	request.Header.Set("Origin", "https://frontend.example.test:8443")
+	request.Header.Set("Cookie", "csrf_token=csrf-value")
+	request.Header.Set("X-CSRF-Token", "csrf-value")
+	response, err = httpServer.app.Test(request)
+	if err != nil {
+		t.Fatalf("valid refresh guard error = %v", err)
+	}
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("valid refresh guard status = %d, want %d", response.StatusCode, http.StatusNoContent)
+	}
+}
+
 func TestExternalAndOAuthCallbackPathsAreOriginAndCSRFExempt(t *testing.T) {
 	httpServer, router := newOriginGuardTestServer(t)
 	router.Post("/external/test", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
