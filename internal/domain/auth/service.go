@@ -19,9 +19,7 @@ import (
 )
 
 const (
-	sessionIdleSeconds     = 7 * 24 * 3600
-	sessionAbsoluteSeconds = 30 * 24 * 3600
-	externalTokenSeconds   = 3600
+	externalTokenSeconds = 3600
 )
 
 type authServiceImpl struct {
@@ -165,10 +163,11 @@ func (s *authServiceImpl) VerifyOAuthLogin(
 		return nil, err
 	}
 	now := time.Now().Unix()
+	sessionConfig := s.cfg.GetSession()
 	session := model.SessionRecord{
 		UserId:    existing.Id,
 		CreatedAt: now,
-		ExpiresAt: now + sessionAbsoluteSeconds,
+		ExpiresAt: now + int64(sessionConfig.AbsoluteTTLSeconds),
 		CSRFToken: csrf,
 	}
 	if err := s.authRepo.RotateSession(
@@ -176,7 +175,8 @@ func (s *authServiceImpl) VerifyOAuthLogin(
 		utils.ToSessionCacheKey(id),
 		utils.ToSessionCacheKey(previousSessionID),
 		session,
-		sessionIdleSeconds,
+		sessionConfig.IdleTTLSeconds,
+		sessionConfig.AbsoluteTTLSeconds,
 	); err != nil {
 		return nil, err
 	}

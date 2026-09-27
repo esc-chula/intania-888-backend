@@ -30,6 +30,12 @@ func (c authTestConfig) GetDb() config.Db         { return config.Db{} }
 func (c authTestConfig) GetCache() config.Cache   { return config.Cache{} }
 func (c authTestConfig) GetJwt() config.Jwt       { return c.jwt }
 func (c authTestConfig) GetOAuth() config.OAuth   { return c.oauth }
+func (c authTestConfig) GetSession() config.Session {
+	return config.Session{
+		IdleTTLSeconds:     config.DefaultSessionIdleTTLSeconds,
+		AbsoluteTTLSeconds: config.DefaultSessionAbsoluteTTLSeconds,
+	}
+}
 func (c authTestConfig) GetSwagger() config.Swagger {
 	return config.Swagger{}
 }
@@ -326,14 +332,18 @@ func TestExpiredOAuthStateCannotBeConsumed(t *testing.T) {
 	}
 }
 
-func (r *memoryAuthRepository) RotateSession(userKey, sessionKey, previousKey string, value interface{}, ttl int) error {
+func (r *memoryAuthRepository) RotateSession(
+	userKey, sessionKey, previousKey string,
+	value interface{},
+	idleTTLSeconds, absoluteTTLSeconds int,
+) error {
 	r.mu.Lock()
 	old := string(r.values[userKey])
 	r.mu.Unlock()
-	if err := r.SetCacheValue(sessionKey, value, ttl); err != nil {
+	if err := r.SetCacheValue(sessionKey, value, idleTTLSeconds); err != nil {
 		return err
 	}
-	if err := r.SetCacheValue(userKey, sessionKey, 30*24*3600); err != nil {
+	if err := r.SetCacheValue(userKey, sessionKey, absoluteTTLSeconds); err != nil {
 		return err
 	}
 	if previousKey != utils.ToSessionCacheKey("") {

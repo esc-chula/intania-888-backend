@@ -16,8 +16,12 @@ func (r *authRepositoryImpl) ConsumeCacheValue(k string, v interface{}) error {
 	return r.cache.ConsumeValue(k, v)
 }
 
-func (r *authRepositoryImpl) RotateSession(u, k, previous string, v interface{}, ttl int) error {
-	return r.cache.RotateSession(u, k, previous, v, ttl)
+func (r *authRepositoryImpl) RotateSession(
+	u, k, previous string,
+	v interface{},
+	idleTTLSeconds, absoluteTTLSeconds int,
+) error {
+	return r.cache.RotateSession(u, k, previous, v, idleTTLSeconds, absoluteTTLSeconds)
 }
 
 func (r *authRepositoryImpl) DeleteSession(k string) error {

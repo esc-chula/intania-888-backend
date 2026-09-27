@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -28,7 +29,7 @@ func (s fakeMiddlewareService) IsBlacklisted(string, string) (bool, error) {
 }
 func TestBrowserSessionAndCSRF(t *testing.T) {
 	service := fakeMiddlewareService{session: &model.SessionRecord{UserId: "user-id", CSRFToken: "secret"}, user: &model.UserDto{Id: "user-id", Email: "u@example.test"}}
-	mid := NewMiddlewareHttpHandler(service, zap.NewNop())
+	mid := NewMiddlewareHttpHandler(service, zap.NewNop(), false, config.DefaultSessionIdleTTLSeconds)
 	app := fiber.New()
 	app.Post("/update", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
 	req := httptest.NewRequest(http.MethodPost, "/update", nil)
@@ -49,7 +50,7 @@ func TestBrowserSessionAndCSRF(t *testing.T) {
 		t.Fatal(response.StatusCode)
 	}
 	service.sessionErr = errors.New("redis down")
-	mid = NewMiddlewareHttpHandler(service, zap.NewNop())
+	mid = NewMiddlewareHttpHandler(service, zap.NewNop(), false, config.DefaultSessionIdleTTLSeconds)
 	app = fiber.New()
 	app.Get("/read", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
 	req = httptest.NewRequest(http.MethodGet, "/read", nil)
@@ -61,7 +62,7 @@ func TestBrowserSessionAndCSRF(t *testing.T) {
 }
 func TestExternalIgnoresBrowserCookie(t *testing.T) {
 	service := fakeMiddlewareService{user: &model.UserDto{Id: "user-id", Email: "u@example.test"}}
-	mid := NewMiddlewareHttpHandler(service, zap.NewNop())
+	mid := NewMiddlewareHttpHandler(service, zap.NewNop(), false, config.DefaultSessionIdleTTLSeconds)
 	app := fiber.New()
 	app.Get("/external", mid.ExternalAPIMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
 	req := httptest.NewRequest(http.MethodGet, "/external", nil)
@@ -79,7 +80,7 @@ func TestExternalIgnoresBrowserCookie(t *testing.T) {
 
 func TestMissingStoredSessionClearsCookie(t *testing.T) {
 	service := fakeMiddlewareService{sessionErr: ErrSessionMissing}
-	mid := NewMiddlewareHttpHandler(service, zap.NewNop())
+	mid := NewMiddlewareHttpHandler(service, zap.NewNop(), false, config.DefaultSessionIdleTTLSeconds)
 	app := fiber.New()
 	app.Get("/read", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
 	req := httptest.NewRequest(http.MethodGet, "/read", nil)

@@ -16,25 +16,22 @@ import (
 )
 
 type AuthHttpHandler struct {
-	service AuthService
-	cfg     config.Config
-	mid     *middleware.MiddlewareHttpHandler
+	service    AuthService
+	cfg        config.Config
+	mid        *middleware.MiddlewareHttpHandler
+	production bool
 }
 
-func NewAuthHttpHandler(service AuthService, cfg config.Config) *AuthHttpHandler {
-	return &AuthHttpHandler{service: service, cfg: cfg}
-}
-
-func (h *AuthHttpHandler) production() bool {
-	return h.cfg != nil && strings.EqualFold(h.cfg.GetServer().Env, "production")
+func NewAuthHttpHandler(service AuthService, cfg config.Config, production bool) *AuthHttpHandler {
+	return &AuthHttpHandler{service: service, cfg: cfg, production: production}
 }
 
 func (h *AuthHttpHandler) sessionName() string {
-	return utils.SessionCookieName(h.production())
+	return utils.SessionCookieName(h.production)
 }
 
 func (h *AuthHttpHandler) oauthName() string {
-	return utils.OAuthCookieName(h.production())
+	return utils.OAuthCookieName(h.production)
 }
 
 func (h *AuthHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
@@ -84,7 +81,7 @@ func (h *AuthHttpHandler) Login(c *fiber.Ctx) error {
 		Path:     "/",
 		MaxAge:   ttl,
 		HTTPOnly: true,
-		Secure:   h.production(),
+		Secure:   h.production,
 		SameSite: fiber.CookieSameSiteLaxMode,
 	})
 	return c.JSON(fiber.Map{"url": login.URL})
@@ -133,9 +130,9 @@ func (h *AuthHttpHandler) OAuthCallback(c *fiber.Ctx) error {
 		Name:     h.sessionName(),
 		Value:    credentials.SessionID,
 		Path:     "/",
-		MaxAge:   7 * 24 * 3600,
+		MaxAge:   h.cfg.GetSession().IdleTTLSeconds,
 		HTTPOnly: true,
-		Secure:   h.production(),
+		Secure:   h.production,
 		SameSite: fiber.CookieSameSiteLaxMode,
 	})
 	h.clearCookie(c, h.oauthName(), true)

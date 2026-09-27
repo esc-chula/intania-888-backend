@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/esc-chula/intania-888-backend/cmd/server"
 	"github.com/esc-chula/intania-888-backend/internal/domain/auth"
 	"github.com/esc-chula/intania-888-backend/internal/domain/bill"
@@ -38,6 +40,8 @@ func main() {
 	if err := config.ValidateSecurity(cfg); err != nil {
 		panic("invalid security configuration: " + err.Error())
 	}
+
+	isProduction := strings.EqualFold(strings.TrimSpace(cfg.GetServer().Env), "production")
 	db := database.NewGormDatabase(cfg)
 	cache := cache.NewRedisClient(cfg)
 	logger := logger.NewLogger(cfg)
@@ -60,11 +64,16 @@ func main() {
 		oauth.NewGoogleOAuthClient(oauthConfig, logger),
 		policySvc,
 	)
-	authHttp := auth.NewAuthHttpHandler(authSvc, cfg)
+	authHttp := auth.NewAuthHttpHandler(authSvc, cfg, isProduction)
 
 	midRepo := middleware.NewMiddlewareRepository(db)
 	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger.Named("MiddlewareSvc"), cfg, policySvc)
-	midHttp := middleware.NewMiddlewareHttpHandler(midSvc, logger, cfg.GetServer().Env == "production")
+	midHttp := middleware.NewMiddlewareHttpHandler(
+		midSvc,
+		logger,
+		isProduction,
+		cfg.GetSession().IdleTTLSeconds,
+	)
 
 	billRepo := bill.NewBillRepository(db)
 	billSvc := bill.NewBillService(billRepo, userRepo, db, logger.Named("BillSvc"))
@@ -112,7 +121,9 @@ func main() {
 	// Register external API routes. Deprecated: retain them while their original purpose and
 	// consumers are investigated. Do not add new integrations to these routes.
 	externalRouter := router.Group("/external")
+	//nolint:staticcheck // Keep the deprecated route available while its consumers are investigated.
 	userHttp.RegisterExternalRoutes(externalRouter, midHttp)
+	//nolint:staticcheck // Keep the deprecated route available while its consumers are investigated.
 	authHttp.RegisterExternalRoutes(externalRouter, midHttp)
 
 	// start server

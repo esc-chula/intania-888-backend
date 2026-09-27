@@ -30,7 +30,11 @@ type AuthService interface {
 type AuthRepository interface {
 	SetCacheValue(key string, value interface{}, ttl int) error
 	ConsumeCacheValue(key string, value interface{}) error
-	RotateSession(userKey, sessionKey, previousKey string, value interface{}, ttl int) error
+	RotateSession(
+		userKey, sessionKey, previousKey string,
+		value interface{},
+		idleTTLSeconds, absoluteTTLSeconds int,
+	) error
 	DeleteSession(key string) error
 	GetCacheValue(key string, value interface{}) error
 }

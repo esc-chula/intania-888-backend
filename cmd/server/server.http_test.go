@@ -24,6 +24,7 @@ func (c swaggerTestConfig) GetDb() config.Db           { return config.Db{} }
 func (c swaggerTestConfig) GetCache() config.Cache     { return config.Cache{} }
 func (c swaggerTestConfig) GetJwt() config.Jwt         { return config.Jwt{} }
 func (c swaggerTestConfig) GetOAuth() config.OAuth     { return config.OAuth{} }
+func (c swaggerTestConfig) GetSession() config.Session { return config.Session{} }
 
 func newSwaggerTestServer(t *testing.T, swaggerConfig config.Swagger) *FiberHttpServer {
 	t.Helper()

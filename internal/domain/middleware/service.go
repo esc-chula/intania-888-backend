@@ -55,7 +55,12 @@ func (s *middlewareServiceImpl) GetSession(id string) (*model.SessionRecord, err
 	}
 
 	var record model.SessionRecord
-	err := s.cache.ReadAndRenewSession(utils.ToSessionCacheKey(id), time.Now().Unix(), 7*24*3600, &record)
+	err := s.cache.ReadAndRenewSession(
+		utils.ToSessionCacheKey(id),
+		time.Now().Unix(),
+		s.cfg.GetSession().IdleTTLSeconds,
+		&record,
+	)
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrSessionMissing
 	}

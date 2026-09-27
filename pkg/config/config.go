@@ -6,9 +6,15 @@ type Config interface {
 	GetCache() Cache
 	GetJwt() Jwt
 	GetOAuth() OAuth
+	GetSession() Session
 	GetSwagger() Swagger
 	GetCors() Cors
 }
+
+const (
+	DefaultSessionIdleTTLSeconds     = 7 * 24 * 3600
+	DefaultSessionAbsoluteTTLSeconds = 30 * 24 * 3600
+)
 
 type Server struct {
 	Origin string `mapstructure:"server_origin"`
@@ -49,6 +55,11 @@ type OAuth struct {
 	RedirectUrl          string `mapstructure:"oauth_redirect_uri"`
 	PostLoginRedirectUrl string `mapstructure:"oauth_post_login_redirect_url"`
 	StateExpiration      int    `mapstructure:"oauth_state_expiration"`
+}
+
+type Session struct {
+	IdleTTLSeconds     int `mapstructure:"session_idle_ttl_seconds"`
+	AbsoluteTTLSeconds int `mapstructure:"session_absolute_ttl_seconds"`
 }
 
 type Swagger struct {

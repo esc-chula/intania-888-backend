@@ -14,8 +14,8 @@ TEST_POSTGRES_PORT ?= 55432
 TEST_REDIS_PORT ?= 56379
 TEST_DATABASE_URL ?= postgres://root:1234@localhost:$(TEST_POSTGRES_PORT)/intania888_test?sslmode=disable
 
-SWAG_VERSION ?= v1.16.3
-SWAG_CMD := $(GO) run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
+# Resolve the generator from go.mod so docs checks use the project's pinned version.
+SWAG_CMD := $(GO) run github.com/swaggo/swag/cmd/swag
 GO_PACKAGES := ./cmd/... ./docs/... ./internal/... ./pkg/... ./utils/...
 DESTRUCTIVE_MIGRATION_CONFIRMATION := I_UNDERSTAND_DATA_WILL_BE_LOST
 

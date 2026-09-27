@@ -32,7 +32,7 @@ func TestBrowserSessionRotationAndRevocation(t *testing.T) {
 		ExpiresAt int64  `json:"expires_at"`
 		UserID    string `json:"user_id"`
 	}{time.Now().Add(30 * 24 * time.Hour).Unix(), "user"}
-	if err := r.RotateSession(userKey, firstKey, "test:auth:previous", record, 60); err != nil {
+	if err := r.RotateSession(userKey, firstKey, "test:auth:previous", record, 60, 30*24*3600); err != nil {
 		t.Fatal(err)
 	}
 	var got struct {
@@ -42,7 +42,7 @@ func TestBrowserSessionRotationAndRevocation(t *testing.T) {
 	if err := r.ReadAndRenewSession(firstKey, time.Now().Unix(), 30, &got); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.RotateSession(userKey, secondKey, firstKey, record, 60); err != nil {
+	if err := r.RotateSession(userKey, secondKey, firstKey, record, 60, 30*24*3600); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.ReadAndRenewSession(firstKey, time.Now().Unix(), 30, &got); !errors.Is(err, redis.Nil) {
@@ -54,7 +54,7 @@ func TestBrowserSessionRotationAndRevocation(t *testing.T) {
 	if err := r.ReadAndRenewSession(secondKey, time.Now().Unix(), 30, &got); !errors.Is(err, redis.Nil) {
 		t.Fatalf("revoked session resurrected: %v", err)
 	}
-	if err := r.RotateSession(userKey, firstKey, "test:auth:previous", record, 60); err != nil {
+	if err := r.RotateSession(userKey, firstKey, "test:auth:previous", record, 60, 30*24*3600); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.ReadAndRenewSession(firstKey, time.Now().Add(31*24*time.Hour).Unix(), 30, &got); !errors.Is(err, redis.Nil) {

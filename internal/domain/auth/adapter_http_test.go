@@ -38,8 +38,6 @@ func (s fakeAuthService) IssueExternalToken(string) (string, string, error) {
 
 func (s fakeAuthService) RevokeExternalToken(string) error { return nil }
 
-type httpConfig struct{ authTestConfig }
-
 func newHTTPConfig(env string) config.Config {
 	return authTestConfig{server: config.Server{Env: env}, oauth: config.OAuth{StateExpiration: 600, PostLoginRedirectUrl: "https://frontend.example.test/app?source=oauth"}}
 }
@@ -47,11 +45,11 @@ func newHTTPConfig(env string) config.Config {
 func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 	for _, tc := range []struct {
 		env, name, oauth string
-		secure           bool
+		production       bool
 	}{{"development", "session", "oauth", false}, {"production", "__Host-session", "__Host-oauth", true}} {
 		t.Run(tc.env, func(t *testing.T) {
 			svc := fakeAuthService{login: &OAuthLogin{URL: "https://accounts.example.test/?state=abc", State: "abc"}, credentials: &SessionCredentials{SessionID: "opaque", IsNewUser: true}, redirect: "https://frontend.example.test/app"}
-			h := NewAuthHttpHandler(svc, newHTTPConfig(tc.env))
+			h := NewAuthHttpHandler(svc, newHTTPConfig(tc.env), tc.production)
 
 			app := fiber.New()
 			app.Get("/login", h.Login)
@@ -76,10 +74,10 @@ func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 			if !strings.Contains(cookies, tc.name+"=opaque") || !strings.Contains(cookies, "HttpOnly") || !strings.Contains(cookies, "SameSite=Lax") || strings.Contains(cookies, "Domain=") {
 				t.Fatalf("bad cookies: %s", cookies)
 			}
-			if tc.secure && !strings.Contains(cookies, "secure") {
+			if tc.production && !strings.Contains(cookies, "secure") {
 				t.Fatalf("missing Secure: %s", cookies)
 			}
-			if !tc.secure && strings.Contains(cookies, "secure") {
+			if !tc.production && strings.Contains(cookies, "secure") {
 				t.Fatalf("local cookie requires HTTPS: %s", cookies)
 			}
 			if !strings.Contains(response.Header.Get("Location"), "is_new_user=true") {
@@ -90,7 +88,7 @@ func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 }
 
 func TestMeReturnsCSRFOnlyToBrowser(t *testing.T) {
-	h := NewAuthHttpHandler(fakeAuthService{}, newHTTPConfig("development"))
+	h := NewAuthHttpHandler(fakeAuthService{}, newHTTPConfig("development"), false)
 
 	app := fiber.New()
 	app.Get("/me", func(c *fiber.Ctx) error {
@@ -141,8 +139,13 @@ func TestLogoutIdempotenceAndRetry(t *testing.T) {
 		{"revoked", &model.SessionRecord{CSRFToken: "csrf"}, nil, nil, 204, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewAuthHttpHandler(fakeAuthService{logoutErr: tc.logoutErr}, newHTTPConfig("development"))
-			h.mid = middleware.NewMiddlewareHttpHandler(logoutMiddlewareService{session: tc.session, err: tc.storeErr}, zap.NewNop())
+			h := NewAuthHttpHandler(fakeAuthService{logoutErr: tc.logoutErr}, newHTTPConfig("development"), false)
+			h.mid = middleware.NewMiddlewareHttpHandler(
+				logoutMiddlewareService{session: tc.session, err: tc.storeErr},
+				zap.NewNop(),
+				false,
+				config.DefaultSessionIdleTTLSeconds,
+			)
 
 			app := fiber.New()
 			app.Post("/logout", h.Logout)

@@ -14,17 +14,24 @@ import (
 )
 
 type MiddlewareHttpHandler struct {
-	service    MiddlewareService
-	log        *zap.Logger
-	production bool
+	service        MiddlewareService
+	log            *zap.Logger
+	production     bool
+	sessionIdleTTL int
 }
 
-func NewMiddlewareHttpHandler(service MiddlewareService, log *zap.Logger, production ...bool) *MiddlewareHttpHandler {
-	prod := false
-	if len(production) > 0 {
-		prod = production[0]
+func NewMiddlewareHttpHandler(
+	service MiddlewareService,
+	log *zap.Logger,
+	production bool,
+	sessionIdleTTL int,
+) *MiddlewareHttpHandler {
+	return &MiddlewareHttpHandler{
+		service:        service,
+		log:            log,
+		production:     production,
+		sessionIdleTTL: sessionIdleTTL,
 	}
-	return &MiddlewareHttpHandler{service: service, log: log, production: prod}
 }
 
 func (h *MiddlewareHttpHandler) CookieName() string {
@@ -80,7 +87,7 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 		Name:     h.CookieName(),
 		Value:    id,
 		Path:     "/",
-		MaxAge:   7 * 24 * 3600,
+		MaxAge:   h.sessionIdleTTL,
 		HTTPOnly: true,
 		Secure:   h.production,
 		SameSite: fiber.CookieSameSiteLaxMode,

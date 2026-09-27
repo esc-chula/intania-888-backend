@@ -19,6 +19,8 @@ func ValidateSecurity(cfg Config) error {
 	cache := cfg.GetCache()
 	jwt := cfg.GetJwt()
 	oauth := cfg.GetOAuth()
+	session := cfg.GetSession()
+
 	if strings.TrimSpace(server.Name) == "" {
 		return fmt.Errorf("SERVER_NAME is required")
 	}
@@ -33,6 +35,15 @@ func ValidateSecurity(cfg Config) error {
 	}
 	if oauth.StateExpiration <= 0 {
 		return fmt.Errorf("OAUTH_STATE_EXPIRATION must be positive")
+	}
+	if session.IdleTTLSeconds <= 0 {
+		return fmt.Errorf("SESSION_IDLE_TTL_SECONDS must be positive")
+	}
+	if session.AbsoluteTTLSeconds <= 0 {
+		return fmt.Errorf("SESSION_ABSOLUTE_TTL_SECONDS must be positive")
+	}
+	if session.AbsoluteTTLSeconds < session.IdleTTLSeconds {
+		return fmt.Errorf("SESSION_ABSOLUTE_TTL_SECONDS must be at least SESSION_IDLE_TTL_SECONDS")
 	}
 
 	if _, err := validateAbsoluteURL(oauth.RedirectUrl, "OAUTH_REDIRECT_URI", false, false); err != nil {

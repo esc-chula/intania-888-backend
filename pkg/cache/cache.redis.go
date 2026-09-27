@@ -85,7 +85,11 @@ func (r *RedisClient) DeleteValues(keys ...string) error {
 
 // RotateSession commits the new browser session and revokes the prior one in
 // one Redis operation. The per-user pointer never contains a raw session ID.
-func (r *RedisClient) RotateSession(userKey, sessionKey, previousKey string, value interface{}, ttl int) error {
+func (r *RedisClient) RotateSession(
+	userKey, sessionKey, previousKey string,
+	value interface{},
+	idleTTLSeconds, absoluteTTLSeconds int,
+) error {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return err
@@ -104,8 +108,8 @@ func (r *RedisClient) RotateSession(userKey, sessionKey, previousKey string, val
  return 1`,
 		[]string{userKey, sessionKey, previousKey},
 		payload,
-		ttl,
-		30*24*3600,
+		idleTTLSeconds,
+		absoluteTTLSeconds,
 	).Err()
 }
 

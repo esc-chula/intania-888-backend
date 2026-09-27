@@ -15,6 +15,7 @@ type viperConfig struct {
 	Cache   `mapstructure:",squash"`
 	Jwt     `mapstructure:",squash"`
 	OAuth   `mapstructure:",squash"`
+	Session `mapstructure:",squash"`
 	Swagger `mapstructure:",squash"`
 	Cors    `mapstructure:",squash"`
 }
@@ -48,6 +49,8 @@ func NewViperConfig() Config {
 			v.SetDefault("server_env", "development")
 		}
 		v.SetDefault("oauth_state_expiration", 600)
+		v.SetDefault("session_idle_ttl_seconds", DefaultSessionIdleTTLSeconds)
+		v.SetDefault("session_absolute_ttl_seconds", DefaultSessionAbsoluteTTLSeconds)
 
 		// Bind environment variables to config keys
 		bindEnvVars(v)
@@ -116,6 +119,10 @@ func (c *viperConfig) GetOAuth() OAuth {
 	return c.OAuth
 }
 
+func (c *viperConfig) GetSession() Session {
+	return c.Session
+}
+
 func (c *viperConfig) GetSwagger() Swagger {
 	return c.Swagger
 }
@@ -157,6 +164,8 @@ func bindEnvVars(v *viper.Viper) {
 	bind("oauth_redirect_uri", "OAUTH_REDIRECT_URI")
 	bind("oauth_post_login_redirect_url", "OAUTH_POST_LOGIN_REDIRECT_URL")
 	bind("oauth_state_expiration", "OAUTH_STATE_EXPIRATION")
+	bind("session_idle_ttl_seconds", "SESSION_IDLE_TTL_SECONDS")
+	bind("session_absolute_ttl_seconds", "SESSION_ABSOLUTE_TTL_SECONDS")
 
 	bind("swagger_enabled", "SWAGGER_ENABLED")
 	bind("swagger_require_auth", "SWAGGER_REQUIRE_AUTH")

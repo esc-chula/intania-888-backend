@@ -8,6 +8,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
@@ -119,7 +120,12 @@ func TestCreateBillStrictMoneyContract(t *testing.T) {
 func TestVoidBillRequiresAdminAndRecordsActor(t *testing.T) {
 	svc := &contractService{}
 	h := NewBillHttpHandler(svc)
-	mid := middleware.NewMiddlewareHttpHandler(nil, zap.NewNop())
+	mid := middleware.NewMiddlewareHttpHandler(
+		nil,
+		zap.NewNop(),
+		false,
+		config.DefaultSessionIdleTTLSeconds,
+	)
 
 	app := fiber.New()
 	app.Put("/bills/admin/:id/void", func(c *fiber.Ctx) error {
