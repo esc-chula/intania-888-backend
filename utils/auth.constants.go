@@ -1,8 +1,24 @@
 package utils
 
 const (
-	AccessTokenCookieName  = "access_token"
-	RefreshTokenCookieName = "refresh_token"
-	CSRFTokenCookieName    = "csrf_token"
-	OAuthStateCookieName   = "oauth_state"
+	LocalSessionCookieName  = "session"
+	SecureSessionCookieName = "__Host-session"
+	LocalOAuthCookieName    = "oauth"
+	SecureOAuthCookieName   = "__Host-oauth"
 )
+
+func SessionCookieName(production bool) string {
+	if production {
+		return SecureSessionCookieName
+	}
+
+	return LocalSessionCookieName
+}
+
+func OAuthCookieName(production bool) string {
+	if production {
+		return SecureOAuthCookieName
+	}
+
+	return LocalOAuthCookieName
+}

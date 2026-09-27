@@ -1,62 +1,21 @@
 package utils
 
-import (
-	"testing"
-	"time"
+import "testing"
 
-	"github.com/golang-jwt/jwt/v5"
-)
-
-func TestAccessTokenClaimsRequireSessionAndValidateIssuerAudienceAndType(t *testing.T) {
-	token, err := JwtSignAccessTokenWithSession("user", "USER", "session", "secret", "issuer", "audience", 300)
+func TestExternalTokenClaimsAreBoundToAudienceAndType(t *testing.T) {
+	token, err := JwtSignExternalToken("user", "id", "secret", "issuer", 3600)
 	if err != nil {
-		t.Fatalf("JwtSignAccessTokenWithSession() error = %v", err)
-	}
-	claims, err := JwtParseAccessToken(token, "secret", "issuer", "audience")
-	if err != nil {
-		t.Fatalf("JwtParseAccessToken() error = %v", err)
-	}
-	if claims.UserId != "user" || claims.SessionId != "session" {
-		t.Fatalf("claims = %#v, want user/session claims", claims)
+		t.Fatal(err)
 	}
 
-	if _, err := JwtParseAccessToken(token, "secret", "wrong-issuer", "audience"); err == nil {
-		t.Fatal("token with wrong issuer was accepted")
+	subject, jti, err := JwtParseExternalToken(token, "secret", "issuer")
+	if err != nil || subject != "user" || jti != "id" {
+		t.Fatalf("claims: %s %s %v", subject, jti, err)
 	}
-	if _, err := JwtParseAccessToken(token, "secret", "issuer", "wrong-audience"); err == nil {
-		t.Fatal("token with wrong audience was accepted")
+	if _, _, err := JwtParseExternalToken(token, "secret", "other"); err == nil {
+		t.Fatal("wrong issuer accepted")
 	}
-}
-
-func TestAccessTokensWithoutSessionOrWithWrongTypeAreRejected(t *testing.T) {
-	legacy := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  "user",
-		"exp":  time.Now().Add(time.Minute).Unix(),
-		"iss":  "issuer",
-		"aud":  "audience",
-		"type": "access",
-	})
-	legacyToken, err := legacy.SignedString([]byte("secret"))
-	if err != nil {
-		t.Fatalf("sign legacy token: %v", err)
-	}
-	if _, err := JwtParseAccessToken(legacyToken, "secret", "issuer", "audience"); err == nil {
-		t.Fatal("legacy token without sid was accepted")
-	}
-
-	wrongType := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  "user",
-		"sid":  "session",
-		"exp":  time.Now().Add(time.Minute).Unix(),
-		"iss":  "issuer",
-		"aud":  "audience",
-		"type": "refresh",
-	})
-	wrongTypeToken, err := wrongType.SignedString([]byte("secret"))
-	if err != nil {
-		t.Fatalf("sign wrong-type token: %v", err)
-	}
-	if _, err := JwtParseAccessToken(wrongTypeToken, "secret", "issuer", "audience"); err == nil {
-		t.Fatal("wrong-type token was accepted")
+	if _, _, err := JwtParseExternalToken(token, "other", "issuer"); err == nil {
+		t.Fatal("wrong secret accepted")
 	}
 }

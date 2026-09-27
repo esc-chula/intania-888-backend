@@ -24,7 +24,7 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "OAuth Callback",
+                "summary": "Complete Google OAuth login",
                 "parameters": [
                     {
                         "type": "string",
@@ -67,13 +67,73 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "internal server error",
+                        "description": "post-login redirect is not configured",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
                                 "type": "string"
                             }
                         }
+                    },
+                    "503": {
+                        "description": "OAuth login or access policy unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/external-tokens": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Issue a one-hour external JWT",
+                "deprecated": true,
+                "parameters": [
+                    {
+                        "description": "existing user",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.externalTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/auth.ExternalTokenResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/external-tokens/{id}": {
+            "delete": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Revoke an external JWT",
+                "deprecated": true,
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "revoked"
                     }
                 }
             }
@@ -87,7 +147,7 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Login URL",
+                "summary": "Start Google OAuth login",
                 "responses": {
                     "200": {
                         "description": "authorization URL",
@@ -107,8 +167,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "500": {
-                        "description": "internal server error",
+                    "503": {
+                        "description": "OAuth login unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -121,17 +181,26 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
-                "description": "Revokes the active server-side session and clears authentication cookies.",
+                "description": "Revokes the active server-side session and clears its browser cookie. An absent or expired session is already logged out.",
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Logout",
+                "summary": "Log out of browser session",
                 "responses": {
                     "204": {
                         "description": "logged out"
                     },
-                    "500": {
-                        "description": "internal server error",
+                    "403": {
+                        "description": "invalid CSRF token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "session store or revocation unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -144,17 +213,23 @@ const docTemplate = `{
         },
         "/auth/me": {
             "get": {
-                "description": "Retrieves the profile associated with the access cookie.",
+                "description": "Retrieves the profile and CSRF token associated with the browser session cookie.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Auth"
                 ],
-                "summary": "GetMe",
+                "summary": "Browser profile and CSRF token",
                 "responses": {
                     "200": {
-                        "description": "profile",
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.MeResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -162,8 +237,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "401": {
-                        "description": "unauthorized",
+                    "503": {
+                        "description": "session or policy unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -427,29 +502,6 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/refresh": {
-            "post": {
-                "description": "Rotates the refresh token from the HttpOnly cookie and replaces the session cookies.",
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Refresh Session",
-                "responses": {
-                    "204": {
-                        "description": "session refreshed"
-                    },
-                    "401": {
-                        "description": "invalid or replayed refresh token",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -992,6 +1044,7 @@ const docTemplate = `{
                     "External"
                 ],
                 "summary": "Deduct coins from user balance (External API)",
+                "deprecated": true,
                 "parameters": [
                     {
                         "description": "Deduction request",
@@ -1055,7 +1108,8 @@ const docTemplate = `{
                 "tags": [
                     "External"
                 ],
-                "summary": "Get profile (External API)",
+                "summary": "External client profile",
+                "deprecated": true,
                 "responses": {
                     "200": {
                         "description": "profile",
@@ -1066,6 +1120,15 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "missing or invalid authorization",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "token, user, or policy status unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1989,6 +2052,39 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "auth.ExternalTokenResponse": {
+            "type": "object",
+            "properties": {
+                "expires_in": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.MeResponse": {
+            "type": "object",
+            "properties": {
+                "csrf_token": {
+                    "type": "string"
+                },
+                "profile": {
+                    "$ref": "#/definitions/model.UserDto"
+                }
+            }
+        },
+        "auth.externalTokenRequest": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
         "bill.ErrorResponse": {
             "type": "object",
             "properties": {

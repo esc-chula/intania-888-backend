@@ -1,5 +1,26 @@
 basePath: /api/v1
 definitions:
+  auth.ExternalTokenResponse:
+    properties:
+      expires_in:
+        type: integer
+      id:
+        type: string
+      token:
+        type: string
+    type: object
+  auth.MeResponse:
+    properties:
+      csrf_token:
+        type: string
+      profile:
+        $ref: '#/definitions/model.UserDto'
+    type: object
+  auth.externalTokenRequest:
+    properties:
+      user_id:
+        type: string
+    type: object
   bill.ErrorResponse:
     properties:
       message:
@@ -440,12 +461,51 @@ paths:
               type: string
             type: object
         "500":
-          description: internal server error
+          description: post-login redirect is not configured
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: OAuth Callback
+        "503":
+          description: OAuth login or access policy unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Complete Google OAuth login
+      tags:
+      - Auth
+  /auth/external-tokens:
+    post:
+      deprecated: true
+      parameters:
+      - description: existing user
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.externalTokenRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/auth.ExternalTokenResponse'
+      summary: Issue a one-hour external JWT
+      tags:
+      - Auth
+  /auth/external-tokens/{id}:
+    delete:
+      deprecated: true
+      parameters:
+      - description: token ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: revoked
+      summary: Revoke an external JWT
       tags:
       - Auth
   /auth/login:
@@ -467,50 +527,61 @@ paths:
             additionalProperties:
               type: string
             type: object
-        "500":
-          description: internal server error
+        "503":
+          description: OAuth login unavailable
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: Login URL
+      summary: Start Google OAuth login
       tags:
       - Auth
   /auth/logout:
     post:
-      description: Revokes the active server-side session and clears authentication
-        cookies.
+      description: Revokes the active server-side session and clears its browser cookie.
+        An absent or expired session is already logged out.
       responses:
         "204":
           description: logged out
-        "500":
-          description: internal server error
+        "403":
+          description: invalid CSRF token
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: Logout
+        "503":
+          description: session store or revocation unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Log out of browser session
       tags:
       - Auth
   /auth/me:
     get:
-      description: Retrieves the profile associated with the access cookie.
+      description: Retrieves the profile and CSRF token associated with the browser
+        session cookie.
       produces:
       - application/json
       responses:
         "200":
-          description: profile
+          description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/auth.MeResponse'
         "401":
           description: unauthorized
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: GetMe
+        "503":
+          description: session or policy unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Browser profile and CSRF token
       tags:
       - Auth
   /auth/policies:
@@ -688,22 +759,6 @@ paths:
       summary: Update access policy
       tags:
       - Auth Policy
-  /auth/refresh:
-    post:
-      description: Rotates the refresh token from the HttpOnly cookie and replaces
-        the session cookies.
-      responses:
-        "204":
-          description: session refreshed
-        "401":
-          description: invalid or replayed refresh token
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Refresh Session
-      tags:
-      - Auth
   /bills:
     get:
       produces:
@@ -1031,6 +1086,7 @@ paths:
     post:
       consumes:
       - application/json
+      deprecated: true
       description: External API endpoint to deduct coins from authenticated user's
         balance. Bypasses browser-only validation but requires JWT authentication.
       parameters:
@@ -1074,6 +1130,7 @@ paths:
       - External
   /external/me:
     get:
+      deprecated: true
       description: Retrieves user profile data through Bearer authentication.
       produces:
       - application/json
@@ -1089,9 +1146,15 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "503":
+          description: token, user, or policy status unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
       security:
       - BearerAuth: []
-      summary: Get profile (External API)
+      summary: External client profile
       tags:
       - External
   /matches:

@@ -2,149 +2,90 @@ package middleware
 
 import (
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 )
 
 type fakeMiddlewareService struct {
-	claims      *utils.AccessTokenClaims
-	user        *model.UserDto
-	blacklisted bool
-	policyErr   error
+	session                 *model.SessionRecord
+	user                    *model.UserDto
+	sessionErr, errorPolicy error
+	blacklisted             bool
 }
 
-func (s fakeMiddlewareService) VerifyToken(string) (*utils.AccessTokenClaims, error) {
-	return s.claims, nil
+func (s fakeMiddlewareService) GetSession(string) (*model.SessionRecord, error) {
+	return s.session, s.sessionErr
 }
-
-func (s fakeMiddlewareService) GetMe(string) (*model.UserDto, error) { return s.user, nil }
-
+func (s fakeMiddlewareService) VerifyExternalToken(string) (string, error) { return "user-id", nil }
+func (s fakeMiddlewareService) GetMe(string) (*model.UserDto, error)       { return s.user, nil }
 func (s fakeMiddlewareService) IsBlacklisted(string, string) (bool, error) {
-	return s.blacklisted, s.policyErr
+	return s.blacklisted, s.errorPolicy
 }
-
-func TestAuthMiddlewareUsesAccessCookieAndIgnoresBearerHeader(t *testing.T) {
-	service := fakeMiddlewareService{
-		claims: &utils.AccessTokenClaims{UserId: "user-id", SessionId: "session-id"},
-		user:   &model.UserDto{Id: "user-id", Email: "user@example.test"},
-	}
-	middlewareHandler := NewMiddlewareHttpHandler(service, zap.NewNop())
+func TestBrowserSessionAndCSRF(t *testing.T) {
+	service := fakeMiddlewareService{session: &model.SessionRecord{UserId: "user-id", CSRFToken: "secret"}, user: &model.UserDto{Id: "user-id", Email: "u@example.test"}}
+	mid := NewMiddlewareHttpHandler(service, zap.NewNop())
 	app := fiber.New()
-	app.Get("/protected", middlewareHandler.AuthMiddleware, func(c *fiber.Ctx) error {
-		return c.SendStatus(http.StatusNoContent)
-	})
-
-	request := httptest.NewRequest(http.MethodGet, "/protected", nil)
-	request.Header.Set("Authorization", "Bearer bearer-value")
-	response, err := app.Test(request)
-	if err != nil {
-		t.Fatalf("bearer-only request error = %v", err)
+	app.Post("/update", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	req := httptest.NewRequest(http.MethodPost, "/update", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	response, _ := app.Test(req)
+	if response.StatusCode != 401 {
+		t.Fatal(response.StatusCode)
 	}
-	if response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("bearer-only status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	req = httptest.NewRequest(http.MethodPost, "/update", nil)
+	req.Header.Set("Cookie", utils.LocalSessionCookieName+"=opaque")
+	response, _ = app.Test(req)
+	if response.StatusCode != 403 {
+		t.Fatal(response.StatusCode)
 	}
-
-	request = httptest.NewRequest(http.MethodGet, "/protected", nil)
-	request.Header.Set("Cookie", utils.AccessTokenCookieName+"=cookie-value")
-	response, err = app.Test(request)
-	if err != nil {
-		t.Fatalf("cookie request error = %v", err)
+	req.Header.Set("X-CSRF-Token", "secret")
+	response, _ = app.Test(req)
+	if response.StatusCode != 204 {
+		t.Fatal(response.StatusCode)
 	}
-	if response.StatusCode != http.StatusNoContent {
-		t.Fatalf("cookie status = %d, want %d", response.StatusCode, http.StatusNoContent)
-	}
-}
-
-func TestExternalMiddlewareRequiresBearerAndIgnoresCookies(t *testing.T) {
-	service := fakeMiddlewareService{
-		claims: &utils.AccessTokenClaims{UserId: "user-id", SessionId: "session-id"},
-		user:   &model.UserDto{Id: "user-id", Email: "user@example.test"},
-	}
-	middlewareHandler := NewMiddlewareHttpHandler(service, zap.NewNop())
-	app := fiber.New()
-	app.Get("/external", middlewareHandler.ExternalAPIMiddleware, func(c *fiber.Ctx) error {
-		return c.SendStatus(http.StatusNoContent)
-	})
-
-	request := httptest.NewRequest(http.MethodGet, "/external", nil)
-	request.Header.Set("Cookie", utils.AccessTokenCookieName+"=cookie-value")
-	response, err := app.Test(request)
-	if err != nil {
-		t.Fatalf("cookie-only external request error = %v", err)
-	}
-	if response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("cookie-only external status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
-	}
-
-	request = httptest.NewRequest(http.MethodGet, "/external", nil)
-	request.Header.Set("Authorization", "Bearer external-token")
-	request.Header.Set("Cookie", utils.AccessTokenCookieName+"=cookie-value")
-	response, err = app.Test(request)
-	if err != nil {
-		t.Fatalf("bearer external request error = %v", err)
-	}
-	if response.StatusCode != http.StatusNoContent {
-		t.Fatalf("bearer external status = %d, want %d", response.StatusCode, http.StatusNoContent)
-	}
-}
-
-func TestAuthMiddlewareFailsClosedWhenPolicyIsUnavailable(t *testing.T) {
-	service := fakeMiddlewareService{
-		claims:    &utils.AccessTokenClaims{UserId: "user-id", SessionId: "session-id"},
-		user:      &model.UserDto{Id: "user-id", Email: "user@example.test"},
-		policyErr: errors.New("policy backend unavailable"),
-	}
-	middlewareHandler := NewMiddlewareHttpHandler(service, zap.NewNop())
-	app := fiber.New()
-	app.Get("/protected", middlewareHandler.AuthMiddleware, func(c *fiber.Ctx) error {
-		return c.SendStatus(http.StatusNoContent)
-	})
-
-	request := httptest.NewRequest(http.MethodGet, "/protected", nil)
-	request.Header.Set("Cookie", utils.AccessTokenCookieName+"=cookie-value")
-	response, err := app.Test(request)
-	if err != nil {
-		t.Fatalf("policy failure request error = %v", err)
-	}
-	if response.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("policy failure status = %d, want %d", response.StatusCode, http.StatusServiceUnavailable)
-	}
-}
-
-func TestAdminMiddlewareUsesOnlyDatabaseRole(t *testing.T) {
-	service := fakeMiddlewareService{}
-	middlewareHandler := NewMiddlewareHttpHandler(service, zap.NewNop())
-	app := fiber.New()
-	app.Get("/admin", middlewareHandler.AdminMiddleware, func(c *fiber.Ctx) error {
-		return c.SendStatus(http.StatusNoContent)
-	})
-
-	request := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	request = request.WithContext(request.Context())
-	response, err := app.Test(request)
-	if err != nil {
-		t.Fatalf("missing-profile request error = %v", err)
-	}
-	if response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("missing-profile status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
-	}
-
+	service.sessionErr = errors.New("redis down")
+	mid = NewMiddlewareHttpHandler(service, zap.NewNop())
 	app = fiber.New()
-	app.Get("/admin", func(c *fiber.Ctx) error {
-		c.Locals("user", &model.UserDto{Id: "admin", Email: "admin@example.test", RoleId: "ADMIN"})
-		return middlewareHandler.AdminMiddleware(c)
-	}, func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
-	response, err = app.Test(httptest.NewRequest(http.MethodGet, "/admin", nil))
-	if err != nil {
-		t.Fatalf("admin-role request error = %v", err)
+	app.Get("/read", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	req = httptest.NewRequest(http.MethodGet, "/read", nil)
+	req.Header.Set("Cookie", "session=opaque")
+	response, _ = app.Test(req)
+	if response.StatusCode != 503 || len(response.Header.Values("Set-Cookie")) != 0 {
+		t.Fatal("uncertain session should preserve cookie")
 	}
-	if response.StatusCode != http.StatusNoContent {
-		t.Fatalf("admin-role status = %d, want %d", response.StatusCode, http.StatusNoContent)
+}
+func TestExternalIgnoresBrowserCookie(t *testing.T) {
+	service := fakeMiddlewareService{user: &model.UserDto{Id: "user-id", Email: "u@example.test"}}
+	mid := NewMiddlewareHttpHandler(service, zap.NewNop())
+	app := fiber.New()
+	app.Get("/external", mid.ExternalAPIMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	req := httptest.NewRequest(http.MethodGet, "/external", nil)
+	req.Header.Set("Cookie", "session=opaque")
+	response, _ := app.Test(req)
+	if response.StatusCode != 401 {
+		t.Fatal(response.StatusCode)
+	}
+	req.Header.Set("Authorization", "Bearer external")
+	response, _ = app.Test(req)
+	if response.StatusCode != 204 {
+		t.Fatal(response.StatusCode)
+	}
+}
+
+func TestMissingStoredSessionClearsCookie(t *testing.T) {
+	service := fakeMiddlewareService{sessionErr: ErrSessionMissing}
+	mid := NewMiddlewareHttpHandler(service, zap.NewNop())
+	app := fiber.New()
+	app.Get("/read", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	req := httptest.NewRequest(http.MethodGet, "/read", nil)
+	req.Header.Set("Cookie", "session=opaque")
+	response, _ := app.Test(req)
+	if response.StatusCode != 401 || len(response.Header.Values("Set-Cookie")) == 0 {
+		t.Fatal("stale session did not return 401 and clear cookie")
 	}
 }

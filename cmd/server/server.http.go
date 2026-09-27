@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"crypto/subtle"
+
 	"fmt"
 	"net/url"
 	"os"
@@ -14,7 +14,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/docs"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
-	"github.com/esc-chula/intania-888-backend/utils"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -41,7 +41,9 @@ func NewFiberHttpServer(cfg config.Config, logger *zap.Logger) (*FiberHttpServer
 		return nil, err
 	}
 
-	if cfg.GetSwagger().Enabled && cfg.GetSwagger().RequireAuth && (strings.TrimSpace(cfg.GetSwagger().Username) == "" || strings.TrimSpace(cfg.GetSwagger().Password) == "") {
+	if cfg.GetSwagger().Enabled && cfg.GetSwagger().RequireAuth &&
+		(strings.TrimSpace(cfg.GetSwagger().Username) == "" ||
+			strings.TrimSpace(cfg.GetSwagger().Password) == "") {
 		return nil, fmt.Errorf("swagger Basic Auth requires both SWAGGER_USERNAME and SWAGGER_PASSWORD")
 	}
 
@@ -157,8 +159,6 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 		},
 	}))
 
-	router.Use(s.CSRFGuard())
-
 	// healthcheck
 	router.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("server is running !")
@@ -208,24 +208,6 @@ func (s *FiberHttpServer) OriginGuard() fiber.Handler {
 	}
 }
 
-func (s *FiberHttpServer) CSRFGuard() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		if isExternalPath(c.Path()) || c.Path() == "/api/v1/auth/callback" || c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead || c.Method() == fiber.MethodOptions {
-			return c.Next()
-		}
-
-		cookieToken := c.Cookies(utils.CSRFTokenCookieName)
-		headerToken := c.Get("X-CSRF-Token")
-		if cookieToken == "" || headerToken == "" || subtle.ConstantTimeCompare([]byte(cookieToken), []byte(headerToken)) != 1 {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "invalid CSRF token",
-			})
-		}
-
-		return c.Next()
-	}
-}
-
 func (s *FiberHttpServer) isAllowedOrigin(origin string) bool {
 	canonical, err := canonicalOrigin(origin)
 	if err != nil {
@@ -260,7 +242,8 @@ func parseAllowedOrigins(rawOrigins string) (map[string]struct{}, error) {
 
 func canonicalOrigin(rawOrigin string) (string, error) {
 	parsed, err := url.Parse(rawOrigin)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil ||
+		parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return "", fmt.Errorf("origin must contain only scheme, host, and port")
 	}
 	scheme := strings.ToLower(parsed.Scheme)

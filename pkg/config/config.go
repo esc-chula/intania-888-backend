@@ -40,10 +40,7 @@ type Cache struct {
 }
 
 type Jwt struct {
-	ApiSecretKey           string `mapstructure:"jwt_api_secret_key"`
-	AccessTokenSecret      string `mapstructure:"jwt_access_token_secret"`
-	AccessTokenExpiration  int    `mapstructure:"jwt_access_token_expiration"`
-	RefreshTokenExpiration int    `mapstructure:"jwt_refresh_token_expiration"`
+	AccessTokenSecret string `mapstructure:"jwt_access_token_secret"`
 }
 
 type OAuth struct {
@@ -52,8 +49,6 @@ type OAuth struct {
 	RedirectUrl          string `mapstructure:"oauth_redirect_uri"`
 	PostLoginRedirectUrl string `mapstructure:"oauth_post_login_redirect_url"`
 	StateExpiration      int    `mapstructure:"oauth_state_expiration"`
-	CookieSameSite       string `mapstructure:"cookie_same_site"`
-	CookieSecure         bool   `mapstructure:"cookie_secure"`
 }
 
 type Swagger struct {

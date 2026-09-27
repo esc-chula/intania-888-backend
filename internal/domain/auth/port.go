@@ -1,40 +1,46 @@
 package auth
 
-import "errors"
+import (
+	"errors"
+	"github.com/esc-chula/intania-888-backend/internal/model"
+)
 
 var (
 	ErrInvalidOAuthState = errors.New("invalid OAuth state")
 	ErrUnverifiedEmail   = errors.New("google email is not verified")
 	ErrEmailNotAllowed   = errors.New("email is not allowed")
-	ErrInvalidRefresh    = errors.New("invalid refresh token")
-	ErrRefreshReplay     = errors.New("refresh token replay detected")
+	ErrInvalidSession    = errors.New("invalid session")
 )
 
-type OAuthLogin struct {
-	URL   string
-	State string
-}
-
+type OAuthLogin struct{ URL, State string }
 type SessionCredentials struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresIn    int32
-	IsNewUser    bool
+	SessionID string
+	IsNewUser bool
 }
 
 type AuthService interface {
 	StartOAuthLogin() (*OAuthLogin, error)
-	VerifyOAuthLogin(code, state, cookieState string) (*SessionCredentials, error)
-	RefreshToken(refreshToken string) (*SessionCredentials, error)
+	VerifyOAuthLogin(code, state, cookieState, previousSessionID string) (*SessionCredentials, error)
 	Logout(sessionID string) error
 	GetPostLoginRedirectURL() string
+	IssueExternalToken(subjectID string) (string, string, error)
+	RevokeExternalToken(jti string) error
 }
 
 type AuthRepository interface {
 	SetCacheValue(key string, value interface{}, ttl int) error
-	GetCacheValue(key string, value interface{}) error
-	DeleteCacheValue(key string) error
-	DeleteCacheValues(keys ...string) error
 	ConsumeCacheValue(key string, value interface{}) error
-	CompareAndSwapCacheValues(expected map[string]interface{}, replacements map[string]interface{}, ttl int) (bool, error)
+	RotateSession(userKey, sessionKey, previousKey string, value interface{}, ttl int) error
+	DeleteSession(key string) error
+	GetCacheValue(key string, value interface{}) error
 }
+
+type BrowserSessionStore interface {
+	ReadAndRenewSession(key string, now int64, idleSeconds int, value interface{}) error
+}
+
+type ExternalTokenRecord struct {
+	SubjectID string `json:"subject_id"`
+}
+
+var _ = model.SessionRecord{}

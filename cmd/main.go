@@ -52,12 +52,19 @@ func main() {
 	policyHttp := policy.NewHttpHandler(policySvc)
 
 	authRepo := auth.NewAuthRepository(*cache)
-	authSvc := auth.NewAuthService(authRepo, userRepo, cfg, logger.Named("AuthSvc"), oauth.NewGoogleOAuthClient(oauthConfig, logger), policySvc)
+	authSvc := auth.NewAuthService(
+		authRepo,
+		userRepo,
+		cfg,
+		logger.Named("AuthSvc"),
+		oauth.NewGoogleOAuthClient(oauthConfig, logger),
+		policySvc,
+	)
 	authHttp := auth.NewAuthHttpHandler(authSvc, cfg)
 
 	midRepo := middleware.NewMiddlewareRepository(db)
 	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger.Named("MiddlewareSvc"), cfg, policySvc)
-	midHttp := middleware.NewMiddlewareHttpHandler(midSvc, logger)
+	midHttp := middleware.NewMiddlewareHttpHandler(midSvc, logger, cfg.GetServer().Env == "production")
 
 	billRepo := bill.NewBillRepository(db)
 	billSvc := bill.NewBillService(billRepo, userRepo, db, logger.Named("BillSvc"))
@@ -102,7 +109,8 @@ func main() {
 	stakeMineHttp.RegisterRoutes(router, midHttp)
 	sportTypeHttp.RegisterRoutes(router, midHttp)
 
-	// register external API routes
+	// Register external API routes. Deprecated: retain them while their original purpose and
+	// consumers are investigated. Do not add new integrations to these routes.
 	externalRouter := router.Group("/external")
 	userHttp.RegisterExternalRoutes(externalRouter, midHttp)
 	authHttp.RegisterExternalRoutes(externalRouter, midHttp)

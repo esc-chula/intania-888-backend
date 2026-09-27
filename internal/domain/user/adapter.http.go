@@ -148,7 +148,9 @@ func (h *UserHttpHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	return c.JSON(updatedUser)
 }
 
-// RegisterExternalRoutes registers external API routes
+// Deprecated: available until the original integration is understood.
+// RegisterExternalRoutes registers the deprecated external coin API. Keep it
+// available until the original integration and its consumers are understood.
 func (h *UserHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
 	router.Post("/deduct-coin", mid.ExternalAPIMiddleware, h.DeductCoin)
 }
@@ -156,6 +158,7 @@ func (h *UserHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middl
 // @Summary Deduct coins from user balance (External API)
 // @Description External API endpoint to deduct coins from authenticated user's balance. Bypasses browser-only validation but requires JWT authentication.
 // @Tags External
+// @Deprecated
 // @Accept json
 // @Produce json
 // @Param request body model.DeductCoinRequest true "Deduction request"

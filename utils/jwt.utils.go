@@ -4,91 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
-
-type AccessTokenClaims struct {
-	UserId    string
-	SessionId string
-	Role      string
-	Issuer    string
-	Audience  string
-}
-
-func JwtSignAccessTokenWithSession(userID, role, sessionID, secretKey, issuer, audience string, expiration int) (string, error) {
-	if userID == "" || sessionID == "" || secretKey == "" || issuer == "" || audience == "" || expiration <= 0 {
-		return "", errors.New("invalid access token parameters")
-	}
-
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  userID,
-		"sid":  sessionID,
-		"exp":  time.Now().Add(time.Second * time.Duration(expiration)).Unix(),
-		"iat":  time.Now().Unix(),
-		"iss":  issuer,
-		"aud":  audience,
-		"type": "access",
-		"role": role,
-	})
-
-	accessTokenString, err := accessToken.SignedString([]byte(secretKey))
-	if err != nil {
-		return "", err
-	}
-
-	return accessTokenString, nil
-}
-
-func JwtParseAccessToken(rawToken, secretKey, issuer, audience string) (*AccessTokenClaims, error) {
-	token, err := jwt.Parse(rawToken, func(token *jwt.Token) (interface{}, error) {
-		if token.Method == nil || token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(secretKey), nil
-	}, jwt.WithIssuer(issuer), jwt.WithAudience(audience))
-	if err != nil || !token.Valid {
-		return nil, errors.New("invalid access token")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, errors.New("invalid access token claims")
-	}
-
-	userID, ok := claims["sub"].(string)
-	if !ok || userID == "" {
-		return nil, errors.New("missing access token subject")
-	}
-	sessionID, ok := claims["sid"].(string)
-	if !ok || sessionID == "" {
-		return nil, errors.New("missing access token session")
-	}
-	tokenType, ok := claims["type"].(string)
-	if !ok || tokenType != "access" {
-		return nil, errors.New("invalid access token type")
-	}
-	role, _ := claims["role"].(string)
-
-	return &AccessTokenClaims{
-		UserId:    userID,
-		SessionId: sessionID,
-		Role:      role,
-		Issuer:    issuer,
-		Audience:  audience,
-	}, nil
-}
-
-func JwtSignRefreshToken(expiration int) (*string, error) {
-	refreshToken, err := NewOpaqueToken(32)
-	if err != nil {
-		return nil, err
-	}
-
-	return &refreshToken, nil
-}
 
 func NewOpaqueToken(size int) (string, error) {
 	bytes := make([]byte, size)
@@ -97,4 +16,54 @@ func NewOpaqueToken(size int) (string, error) {
 	}
 
 	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+// External tokens are deliberately separate from browser sessions.
+func JwtSignExternalToken(subject, jti, secret, issuer string, seconds int) (string, error) {
+	if subject == "" || jti == "" || secret == "" || issuer == "" || seconds <= 0 {
+		return "", errors.New("invalid external token parameters")
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":  subject,
+		"jti":  jti,
+		"iss":  issuer,
+		"aud":  issuer + ":external",
+		"type": "external",
+		"iat":  time.Now().Unix(),
+		"exp":  time.Now().Add(time.Duration(seconds) * time.Second).Unix(),
+	})
+
+	return token.SignedString([]byte(secret))
+}
+
+func JwtParseExternalToken(raw, secret, issuer string) (string, string, error) {
+	token, err := jwt.Parse(
+		raw, func(t *jwt.Token) (interface{}, error) {
+			if t.Method == nil || t.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+				return nil, errors.New("invalid signing method")
+			}
+			return []byte(secret), nil
+		},
+		jwt.WithIssuer(issuer),
+		jwt.WithAudience(issuer+":external"),
+		jwt.WithExpirationRequired(),
+	)
+	if err != nil || !token.Valid {
+		return "", "", errors.New("invalid external token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", "", errors.New("invalid external claims")
+	}
+
+	subject, _ := claims["sub"].(string)
+	jti, _ := claims["jti"].(string)
+	kind, _ := claims["type"].(string)
+	if subject == "" || jti == "" || kind != "external" {
+		return "", "", errors.New("invalid external claims")
+	}
+
+	return subject, jti, nil
 }

@@ -28,12 +28,6 @@ func ValidateSecurity(cfg Config) error {
 	if strings.TrimSpace(cache.Host) == "" || cache.Port <= 0 || cache.Port > 65535 {
 		return fmt.Errorf("CACHE_HOST and CACHE_PORT are required")
 	}
-	if jwt.AccessTokenExpiration <= 0 {
-		return fmt.Errorf("JWT_ACCESS_TOKEN_EXPIRATION must be positive")
-	}
-	if jwt.RefreshTokenExpiration <= jwt.AccessTokenExpiration {
-		return fmt.Errorf("JWT_REFRESH_TOKEN_EXPIRATION must be greater than JWT_ACCESS_TOKEN_EXPIRATION")
-	}
 	if strings.TrimSpace(oauth.ClientId) == "" || strings.TrimSpace(oauth.ClientSecret) == "" {
 		return fmt.Errorf("OAuth client ID and secret are required")
 	}
@@ -57,17 +51,6 @@ func ValidateSecurity(cfg Config) error {
 		return fmt.Errorf("CORS_ALLOW_ORIGINS must include the post-login frontend origin %q", postLoginOrigin)
 	}
 
-	sameSite := strings.ToLower(strings.TrimSpace(oauth.CookieSameSite))
-	switch sameSite {
-	case "lax":
-	case "none":
-		if !oauth.CookieSecure {
-			return fmt.Errorf("COOKIE_SECURE must be true when COOKIE_SAME_SITE is none")
-		}
-	default:
-		return fmt.Errorf("COOKIE_SAME_SITE must be lax or none")
-	}
-
 	env := strings.ToLower(strings.TrimSpace(server.Env))
 	if env != "development" && env != "production" {
 		return fmt.Errorf("SERVER_ENV must be development or production")
@@ -76,13 +59,15 @@ func ValidateSecurity(cfg Config) error {
 		if len(jwt.AccessTokenSecret) < 32 {
 			return fmt.Errorf("JWT_ACCESS_TOKEN_SECRET must contain at least 32 characters in production")
 		}
-		if !oauth.CookieSecure {
-			return fmt.Errorf("COOKIE_SECURE must be true in production")
-		}
 		if _, err := validateAbsoluteURL(oauth.RedirectUrl, "OAUTH_REDIRECT_URI", true, false); err != nil {
 			return err
 		}
-		if _, err := validateAbsoluteURL(oauth.PostLoginRedirectUrl, "OAUTH_POST_LOGIN_REDIRECT_URL", true, true); err != nil {
+		if _, err := validateAbsoluteURL(
+			oauth.PostLoginRedirectUrl,
+			"OAUTH_POST_LOGIN_REDIRECT_URL",
+			true,
+			true,
+		); err != nil {
 			return err
 		}
 		if strings.TrimSpace(server.Url) == "" {
@@ -99,7 +84,8 @@ func ValidateSecurity(cfg Config) error {
 func validateAbsoluteURL(raw, field string, requireHTTPS, allowQuery bool) (string, error) {
 	raw = strings.TrimSpace(raw)
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" || (!allowQuery && parsed.RawQuery != "") {
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil ||
+		parsed.Fragment != "" || (!allowQuery && parsed.RawQuery != "") {
 		return "", fmt.Errorf("%s must be an absolute URL without credentials, fragments, or unsupported query parameters", field)
 	}
 	scheme := strings.ToLower(parsed.Scheme)
@@ -136,7 +122,8 @@ func validateConfiguredOrigins(rawOrigins string) (map[string]struct{}, error) {
 
 func validateExactOrigin(raw string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil ||
+		parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return "", fmt.Errorf("origin must contain only scheme, host, and port")
 	}
 	scheme := strings.ToLower(parsed.Scheme)

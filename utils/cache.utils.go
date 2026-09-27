@@ -15,15 +15,7 @@ func ToOAuthStateCacheKey(state string) string {
 }
 
 func ToSessionCacheKey(sessionID string) string {
-	return fmt.Sprintf("%s:session:%s", authCacheNamespace, sessionID)
-}
-
-func ToRefreshCacheKey(refreshToken string) string {
-	return ToRefreshHashCacheKey(HashOpaqueToken(refreshToken))
-}
-
-func ToRefreshHashCacheKey(refreshTokenHash string) string {
-	return fmt.Sprintf("%s:refresh:%s", authCacheNamespace, refreshTokenHash)
+	return fmt.Sprintf("auth:v3:session:%s", HashOpaqueToken(sessionID))
 }
 
 func ToPolicySnapshotCacheKey() string {
@@ -33,4 +25,12 @@ func ToPolicySnapshotCacheKey() string {
 func HashOpaqueToken(token string) string {
 	digest := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(digest[:])
+}
+
+func ToUserSessionCacheKey(userID string) string {
+	return fmt.Sprintf("auth:v3:user-session:%s", HashOpaqueToken(userID))
+}
+
+func ToExternalTokenCacheKey(jti string) string {
+	return fmt.Sprintf("auth:v3:external:%s", HashOpaqueToken(jti))
 }

@@ -32,9 +32,7 @@ func validSecurityConfig(env string) securityValidationConfig {
 	return securityValidationConfig{
 		server: configServer{Name: "intania", Env: env, Url: "http://api.example.test/api/v1"},
 		jwt: Jwt{
-			AccessTokenSecret:      strings.Repeat("a", 32),
-			AccessTokenExpiration:  300,
-			RefreshTokenExpiration: 3600,
+			AccessTokenSecret: strings.Repeat("a", 32),
 		},
 		oauth: OAuth{
 			ClientId:             "client-id",
@@ -42,7 +40,6 @@ func validSecurityConfig(env string) securityValidationConfig {
 			RedirectUrl:          "http://api.example.test/api/v1/auth/callback",
 			PostLoginRedirectUrl: "http://frontend.example.test/app",
 			StateExpiration:      600,
-			CookieSameSite:       "lax",
 		},
 		cors: Cors{AllowOrigins: "http://frontend.example.test"},
 	}
@@ -64,7 +61,6 @@ func TestValidateSecurityRejectsProductionInsecureConfiguration(t *testing.T) {
 	cfg.server.Url = "https://api.example.test/api/v1"
 	cfg.oauth.RedirectUrl = "https://api.example.test/api/v1/auth/callback"
 	cfg.oauth.PostLoginRedirectUrl = "https://frontend.example.test/app"
-	cfg.oauth.CookieSecure = true
 	cfg.cors.AllowOrigins = "https://frontend.example.test"
 	if err := ValidateSecurity(cfg); err != nil {
 		t.Fatalf("ValidateSecurity() rejected valid production configuration: %v", err)

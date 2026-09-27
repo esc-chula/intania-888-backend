@@ -13,26 +13,18 @@ type UserDto struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
-// SessionRecord is the server-side state associated with an access JWT.
-// RefreshTokenHash deliberately contains only a digest of the opaque token.
+// SessionRecord contains no browser credential or role snapshot.
 type SessionRecord struct {
-	Id               string `json:"id"`
-	UserId           string `json:"user_id"`
-	Role             string `json:"role"`
-	RefreshTokenHash string `json:"refresh_token_hash"`
+	UserId    string `json:"user_id"`
+	CreatedAt int64  `json:"created_at"`
+	ExpiresAt int64  `json:"expires_at"`
+	CSRFToken string `json:"csrf_token"`
 }
 
 // OAuthStateRecord contains the server-side PKCE verifier for one OAuth flow.
 // The verifier must never be sent to the browser or included in an OAuth URL.
 type OAuthStateRecord struct {
 	CodeVerifier string `json:"code_verifier"`
-}
-
-type RefreshTokenRecord struct {
-	SessionId string `json:"session_id"`
-	UserId    string `json:"user_id"`
-	Role      string `json:"role"`
-	Status    string `json:"status"`
 }
 
 type RoleDto struct {

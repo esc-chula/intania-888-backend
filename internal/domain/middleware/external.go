@@ -1,58 +1,49 @@
 package middleware
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
-	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // ExternalAPIMiddleware is a middleware for external API endpoints that bypasses browser-only validation
-// but keeps JWT authentication, user retrieval, and blacklist enforcement
+// but keeps JWT authentication, user retrieval, and blacklist enforcement.
 func (h *MiddlewareHttpHandler) ExternalAPIMiddleware(c *fiber.Ctx) error {
 	token, ok := parseBearerToken(c.Get("Authorization"))
 	if !ok {
-		h.log.Named("ExternalAPIMiddleware").Error("Missing authorization header")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "missing authorization header",
-		})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing authorization header"})
 	}
 
-	// Verify the token
-	claims, err := h.service.VerifyToken(token)
+	// Verify the token and its revocation status.
+	id, err := h.service.VerifyExternalToken(token)
 	if err != nil {
-		h.log.Named("ExternalAPIMiddleware").Error("Token verification failed", zap.Error(err))
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "invalid or expired token",
-		})
+		if errors.Is(err, ErrExternalMissing) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid or expired token"})
+		}
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "token status unavailable"})
 	}
 
-	// Get the user profile
-	userDto, err := h.service.GetMe(claims.UserId)
+	// Get the user profile.
+	user, err := h.service.GetMe(id)
 	if err != nil {
-		h.log.Named("ExternalAPIMiddleware").Error("User not found", zap.Error(err))
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "user not found",
-		})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		}
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "user status unavailable"})
 	}
 
-	// Check blacklist (MUST enforce for security)
-	blacklisted, err := h.service.IsBlacklisted(userDto.Email, userDto.Id)
+	// Check blacklist (MUST enforce for security).
+	blacklisted, err := h.service.IsBlacklisted(user.Email, user.Id)
 	if err != nil {
-		h.log.Named("ExternalAPIMiddleware").Error("Evaluate access policy", zap.Error(err))
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "access policy is unavailable",
-		})
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "access policy unavailable"})
 	}
 	if blacklisted {
-		h.log.Named("ExternalAPIMiddleware").Warn("Blacklisted user attempted external API access",
-			zap.String("endpoint", c.Path()))
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "unauthorized",
-		})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	// Store user in context for downstream handlers
-	c.Locals("user", userDto)
-	c.Locals("session_id", claims.SessionId)
+	// Store user in context for downstream handlers.
+	c.Locals("user", user)
 
 	return c.Next()
 }

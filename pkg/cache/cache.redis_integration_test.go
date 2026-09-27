@@ -4,70 +4,60 @@ package cache
 
 import (
 	"context"
+	"errors"
+	"github.com/redis/go-redis/v9"
 	"os"
-	"sync"
 	"testing"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
-func TestCompareAndSwapValuesAllowsOnlyOneConcurrentRotation(t *testing.T) {
+func TestBrowserSessionRotationAndRevocation(t *testing.T) {
 	addr := os.Getenv("INTANIA888_TEST_REDIS_ADDR")
 	if addr == "" {
-		t.Fatal("INTANIA888_TEST_REDIS_ADDR is required")
+		t.Skip("INTANIA888_TEST_REDIS_ADDR is required")
 	}
-
-	client := redis.NewClient(&redis.Options{Addr: addr})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		t.Fatalf("connect to integration Redis: %v", err)
-	}
+	client := redis.NewClient(&redis.Options{Addr: addr, Password: os.Getenv("INTANIA888_TEST_REDIS_PASSWORD")})
 	defer client.Close()
-	if err := client.FlushDB(ctx).Err(); err != nil {
-		t.Fatalf("flush integration Redis: %v", err)
+	ctx := context.Background()
+	if err := client.Ping(ctx).Err(); err != nil {
+		t.Fatal(err)
 	}
-
 	r := &RedisClient{client: client}
-	expected := map[string]interface{}{
-		"auth:v2:refresh:old":     map[string]string{"status": "active"},
-		"auth:v2:session:session": map[string]string{"refresh": "old"},
+	prefix := "test:auth:" + time.Now().Format("20060102150405.000000000")
+	userKey := prefix + ":user"
+	firstKey := prefix + ":first"
+	secondKey := prefix + ":second"
+	defer client.Del(ctx, userKey, firstKey, secondKey)
+	record := struct {
+		ExpiresAt int64  `json:"expires_at"`
+		UserID    string `json:"user_id"`
+	}{time.Now().Add(30 * 24 * time.Hour).Unix(), "user"}
+	if err := r.RotateSession(userKey, firstKey, "test:auth:previous", record, 60); err != nil {
+		t.Fatal(err)
 	}
-	replacements := map[string]interface{}{
-		"auth:v2:refresh:old":     map[string]string{"status": "used"},
-		"auth:v2:refresh:new":     map[string]string{"status": "active"},
-		"auth:v2:session:session": map[string]string{"refresh": "new"},
+	var got struct {
+		ExpiresAt int64  `json:"expires_at"`
+		UserID    string `json:"user_id"`
 	}
-	for key, value := range expected {
-		if err := r.SetValue(key, value, 60); err != nil {
-			t.Fatalf("seed %s: %v", key, err)
-		}
+	if err := r.ReadAndRenewSession(firstKey, time.Now().Unix(), 30, &got); err != nil {
+		t.Fatal(err)
 	}
-
-	results := make(chan bool, 2)
-	var wait sync.WaitGroup
-	for range 2 {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
-			applied, err := r.CompareAndSwapValues(expected, replacements, 60)
-			if err != nil {
-				t.Errorf("CompareAndSwapValues() error = %v", err)
-			}
-			results <- applied
-		}()
+	if err := r.RotateSession(userKey, secondKey, firstKey, record, 60); err != nil {
+		t.Fatal(err)
 	}
-	wait.Wait()
-	close(results)
-
-	applied := 0
-	for result := range results {
-		if result {
-			applied++
-		}
+	if err := r.ReadAndRenewSession(firstKey, time.Now().Unix(), 30, &got); !errors.Is(err, redis.Nil) {
+		t.Fatalf("rotated session survived: %v", err)
 	}
-	if applied != 1 {
-		t.Fatalf("successful compare-and-swaps = %d, want 1", applied)
+	if err := r.DeleteSession(secondKey); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ReadAndRenewSession(secondKey, time.Now().Unix(), 30, &got); !errors.Is(err, redis.Nil) {
+		t.Fatalf("revoked session resurrected: %v", err)
+	}
+	if err := r.RotateSession(userKey, firstKey, "test:auth:previous", record, 60); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ReadAndRenewSession(firstKey, time.Now().Add(31*24*time.Hour).Unix(), 30, &got); !errors.Is(err, redis.Nil) {
+		t.Fatalf("absolute expiry ignored: %v", err)
 	}
 }

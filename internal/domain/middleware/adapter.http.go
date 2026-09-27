@@ -1,84 +1,105 @@
 package middleware
 
 import (
+	"crypto/subtle"
+	"errors"
 	"strings"
 
+	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type MiddlewareHttpHandler struct {
-	service MiddlewareService
-	log     *zap.Logger
+	service    MiddlewareService
+	log        *zap.Logger
+	production bool
 }
 
-func NewMiddlewareHttpHandler(service MiddlewareService, log *zap.Logger) *MiddlewareHttpHandler {
-	return &MiddlewareHttpHandler{
-		service: service,
-		log:     log,
+func NewMiddlewareHttpHandler(service MiddlewareService, log *zap.Logger, production ...bool) *MiddlewareHttpHandler {
+	prod := false
+	if len(production) > 0 {
+		prod = production[0]
 	}
+	return &MiddlewareHttpHandler{service: service, log: log, production: prod}
+}
+
+func (h *MiddlewareHttpHandler) CookieName() string {
+	return utils.SessionCookieName(h.production)
+}
+
+func (h *MiddlewareHttpHandler) Session(sessionID string) (*model.SessionRecord, error) {
+	return h.service.GetSession(sessionID)
 }
 
 func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
-	accessToken := c.Cookies(utils.AccessTokenCookieName)
-	if accessToken == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "missing access cookie",
-		})
+	id := c.Cookies(h.CookieName())
+	if id == "" {
+		clearBrowserSessionCookie(c, h.production)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing session"})
 	}
 
-	claims, err := h.service.VerifyToken(accessToken)
+	session, err := h.service.GetSession(id)
 	if err != nil {
-		h.log.Named("AuthMiddleware").Error("Verify access cookie", zap.Error(err))
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "invalid or expired session",
-		})
+		if errors.Is(err, ErrSessionMissing) {
+			clearBrowserSessionCookie(c, h.production)
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid or expired session"})
+		}
+		h.log.Error("Read browser session", zap.Error(err))
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "session store unavailable"})
 	}
 
-	userDto, err := h.service.GetMe(claims.UserId)
+	user, err := h.service.GetMe(session.UserId)
 	if err != nil {
-		h.log.Named("AuthMiddleware").Error("User not found", zap.Error(err))
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "user not found",
-		})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			clearBrowserSessionCookie(c, h.production)
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid session user"})
+		}
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "user status unavailable"})
 	}
 
-	blacklisted, err := h.service.IsBlacklisted(userDto.Email, userDto.Id)
+	blacklisted, err := h.service.IsBlacklisted(user.Email, user.Id)
 	if err != nil {
-		h.log.Named("AuthMiddleware").Error("Evaluate access policy", zap.Error(err))
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "access policy is unavailable",
-		})
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "access policy unavailable"})
 	}
 	if blacklisted {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "unauthorized",
-		})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
-	c.Locals("user", userDto)
-	c.Locals("session_id", claims.SessionId)
+	if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead && c.Method() != fiber.MethodOptions {
+		token := c.Get("X-CSRF-Token")
+		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(session.CSRFToken)) != 1 {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "invalid CSRF token"})
+		}
+	}
+
+	c.Cookie(&fiber.Cookie{
+		Name:     h.CookieName(),
+		Value:    id,
+		Path:     "/",
+		MaxAge:   7 * 24 * 3600,
+		HTTPOnly: true,
+		Secure:   h.production,
+		SameSite: fiber.CookieSameSiteLaxMode,
+	})
+	c.Locals("user", user)
+	c.Locals("session_id", id)
+	c.Locals("csrf_token", session.CSRFToken)
+
 	return c.Next()
 }
 
 func (h *MiddlewareHttpHandler) AdminMiddleware(c *fiber.Ctx) error {
 	user := utils.GetUserProfileFromCtx(c)
 	if user == nil {
-		h.log.Named("AdminMiddleware").Error("User not found in context")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "unauthorized",
-		})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 
 	if !security.IsAdminRole(user.RoleId) {
-		h.log.Named("AdminMiddleware").Warn("Non-admin attempted admin action",
-			zap.String("role", user.RoleId),
-			zap.String("endpoint", c.Path()))
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "admin access required",
-		})
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "admin access required"})
 	}
 
 	return c.Next()
@@ -90,4 +111,15 @@ func parseBearerToken(header string) (string, bool) {
 		return "", false
 	}
 	return parts[1], true
+}
+
+func clearBrowserSessionCookie(c *fiber.Ctx, production bool) {
+	c.Cookie(&fiber.Cookie{
+		Name:     utils.SessionCookieName(production),
+		Path:     "/",
+		MaxAge:   -1,
+		HTTPOnly: true,
+		Secure:   production,
+		SameSite: fiber.CookieSameSiteLaxMode,
+	})
 }

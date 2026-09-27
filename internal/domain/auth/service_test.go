@@ -13,7 +13,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	oauthpkg "github.com/esc-chula/intania-888-backend/pkg/oauth"
 	"github.com/esc-chula/intania-888-backend/utils"
-	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
@@ -78,7 +78,7 @@ func (r *memoryAuthRepository) GetCacheValue(key string, value interface{}) erro
 	}
 	r.mu.Unlock()
 	if !ok {
-		return errors.New("cache miss")
+		return redis.Nil
 	}
 	return json.Unmarshal(encoded, value)
 }
@@ -87,7 +87,7 @@ func (r *memoryAuthRepository) DeleteCacheValue(key string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.values[key]; !ok {
-		return errors.New("cache miss")
+		return redis.Nil
 	}
 	delete(r.values, key)
 	delete(r.ttls, key)
@@ -116,7 +116,7 @@ func (r *memoryAuthRepository) ConsumeCacheValue(key string, value interface{}) 
 	}
 	encoded, ok := r.values[key]
 	if !ok {
-		return errors.New("cache miss")
+		return redis.Nil
 	}
 	delete(r.values, key)
 	delete(r.ttls, key)
@@ -234,9 +234,7 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*authServiceImpl, *memor
 	cfg := authTestConfig{
 		server: config.Server{Name: "intania-test", Env: "development"},
 		jwt: config.Jwt{
-			AccessTokenSecret:      "access-secret",
-			AccessTokenExpiration:  300,
-			RefreshTokenExpiration: 3600,
+			AccessTokenSecret: "access-secret",
 		},
 		oauth: config.OAuth{
 			StateExpiration:      120,
@@ -256,7 +254,7 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*authServiceImpl, *memor
 		info:     info,
 		verifier: verifier,
 	}
-	service := NewAuthService(repo, users, cfg, zap.NewNop(), client).(*authServiceImpl)
+	service := NewAuthService(repo, users, cfg, zap.NewNop(), client, testPolicyChecker{}).(*authServiceImpl)
 	return service, repo, users
 }
 
@@ -299,16 +297,16 @@ func TestOAuthStateIsBoundAndConsumedOnce(t *testing.T) {
 		t.Fatalf("state TTL = %d, want 120", got)
 	}
 
-	if _, err := service.VerifyOAuthLogin("code", state, "different"); !errors.Is(err, ErrInvalidOAuthState) {
+	if _, err := service.VerifyOAuthLogin("code", state, "different", ""); !errors.Is(err, ErrInvalidOAuthState) {
 		t.Fatalf("mismatched state error = %v, want ErrInvalidOAuthState", err)
 	}
-	if _, err := service.VerifyOAuthLogin("code", state, state); !errors.Is(err, ErrUnverifiedEmail) {
+	if _, err := service.VerifyOAuthLogin("code", state, state, ""); !errors.Is(err, ErrUnverifiedEmail) {
 		t.Fatalf("unverified email error = %v, want ErrUnverifiedEmail", err)
 	}
 	if client, ok := service.oauthClient.(*fakeGoogleOAuthClient); !ok || client.verifier == nil || *client.verifier == "" {
 		t.Fatal("OAuth code exchange did not receive the server-side PKCE verifier")
 	}
-	if _, err := service.VerifyOAuthLogin("code", state, state); !errors.Is(err, ErrInvalidOAuthState) {
+	if _, err := service.VerifyOAuthLogin("code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
 		t.Fatalf("replayed state error = %v, want ErrInvalidOAuthState", err)
 	}
 }
@@ -323,252 +321,108 @@ func TestExpiredOAuthStateCannotBeConsumed(t *testing.T) {
 	repo.expires[utils.ToOAuthStateCacheKey(state)] = time.Now().Add(-time.Second)
 	repo.mu.Unlock()
 
-	if _, err := service.VerifyOAuthLogin("code", state, state); !errors.Is(err, ErrInvalidOAuthState) {
+	if _, err := service.VerifyOAuthLogin("code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
 		t.Fatalf("expired OAuth state error = %v, want ErrInvalidOAuthState", err)
 	}
 }
 
-func TestConcurrentRefreshRotationAcceptsOnlyOneRequestAndRevokesOnReplay(t *testing.T) {
-	service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
-		Id:            uuid.NewString(),
-		Email:         "student@student.chula.ac.th",
-		Name:          "Student",
-		VerifiedEmail: true,
-	})
-	users.users["student@student.chula.ac.th"] = &model.User{Id: "user-id", Email: "student@student.chula.ac.th", RoleId: "USER"}
+func (r *memoryAuthRepository) RotateSession(userKey, sessionKey, previousKey string, value interface{}, ttl int) error {
+	r.mu.Lock()
+	old := string(r.values[userKey])
+	r.mu.Unlock()
+	if err := r.SetCacheValue(sessionKey, value, ttl); err != nil {
+		return err
+	}
+	if err := r.SetCacheValue(userKey, sessionKey, 30*24*3600); err != nil {
+		return err
+	}
+	if previousKey != utils.ToSessionCacheKey("") {
+		_ = r.DeleteSession(previousKey)
+	}
+	if old != "" {
+		var previous string
+		_ = json.Unmarshal([]byte(old), &previous)
+		_ = r.DeleteSession(previous)
+	}
+	return nil
+}
+func (r *memoryAuthRepository) DeleteSession(key string) error { return r.DeleteCacheValues(key) }
+
+func TestOpaqueSessionRotationAndFailedLogin(t *testing.T) {
+	info := &oauthpkg.GoogleUserInfo{Id: "google-id", Email: "student@student.chula.ac.th", VerifiedEmail: true}
+	service, repo, _ := newAuthTestService(info)
 	state := createOAuthState(t, service)
-	credentials, err := service.VerifyOAuthLogin("code", state, state)
+	first, err := service.VerifyOAuthLogin("code", state, state, "")
 	if err != nil {
-		t.Fatalf("VerifyOAuthLogin() error = %v", err)
+		t.Fatal(err)
 	}
-
-	results := make(chan struct {
-		credentials *SessionCredentials
-		err         error
-	}, 2)
-	var wait sync.WaitGroup
-	for range 2 {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
-			rotated, refreshErr := service.RefreshToken(credentials.RefreshToken)
-			results <- struct {
-				credentials *SessionCredentials
-				err         error
-			}{rotated, refreshErr}
-		}()
+	if !first.IsNewUser || first.SessionID == "" {
+		t.Fatal("new login missing opaque session")
 	}
-	wait.Wait()
-	close(results)
-
-	successes := 0
-	replays := 0
-	for result := range results {
-		if result.err == nil {
-			successes++
-			continue
-		}
-		if errors.Is(result.err, ErrRefreshReplay) {
-			replays++
-		}
+	var record model.SessionRecord
+	if err := repo.GetCacheValue(utils.ToSessionCacheKey(first.SessionID), &record); err != nil {
+		t.Fatal(err)
 	}
-	if successes != 1 || replays != 1 {
-		t.Fatalf("concurrent refresh results = successes %d, replays %d; want one of each", successes, replays)
+	if record.UserId != "google-id" || record.CSRFToken == "" || record.ExpiresAt-record.CreatedAt != 30*24*3600 {
+		t.Fatalf("invalid session: %+v", record)
 	}
-
-	claims, err := utils.JwtParseAccessToken(credentials.AccessToken, "access-secret", "intania-test", "intania-test")
+	if _, err := service.VerifyOAuthLogin("code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
+		t.Fatalf("reused state: %v", err)
+	}
+	client := service.oauthClient.(*fakeGoogleOAuthClient)
+	client.err = errors.New("Google failed")
+	badState := createOAuthState(t, service)
+	if _, err := service.VerifyOAuthLogin("code", badState, badState, first.SessionID); err == nil {
+		t.Fatal("expected failed login")
+	}
+	if err := repo.GetCacheValue(utils.ToSessionCacheKey(first.SessionID), &record); err != nil {
+		t.Fatal("failed login revoked previous session")
+	}
+	client.err = nil
+	secondState := createOAuthState(t, service)
+	second, err := service.VerifyOAuthLogin("code", secondState, secondState, first.SessionID)
 	if err != nil {
-		t.Fatalf("JwtParseAccessToken() error = %v", err)
+		t.Fatal(err)
 	}
-	var session model.SessionRecord
-	if err := repo.GetCacheValue(utils.ToSessionCacheKey(claims.SessionId), &session); err == nil {
-		t.Fatal("session remains active after concurrent refresh replay")
+	if second.IsNewUser || second.SessionID == first.SessionID {
+		t.Fatal("session was not rotated")
+	}
+	if err := repo.GetCacheValue(utils.ToSessionCacheKey(first.SessionID), &record); err == nil {
+		t.Fatal("old session still exists")
+	}
+	if err := service.Logout(second.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Logout(second.SessionID); err != nil {
+		t.Fatal("logout is not idempotent")
 	}
 }
 
-func TestRefreshRotationAcceptsRoleChanges(t *testing.T) {
-	tests := []struct {
-		name    string
-		oldRole string
-		newRole string
-	}{
-		{name: "promote user", oldRole: security.RoleUser, newRole: security.RoleAdmin},
-		{name: "demote admin", oldRole: security.RoleAdmin, newRole: security.RoleUser},
+func TestExternalTokenIssuanceAndRevocationNeedNoAuditDatabase(t *testing.T) {
+	service, repo, users := newAuthTestService(nil)
+	if err := users.Create(&model.User{Id: "existing-user", Email: "existing@example.test"}); err != nil {
+		t.Fatal(err)
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			userID := uuid.NewString()
-			service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
-				Id:            userID,
-				Email:         "student@student.chula.ac.th",
-				Name:          "Student",
-				VerifiedEmail: true,
-			})
-			users.users["student@student.chula.ac.th"] = &model.User{
-				Id:     userID,
-				Email:  "student@student.chula.ac.th",
-				RoleId: test.oldRole,
-			}
-
-			state := createOAuthState(t, service)
-			credentials, err := service.VerifyOAuthLogin("code", state, state)
-			if err != nil {
-				t.Fatalf("VerifyOAuthLogin() error = %v", err)
-			}
-
-			users.users["student@student.chula.ac.th"].RoleId = test.newRole
-			rotated, err := service.RefreshToken(credentials.RefreshToken)
-			if err != nil {
-				t.Fatalf("RefreshToken() after role change error = %v", err)
-			}
-			if rotated.RefreshToken == credentials.RefreshToken {
-				t.Fatal("refresh token was not rotated")
-			}
-
-			claims, err := utils.JwtParseAccessToken(rotated.AccessToken, "access-secret", "intania-test", "intania-test")
-			if err != nil {
-				t.Fatalf("JwtParseAccessToken() error = %v", err)
-			}
-			if claims.Role != test.newRole {
-				t.Fatalf("access token role = %q, want %q", claims.Role, test.newRole)
-			}
-
-			var session model.SessionRecord
-			if err := repo.GetCacheValue(utils.ToSessionCacheKey(claims.SessionId), &session); err != nil {
-				t.Fatalf("session lookup error = %v", err)
-			}
-			if session.Role != test.newRole {
-				t.Fatalf("stored session role = %q, want %q", session.Role, test.newRole)
-			}
-		})
-	}
-}
-
-func TestOAuthRequiresVerifiedAllowlistedEmailAndCreatesHashedSession(t *testing.T) {
-	service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
-		Id:            uuid.NewString(),
-		Email:         "6630000000@STUDENT.CHULA.AC.TH",
-		Name:          "Student",
-		VerifiedEmail: true,
-	})
-	state := createOAuthState(t, service)
-	credentials, err := service.VerifyOAuthLogin("code", state, state)
+	token, id, err := service.IssueExternalToken("existing-user")
 	if err != nil {
-		t.Fatalf("VerifyOAuthLogin() error = %v", err)
+		t.Fatal(err)
 	}
-	if !credentials.IsNewUser {
-		t.Fatal("new user result has IsNewUser=false")
+	subject, tokenID, err := utils.JwtParseExternalToken(token, service.cfg.GetJwt().AccessTokenSecret, service.cfg.GetServer().Name)
+	if err != nil || subject != "existing-user" || tokenID != id {
+		t.Fatalf("external token claims = %q, %q, %v", subject, tokenID, err)
 	}
-	if users.createCount != 1 {
-		t.Fatalf("created users = %d, want 1", users.createCount)
+	var record ExternalTokenRecord
+	key := utils.ToExternalTokenCacheKey(id)
+	if err := repo.GetCacheValue(key, &record); err != nil || record.SubjectID != subject {
+		t.Fatalf("external token record = %+v, %v", record, err)
 	}
-	if credentials.AccessToken == "" || credentials.RefreshToken == "" {
-		t.Fatal("session credentials are empty")
+	if err := service.RevokeExternalToken(id); err != nil {
+		t.Fatal(err)
 	}
-
-	claims, err := utils.JwtParseAccessToken(credentials.AccessToken, "access-secret", "intania-test", "intania-test")
-	if err != nil {
-		t.Fatalf("JwtParseAccessToken() error = %v", err)
+	if err := repo.GetCacheValue(key, &record); err == nil {
+		t.Fatal("revoked external token is still active")
 	}
-	var session model.SessionRecord
-	if err := repo.GetCacheValue(utils.ToSessionCacheKey(claims.SessionId), &session); err != nil {
-		t.Fatalf("session lookup error = %v", err)
-	}
-	if session.RefreshTokenHash != utils.HashOpaqueToken(credentials.RefreshToken) {
-		t.Fatal("session does not contain refresh token digest")
-	}
-	if string(repo.values[utils.ToSessionCacheKey(claims.SessionId)]) == credentials.RefreshToken {
-		t.Fatal("raw refresh token was stored in session")
-	}
-}
-
-func TestExistingAdminIsImplicitlyAllowlisted(t *testing.T) {
-	userID := uuid.NewString()
-	service, _, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
-		Id:            userID,
-		Email:         "admin@example.com",
-		Name:          "Admin",
-		VerifiedEmail: true,
-	})
-	users.users["admin@example.com"] = &model.User{Id: userID, Email: "admin@example.com", RoleId: "ADMIN"}
-
-	state := createOAuthState(t, service)
-	credentials, err := service.VerifyOAuthLogin("code", state, state)
-	if err != nil {
-		t.Fatalf("VerifyOAuthLogin() error = %v", err)
-	}
-	if credentials.IsNewUser {
-		t.Fatal("existing admin was treated as a new user")
-	}
-}
-
-func TestRefreshRejectsAndRevokesBlacklistedUser(t *testing.T) {
-	service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
-		Id:            uuid.NewString(),
-		Email:         "student@student.chula.ac.th",
-		Name:          "Student",
-		VerifiedEmail: true,
-	})
-	users.users["student@student.chula.ac.th"] = &model.User{Id: "user-id", Email: "student@student.chula.ac.th", RoleId: "USER"}
-	state := createOAuthState(t, service)
-	credentials, err := service.VerifyOAuthLogin("code", state, state)
-	if err != nil {
-		t.Fatalf("VerifyOAuthLogin() error = %v", err)
-	}
-
-	service.policy = testPolicyChecker{blacklisted: true}
-	if _, err := service.RefreshToken(credentials.RefreshToken); !errors.Is(err, ErrEmailNotAllowed) {
-		t.Fatalf("blacklisted refresh error = %v, want ErrEmailNotAllowed", err)
-	}
-	claims, err := utils.JwtParseAccessToken(credentials.AccessToken, "access-secret", "intania-test", "intania-test")
-	if err != nil {
-		t.Fatalf("JwtParseAccessToken() error = %v", err)
-	}
-	var session model.SessionRecord
-	if err := repo.GetCacheValue(utils.ToSessionCacheKey(claims.SessionId), &session); err == nil {
-		t.Fatal("blacklisted user's session remains active")
-	}
-}
-
-func TestExistingUserDoesNotSetNewUserFlagAndRefreshReplayRevokesSession(t *testing.T) {
-	userID := uuid.NewString()
-	service, repo, users := newAuthTestService(&oauthpkg.GoogleUserInfo{
-		Id:            userID,
-		Email:         "student@student.chula.ac.th",
-		Name:          "Student",
-		VerifiedEmail: true,
-	})
-	users.users["student@student.chula.ac.th"] = &model.User{Id: userID, Email: "student@student.chula.ac.th", RoleId: "USER"}
-
-	state := createOAuthState(t, service)
-	credentials, err := service.VerifyOAuthLogin("code", state, state)
-	if err != nil {
-		t.Fatalf("VerifyOAuthLogin() error = %v", err)
-	}
-	if credentials.IsNewUser {
-		t.Fatal("existing user result has IsNewUser=true")
-	}
-
-	claims, err := utils.JwtParseAccessToken(credentials.AccessToken, "access-secret", "intania-test", "intania-test")
-	if err != nil {
-		t.Fatalf("JwtParseAccessToken() error = %v", err)
-	}
-	rotated, err := service.RefreshToken(credentials.RefreshToken)
-	if err != nil {
-		t.Fatalf("RefreshToken() error = %v", err)
-	}
-	if rotated.RefreshToken == credentials.RefreshToken {
-		t.Fatal("refresh token was not rotated")
-	}
-	if _, err := service.RefreshToken(credentials.RefreshToken); !errors.Is(err, ErrRefreshReplay) {
-		t.Fatalf("replayed refresh error = %v, want ErrRefreshReplay", err)
-	}
-	var session model.SessionRecord
-	if err := repo.GetCacheValue(utils.ToSessionCacheKey(claims.SessionId), &session); err == nil {
-		t.Fatal("session remains active after refresh replay")
-	}
-	if _, err := service.RefreshToken(rotated.RefreshToken); !errors.Is(err, ErrInvalidRefresh) {
-		t.Fatalf("rotated token after revocation error = %v, want ErrInvalidRefresh", err)
+	if _, _, err := service.IssueExternalToken("missing-user"); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("missing user error = %v", err)
 	}
 }
