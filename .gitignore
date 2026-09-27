@@ -4,9 +4,6 @@
 tmp
 *.md
 !docs/README.md
-!docs/development-readiness.md
-!docs/database-reset-runbook.md
-!docs/adr/*.md
 .env.local
 .env.prod
 /requirements
