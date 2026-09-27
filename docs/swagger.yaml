@@ -133,7 +133,9 @@ definitions:
     type: object
   model.DailyRewardScheduleResponse:
     properties:
-      items:
+      default_amount:
+        type: string
+      overrides:
         items:
           $ref: '#/definitions/model.DailyRewardScheduleItem'
         type: array
@@ -285,8 +287,6 @@ definitions:
   model.SetDailyRewardRequest:
     properties:
       amount:
-        type: string
-      date:
         type: string
     type: object
   model.SportTypeDto:
@@ -959,7 +959,8 @@ paths:
       - Color
   /events/daily-rewards:
     get:
-      description: Lists configured daily reward amounts by date (admin only).
+      description: Returns the configured default daily reward and date-specific overrides
+        (admin only).
       produces:
       - application/json
       responses:
@@ -990,12 +991,72 @@ paths:
       summary: List daily reward schedule
       tags:
       - Event
-    post:
+  /events/daily-rewards/{date}:
+    delete:
+      description: Deletes the date-specific reward override so the default reward
+        applies again (admin only).
+      parameters:
+      - description: Reward date in DD-MM-YYYY format
+        in: path
+        name: date
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Daily reward override deleted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Reward date is required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Daily reward override not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to delete daily reward override
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a daily reward override
+      tags:
+      - Event
+    put:
       consumes:
       - application/json
-      description: Set daily reward amount for a specific date (admin only)
+      description: Creates or replaces the daily reward override for a specific date
+        (admin only). Repeating the same request is safe.
       parameters:
-      - description: Daily reward request
+      - description: Reward date in DD-MM-YYYY format
+        in: path
+        name: date
+        required: true
+        type: string
+      - description: Daily reward amount
         in: body
         name: request
         required: true

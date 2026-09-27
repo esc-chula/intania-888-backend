@@ -61,6 +61,17 @@ func (r *eventRepository) SetReward(reward *model.DailyReward) error {
 	return r.db.Save(reward).Error
 }
 
+func (r *eventRepository) DeleteReward(date string) error {
+	result := r.db.Where("date = ?", date).Delete(&model.DailyReward{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrDailyRewardOverrideNotFound
+	}
+	return nil
+}
+
 // RedeemDailyReward applies the configured reward and records the claim atomically.
 func (r *eventRepository) RedeemDailyReward(userID string, date string, defaultReward model.Money) (model.Money, error) {
 	var credited model.Money

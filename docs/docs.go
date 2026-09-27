@@ -814,7 +814,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Lists configured daily reward amounts by date (admin only).",
+                "description": "Returns the configured default daily reward and date-specific overrides (admin only).",
                 "produces": [
                     "application/json"
                 ],
@@ -857,14 +857,16 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "post": {
+            }
+        },
+        "/events/daily-rewards/{date}": {
+            "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Set daily reward amount for a specific date (admin only)",
+                "description": "Creates or replaces the daily reward override for a specific date (admin only). Repeating the same request is safe.",
                 "consumes": [
                     "application/json"
                 ],
@@ -877,7 +879,14 @@ const docTemplate = `{
                 "summary": "Set daily reward",
                 "parameters": [
                     {
-                        "description": "Daily reward request",
+                        "type": "string",
+                        "description": "Reward date in DD-MM-YYYY format",
+                        "name": "date",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Daily reward amount",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -907,6 +916,86 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Failed to set daily reward",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes the date-specific reward override so the default reward applies again (admin only).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Event"
+                ],
+                "summary": "Delete a daily reward override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Reward date in DD-MM-YYYY format",
+                        "name": "date",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Daily reward override deleted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Reward date is required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "admin access required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Daily reward override not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to delete daily reward override",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2305,7 +2394,10 @@ const docTemplate = `{
         "model.DailyRewardScheduleResponse": {
             "type": "object",
             "properties": {
-                "items": {
+                "default_amount": {
+                    "type": "string"
+                },
+                "overrides": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/model.DailyRewardScheduleItem"
@@ -2537,9 +2629,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "string"
-                },
-                "date": {
                     "type": "string"
                 }
             }

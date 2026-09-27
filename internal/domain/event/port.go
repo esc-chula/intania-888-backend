@@ -1,6 +1,12 @@
 package event
 
-import "github.com/esc-chula/intania-888-backend/internal/model"
+import (
+	"errors"
+
+	"github.com/esc-chula/intania-888-backend/internal/model"
+)
+
+var ErrDailyRewardOverrideNotFound = errors.New("daily reward override not found")
 
 type EventRepository interface {
 	SetDailyRewardCache(key string, value interface{}, ttl int) error
@@ -8,6 +14,7 @@ type EventRepository interface {
 	GetReward(date string) (*model.DailyReward, error)
 	ListRewards() ([]model.DailyReward, error)
 	SetReward(reward *model.DailyReward) error
+	DeleteReward(date string) error
 	RedeemDailyReward(userID string, date string, defaultReward model.Money) (model.Money, error)
 
 	CreateStealToken(token *model.StealToken) error
@@ -47,6 +54,7 @@ type EventService interface {
 		spendAmount model.Money,
 	) (map[string]interface{}, error)
 	SetDailyReward(date string, amount model.Money) error
+	DeleteDailyReward(date string) error
 
 	// Use steal token
 	UseStealToken(userId string, token string, victimIndex int) (*model.UseStealTokenResponseDto, error)

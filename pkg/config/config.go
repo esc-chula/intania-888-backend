@@ -9,6 +9,7 @@ type Config interface {
 	GetSession() Session
 	GetSwagger() Swagger
 	GetCors() Cors
+	GetDailyReward() DailyReward
 }
 
 const (
@@ -60,6 +61,10 @@ type OAuth struct {
 type Session struct {
 	IdleTTLSeconds     int `mapstructure:"session_idle_ttl_seconds"`
 	AbsoluteTTLSeconds int `mapstructure:"session_absolute_ttl_seconds"`
+}
+
+type DailyReward struct {
+	DefaultAmount string `mapstructure:"daily_reward_default_amount"`
 }
 
 type Swagger struct {

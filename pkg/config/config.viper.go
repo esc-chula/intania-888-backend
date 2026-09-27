@@ -10,14 +10,15 @@ import (
 )
 
 type viperConfig struct {
-	Server  `mapstructure:",squash"`
-	Db      `mapstructure:",squash"`
-	Cache   `mapstructure:",squash"`
-	Jwt     `mapstructure:",squash"`
-	OAuth   `mapstructure:",squash"`
-	Session `mapstructure:",squash"`
-	Swagger `mapstructure:",squash"`
-	Cors    `mapstructure:",squash"`
+	Server      `mapstructure:",squash"`
+	Db          `mapstructure:",squash"`
+	Cache       `mapstructure:",squash"`
+	Jwt         `mapstructure:",squash"`
+	OAuth       `mapstructure:",squash"`
+	Session     `mapstructure:",squash"`
+	Swagger     `mapstructure:",squash"`
+	Cors        `mapstructure:",squash"`
+	DailyReward `mapstructure:",squash"`
 }
 
 var (
@@ -51,6 +52,7 @@ func NewViperConfig() Config {
 		v.SetDefault("oauth_state_expiration", 600)
 		v.SetDefault("session_idle_ttl_seconds", DefaultSessionIdleTTLSeconds)
 		v.SetDefault("session_absolute_ttl_seconds", DefaultSessionAbsoluteTTLSeconds)
+		v.SetDefault("daily_reward_default_amount", "300.00")
 
 		// Bind environment variables to config keys
 		bindEnvVars(v)
@@ -131,6 +133,10 @@ func (c *viperConfig) GetCors() Cors {
 	return c.Cors
 }
 
+func (c *viperConfig) GetDailyReward() DailyReward {
+	return c.DailyReward
+}
+
 func bindEnvVars(v *viper.Viper) {
 	bind := func(key, env string) {
 		if err := v.BindEnv(key, env); err != nil {
@@ -166,6 +172,7 @@ func bindEnvVars(v *viper.Viper) {
 	bind("oauth_state_expiration", "OAUTH_STATE_EXPIRATION")
 	bind("session_idle_ttl_seconds", "SESSION_IDLE_TTL_SECONDS")
 	bind("session_absolute_ttl_seconds", "SESSION_ABSOLUTE_TTL_SECONDS")
+	bind("daily_reward_default_amount", "DAILY_REWARD_DEFAULT_AMOUNT")
 
 	bind("swagger_enabled", "SWAGGER_ENABLED")
 	bind("swagger_require_auth", "SWAGGER_REQUIRE_AUTH")

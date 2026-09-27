@@ -9,7 +9,6 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -18,29 +17,32 @@ import (
 var bangkokLocation = time.FixedZone("Asia/Bangkok", int((7*time.Hour)/time.Second))
 
 type eventService struct {
-	eventRepo EventRepository
-	userRepo  user.UserRepository
-	cfg       config.Config
-	log       *zap.Logger
-	now       func() time.Time
+	eventRepo     EventRepository
+	userRepo      user.UserRepository
+	log           *zap.Logger
+	now           func() time.Time
+	defaultReward model.Money
 }
 
-func NewEventService(eventRepo EventRepository, userRepo user.UserRepository, cfg config.Config, log *zap.Logger) EventService {
+func NewEventService(
+	eventRepo EventRepository,
+	userRepo user.UserRepository,
+	defaultReward model.Money,
+	log *zap.Logger,
+) EventService {
 	return &eventService{
-		eventRepo: eventRepo,
-		userRepo:  userRepo,
-		cfg:       cfg,
-		log:       log,
-		now:       time.Now,
+		eventRepo:     eventRepo,
+		userRepo:      userRepo,
+		log:           log,
+		now:           time.Now,
+		defaultReward: defaultReward,
 	}
 }
 
 func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 	// Use the Bangkok calendar date and let the database own the claim and balance transaction.
 	date := s.now().In(bangkokLocation).Format("02-01-2006")
-	dailyReward := model.MustMoneyFromMinor(300_00)
-
-	if _, err := s.eventRepo.RedeemDailyReward(req.Id, date, dailyReward); err != nil {
+	if _, err := s.eventRepo.RedeemDailyReward(req.Id, date, s.defaultReward); err != nil {
 		s.log.Named("RedeemDailyReward").Error("Redeem daily reward", zap.Error(err), zap.String("user_id", req.Id), zap.String("date", date))
 		return err
 	}
@@ -57,26 +59,27 @@ func (s *eventService) GetDailyRewardSchedule() (*model.DailyRewardScheduleRespo
 	}
 
 	response := &model.DailyRewardScheduleResponse{
-		Items: make([]model.DailyRewardScheduleItem, 0, len(rewards)),
+		DefaultAmount: s.defaultReward,
+		Overrides:     make([]model.DailyRewardScheduleItem, 0, len(rewards)),
 	}
 	for _, reward := range rewards {
 		amount, err := model.NewMoneyFromMinor(reward.Reward)
 		if err != nil {
 			return nil, fmt.Errorf("invalid daily reward amount for %q: %w", reward.Date, err)
 		}
-		response.Items = append(response.Items, model.DailyRewardScheduleItem{
+		response.Overrides = append(response.Overrides, model.DailyRewardScheduleItem{
 			Date:   reward.Date,
 			Amount: amount,
 		})
 	}
 
-	sort.SliceStable(response.Items, func(i, j int) bool {
-		left, leftErr := time.Parse("02-01-2006", response.Items[i].Date)
-		right, rightErr := time.Parse("02-01-2006", response.Items[j].Date)
+	sort.SliceStable(response.Overrides, func(i, j int) bool {
+		left, leftErr := time.Parse("02-01-2006", response.Overrides[i].Date)
+		right, rightErr := time.Parse("02-01-2006", response.Overrides[j].Date)
 		switch {
 		case leftErr == nil && rightErr == nil:
 			if left.Equal(right) {
-				return response.Items[i].Date < response.Items[j].Date
+				return response.Overrides[i].Date < response.Overrides[j].Date
 			}
 			return left.Before(right)
 		case leftErr == nil:
@@ -84,7 +87,7 @@ func (s *eventService) GetDailyRewardSchedule() (*model.DailyRewardScheduleRespo
 		case rightErr == nil:
 			return false
 		default:
-			return response.Items[i].Date < response.Items[j].Date
+			return response.Overrides[i].Date < response.Overrides[j].Date
 		}
 	})
 
@@ -288,6 +291,20 @@ func (s *eventService) SetDailyReward(date string, amount model.Money) error {
 	}
 
 	s.log.Named("SetDailyReward").Info("Set daily reward successfully", zap.String("date", date), zap.Int64("amount_minor", amount.MinorUnits()))
+
+	return nil
+}
+
+func (s *eventService) DeleteDailyReward(date string) error {
+	if err := s.eventRepo.DeleteReward(date); err != nil {
+		if errors.Is(err, ErrDailyRewardOverrideNotFound) {
+			return err
+		}
+		s.log.Named("DeleteDailyReward").Error("Failed to delete daily reward override", zap.Error(err), zap.String("date", date))
+		return err
+	}
+
+	s.log.Named("DeleteDailyReward").Info("Deleted daily reward override", zap.String("date", date))
 
 	return nil
 }

@@ -150,8 +150,7 @@ type DailyRewardCacheDto struct {
 }
 
 type SetDailyRewardRequest struct {
-	Date   string `json:"date"`
-	Amount Money  `json:"amount" swaggertype:"string"`
+	Amount Money `json:"amount" swaggertype:"string"`
 }
 
 type DailyRewardScheduleItem struct {
@@ -160,7 +159,8 @@ type DailyRewardScheduleItem struct {
 }
 
 type DailyRewardScheduleResponse struct {
-	Items []DailyRewardScheduleItem `json:"items"`
+	DefaultAmount Money                     `json:"default_amount" swaggertype:"string"`
+	Overrides     []DailyRewardScheduleItem `json:"overrides"`
 }
 
 type UpdateUserDto struct {

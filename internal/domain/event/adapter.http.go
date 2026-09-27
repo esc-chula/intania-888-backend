@@ -28,7 +28,8 @@ func (h *EventHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 
 	adminRouter := router.Group("", mid.AdminMiddleware)
 	adminRouter.Get("/daily-rewards", h.GetDailyRewardSchedule)
-	adminRouter.Post("/daily-rewards", h.SetDailyReward)
+	adminRouter.Put("/daily-rewards/:date", h.SetDailyReward)
+	adminRouter.Delete("/daily-rewards/:date", h.DeleteDailyReward)
 }
 
 // RedeemDailyReward handles the daily reward redemption
@@ -102,24 +103,29 @@ func (h *EventHttpHandler) SpinSlotMachine(c *fiber.Ctx) error {
 
 // SetDailyReward handles setting daily reward amount
 // @Summary Set daily reward
-// @Description Set daily reward amount for a specific date (admin only)
+// @Description Creates or replaces the daily reward override for a specific date (admin only). Repeating the same request is safe.
 // @Tags Event
 // @Accept json
 // @Produce json
-// @Param request body model.SetDailyRewardRequest true "Daily reward request"
+// @Param date path string true "Reward date in DD-MM-YYYY format"
+// @Param request body model.SetDailyRewardRequest true "Daily reward amount"
 // @Success 200 {object} map[string]string "Set daily reward successful"
 // @Failure 400 {object} map[string]string "Invalid request payload"
 // @Failure 500 {object} map[string]string "Failed to set daily reward"
-// @Router /events/daily-rewards [post]
+// @Router /events/daily-rewards/{date} [put]
 // @Security BearerAuth
 func (h *EventHttpHandler) SetDailyReward(c *fiber.Ctx) error {
-	var req model.SetDailyRewardRequest
+	date := c.Params("date")
+	if date == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Reward date is required"})
+	}
 
+	var req model.SetDailyRewardRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
-	err := h.eventService.SetDailyReward(req.Date, req.Amount)
+	err := h.eventService.SetDailyReward(date, req.Amount)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to set daily reward"})
 	}
@@ -127,9 +133,9 @@ func (h *EventHttpHandler) SetDailyReward(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Set daily reward successful"})
 }
 
-// GetDailyRewardSchedule lists configured daily reward amounts by date.
+// GetDailyRewardSchedule returns the default daily reward and date-specific overrides.
 // @Summary List daily reward schedule
-// @Description Lists configured daily reward amounts by date (admin only).
+// @Description Returns the configured default daily reward and date-specific overrides (admin only).
 // @Tags Event
 // @Produce json
 // @Success 200 {object} model.DailyRewardScheduleResponse
@@ -145,6 +151,36 @@ func (h *EventHttpHandler) GetDailyRewardSchedule(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// DeleteDailyReward removes a date-specific daily reward override.
+// @Summary Delete a daily reward override
+// @Description Deletes the date-specific reward override so the default reward applies again (admin only).
+// @Tags Event
+// @Produce json
+// @Param date path string true "Reward date in DD-MM-YYYY format"
+// @Success 200 {object} map[string]string "Daily reward override deleted"
+// @Failure 400 {object} map[string]string "Reward date is required"
+// @Failure 401 {object} map[string]string "unauthorized"
+// @Failure 403 {object} map[string]string "admin access required"
+// @Failure 404 {object} map[string]string "Daily reward override not found"
+// @Failure 500 {object} map[string]string "Failed to delete daily reward override"
+// @Router /events/daily-rewards/{date} [delete]
+// @Security BearerAuth
+func (h *EventHttpHandler) DeleteDailyReward(c *fiber.Ctx) error {
+	date := c.Params("date")
+	if date == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Reward date is required"})
+	}
+
+	if err := h.eventService.DeleteDailyReward(date); err != nil {
+		if errors.Is(err, ErrDailyRewardOverrideNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": ErrDailyRewardOverrideNotFound.Error()})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete daily reward override"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Daily reward override deleted"})
 }
 
 // @Summary Use a steal token

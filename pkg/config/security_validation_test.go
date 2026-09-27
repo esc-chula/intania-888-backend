@@ -29,6 +29,9 @@ func (c securityValidationConfig) GetOAuth() OAuth     { return c.oauth }
 func (c securityValidationConfig) GetSession() Session { return c.session }
 func (c securityValidationConfig) GetSwagger() Swagger { return Swagger{} }
 func (c securityValidationConfig) GetCors() Cors       { return c.cors }
+func (c securityValidationConfig) GetDailyReward() DailyReward {
+	return DailyReward{}
+}
 
 func validSecurityConfig(env string) securityValidationConfig {
 	return securityValidationConfig{

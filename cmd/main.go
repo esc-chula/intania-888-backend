@@ -14,6 +14,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
+	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/pkg/database"
@@ -39,6 +40,10 @@ func main() {
 	cfg := config.GetConfig()
 	if err := config.ValidateSecurity(cfg); err != nil {
 		panic("invalid security configuration: " + err.Error())
+	}
+	defaultDailyReward, err := model.ParseMoney(cfg.GetDailyReward().DefaultAmount)
+	if err != nil {
+		panic("invalid DAILY_REWARD_DEFAULT_AMOUNT: " + err.Error())
 	}
 
 	isProduction := strings.EqualFold(strings.TrimSpace(cfg.GetServer().Env), "production")
@@ -88,7 +93,7 @@ func main() {
 	colorHttp := color.NewColorHttpHandler(colorSvc)
 
 	eventRepo := event.NewEventRepository(db, *cache)
-	eventSvc := event.NewEventService(eventRepo, userRepo, cfg, logger)
+	eventSvc := event.NewEventService(eventRepo, userRepo, defaultDailyReward, logger)
 	eventHttp := event.NewEventHttpHandler(eventSvc)
 
 	stakeMineRepo := stakemine.NewStakeMineRepository(db)

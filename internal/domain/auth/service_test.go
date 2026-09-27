@@ -39,7 +39,8 @@ func (c authTestConfig) GetSession() config.Session {
 func (c authTestConfig) GetSwagger() config.Swagger {
 	return config.Swagger{}
 }
-func (c authTestConfig) GetCors() config.Cors { return config.Cors{} }
+func (c authTestConfig) GetCors() config.Cors               { return config.Cors{} }
+func (c authTestConfig) GetDailyReward() config.DailyReward { return config.DailyReward{} }
 
 type memoryAuthRepository struct {
 	mu      sync.Mutex
