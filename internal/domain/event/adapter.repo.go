@@ -48,6 +48,15 @@ func (r *eventRepository) GetReward(date string) (*model.DailyReward, error) {
 	return &reward, nil
 }
 
+func (r *eventRepository) ListRewards() ([]model.DailyReward, error) {
+	var rewards []model.DailyReward
+	if err := r.db.Find(&rewards).Error; err != nil {
+		return nil, err
+	}
+
+	return rewards, nil
+}
+
 func (r *eventRepository) SetReward(reward *model.DailyReward) error {
 	return r.db.Save(reward).Error
 }

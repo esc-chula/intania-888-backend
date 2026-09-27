@@ -6,6 +6,7 @@ type EventRepository interface {
 	SetDailyRewardCache(key string, value interface{}, ttl int) error
 	GetDailyRewardCache(key string, value interface{}) error
 	GetReward(date string) (*model.DailyReward, error)
+	ListRewards() ([]model.DailyReward, error)
 	SetReward(reward *model.DailyReward) error
 	RedeemDailyReward(userID string, date string, defaultReward model.Money) (model.Money, error)
 
@@ -40,6 +41,7 @@ type StealTokenUseResult struct {
 
 type EventService interface {
 	RedeemDailyReward(req *model.UserDto) error
+	GetDailyRewardSchedule() (*model.DailyRewardScheduleResponse, error)
 	SpinSlotMachine(
 		req *model.UserDto,
 		spendAmount model.Money,

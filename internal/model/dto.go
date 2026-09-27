@@ -154,6 +154,15 @@ type SetDailyRewardRequest struct {
 	Amount Money  `json:"amount" swaggertype:"string"`
 }
 
+type DailyRewardScheduleItem struct {
+	Date   string `json:"date"`
+	Amount Money  `json:"amount" swaggertype:"string"`
+}
+
+type DailyRewardScheduleResponse struct {
+	Items []DailyRewardScheduleItem `json:"items"`
+}
+
 type UpdateUserDto struct {
 	Id       string  `json:"id"`
 	Email    string  `json:"email"`

@@ -27,6 +27,7 @@ func (h *EventHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 	router.Post("/use-steal-token", h.UseStealToken)
 
 	adminRouter := router.Group("", mid.AdminMiddleware)
+	adminRouter.Get("/daily-rewards", h.GetDailyRewardSchedule)
 	adminRouter.Post("/daily-rewards", h.SetDailyReward)
 }
 
@@ -124,6 +125,26 @@ func (h *EventHttpHandler) SetDailyReward(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Set daily reward successful"})
+}
+
+// GetDailyRewardSchedule lists configured daily reward amounts by date.
+// @Summary List daily reward schedule
+// @Description Lists configured daily reward amounts by date (admin only).
+// @Tags Event
+// @Produce json
+// @Success 200 {object} model.DailyRewardScheduleResponse
+// @Failure 401 {object} map[string]string "unauthorized"
+// @Failure 403 {object} map[string]string "admin access required"
+// @Failure 500 {object} map[string]string "Failed to list daily reward schedule"
+// @Router /events/daily-rewards [get]
+// @Security BearerAuth
+func (h *EventHttpHandler) GetDailyRewardSchedule(c *fiber.Ctx) error {
+	response, err := h.eventService.GetDailyRewardSchedule()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to list daily reward schedule"})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
 }
 
 // @Summary Use a steal token

@@ -3,6 +3,7 @@ package event
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -46,6 +47,48 @@ func (s *eventService) RedeemDailyReward(req *model.UserDto) error {
 
 	s.log.Named("RedeemDailyReward").Info("Daily reward redeemed", zap.String("user_id", req.Id), zap.String("date", date))
 	return nil
+}
+
+func (s *eventService) GetDailyRewardSchedule() (*model.DailyRewardScheduleResponse, error) {
+	rewards, err := s.eventRepo.ListRewards()
+	if err != nil {
+		s.log.Named("GetDailyRewardSchedule").Error("List daily rewards", zap.Error(err))
+		return nil, err
+	}
+
+	response := &model.DailyRewardScheduleResponse{
+		Items: make([]model.DailyRewardScheduleItem, 0, len(rewards)),
+	}
+	for _, reward := range rewards {
+		amount, err := model.NewMoneyFromMinor(reward.Reward)
+		if err != nil {
+			return nil, fmt.Errorf("invalid daily reward amount for %q: %w", reward.Date, err)
+		}
+		response.Items = append(response.Items, model.DailyRewardScheduleItem{
+			Date:   reward.Date,
+			Amount: amount,
+		})
+	}
+
+	sort.SliceStable(response.Items, func(i, j int) bool {
+		left, leftErr := time.Parse("02-01-2006", response.Items[i].Date)
+		right, rightErr := time.Parse("02-01-2006", response.Items[j].Date)
+		switch {
+		case leftErr == nil && rightErr == nil:
+			if left.Equal(right) {
+				return response.Items[i].Date < response.Items[j].Date
+			}
+			return left.Before(right)
+		case leftErr == nil:
+			return true
+		case rightErr == nil:
+			return false
+		default:
+			return response.Items[i].Date < response.Items[j].Date
+		}
+	})
+
+	return response, nil
 }
 
 func (s *eventService) SpinSlotMachine(req *model.UserDto, spendAmount model.Money) (map[string]interface{}, error) {

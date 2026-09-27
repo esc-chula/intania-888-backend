@@ -124,6 +124,20 @@ definitions:
     - bet_amount
     - risk_level
     type: object
+  model.DailyRewardScheduleItem:
+    properties:
+      amount:
+        type: string
+      date:
+        type: string
+    type: object
+  model.DailyRewardScheduleResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/model.DailyRewardScheduleItem'
+        type: array
+    type: object
   model.DeductCoinRequest:
     properties:
       amount:
@@ -944,6 +958,38 @@ paths:
       tags:
       - Color
   /events/daily-rewards:
+    get:
+      description: Lists configured daily reward amounts by date (admin only).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.DailyRewardScheduleResponse'
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: admin access required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to list daily reward schedule
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List daily reward schedule
+      tags:
+      - Event
     post:
       consumes:
       - application/json
