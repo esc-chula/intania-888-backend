@@ -13,10 +13,15 @@ normalization can be reviewed as a structural change.
 | NORM-005 | Existing configuration/database startup helpers may panic or exit; unknown logger environments may return nil. | Move recoverable initialization failures to explicit error returns and define executable exit behavior. |
 | NORM-006 | Match list retrieval retains its per-item lookups and bet-count queries. | Batch loading while preserving result ordering and current odds calculations. |
 
-The public user update endpoint continues to operate on the authenticated actor,
-including when its path contains another ID. Its observed semantics and profile
-timestamps are protected by regression tests; redefining authorization or path
-semantics requires a separate contract change.
+The preferred self-profile endpoint is now `PATCH /api/v1/users/me`. It derives
+the account ID from authentication and accepts only name, nickname, and group
+changes. Omitted fields remain unchanged; explicit null clears nickname or group.
+The legacy `PATCH /api/v1/users/:id` endpoint is deprecated and returns 403 when
+the path ID differs from the signed-in user's ID. For matching IDs it delegates
+to the same self-profile handler, request DTO, service, and repository operation.
+The old profile update DTO, input, service method, and repository method have
+been removed.
+Runtime verification of the new endpoint and legacy authorization is pending.
 
 The Go module and Docker compiler remain at their existing declarations. A
 supported toolchain upgrade should update those declarations together with CI.

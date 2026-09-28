@@ -2531,6 +2531,82 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/me": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
+                "description": "Updates only supplied name, nick_name, and group_id fields. Omitted fields remain unchanged; null clears nick_name or group_id. Account identity, email, role, and balance are not editable.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User"
+                ],
+                "summary": "Update your own profile",
+                "parameters": [
+                    {
+                        "description": "Editable profile fields",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.UpdateOwnProfileRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.UserDto"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid profile update",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "invalid CSRF token",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "user not found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{id}": {
             "get": {
                 "security": [
@@ -2576,7 +2652,7 @@ const docTemplate = `{
                         "CookieSession": []
                     }
                 ],
-                "description": "Updates an existing user",
+                "description": "Deprecated alias of PATCH /users/me with the same partial-update body. The path ID must match the signed-in user.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2586,7 +2662,8 @@ const docTemplate = `{
                 "tags": [
                     "User"
                 ],
-                "summary": "Update user",
+                "summary": "Update user (deprecated)",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -2596,13 +2673,20 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Updated user information",
+                        "description": "Editable profile fields",
                         "name": "user",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.UpdateUserDto"
+                            "$ref": "#/definitions/user.UpdateOwnProfileRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -2620,6 +2704,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "path ID does not match the signed-in user or invalid CSRF token",
                         "schema": {
                             "$ref": "#/definitions/apierror.Response"
                         }
@@ -3265,32 +3355,6 @@ const docTemplate = `{
                 }
             }
         },
-        "model.UpdateUserDto": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "group_id": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "nick_name": {
-                    "type": "string"
-                },
-                "role_id": {
-                    "type": "string"
-                }
-            }
-        },
         "model.UseStealTokenRequestDto": {
             "type": "object",
             "required": [
@@ -3527,6 +3591,22 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "user.UpdateOwnProfileRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "name": {
+                    "type": "string"
+                },
+                "nick_name": {
+                    "type": "string",
+                    "x-nullable": true
                 }
             }
         }

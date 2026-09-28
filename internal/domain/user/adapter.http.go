@@ -25,6 +25,7 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, auth, admin fiber.Hand
 
 	router.Get("/", h.GetAllUsers)
 	router.Get("/:id", h.GetUser)
+	router.Patch("/me", h.UpdateOwnProfile)
 	router.Patch("/:id", h.UpdateUser)
 
 	// Admin routes
@@ -99,46 +100,79 @@ func (h *HTTPHandler) GetAllUsers(c *fiber.Ctx) error {
 	return c.JSON(responses)
 }
 
-// UpdateUser updates the authenticated account rather than the path account, preserving current behavior.
+// UpdateOwnProfile applies a partial update to the signed-in user's profile.
 //
-// @Summary Update user
-// @Description Updates an existing user
+// @Summary Update your own profile
+// @Description Updates only supplied name, nick_name, and group_id fields. Omitted fields remain unchanged; null clears nick_name or group_id. Account identity, email, role, and balance are not editable.
 // @Tags User
-// @Accept  json
-// @Produce  json
-// @Param   id    path      string  true  "User ID"
-// @Param   user  body      UpdateUserRequest  true  "Updated user information"
-// @Success 200    {object} httpidentity.ProfileResponse
-// @Failure 400    {object} apierror.Response  "cannot parse body"
-// @Failure 401    {object} apierror.Response  "unauthorized"
-// @Failure 404    {object} apierror.Response  "user not found"
-// @Failure 500    {object} apierror.Response  "internal server error"
-// @Router  /users/{id} [patch]
+// @Accept json
+// @Produce json
+// @Param user body UpdateOwnProfileRequest true "Editable profile fields"
+// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
+// @Success 200 {object} httpidentity.ProfileResponse
+// @Failure 400 {object} apierror.Response "invalid profile update"
+// @Failure 401 {object} apierror.Response "unauthorized"
+// @Failure 403 {object} apierror.Response "invalid CSRF token"
+// @Failure 404 {object} apierror.Response "user not found"
+// @Failure 500 {object} apierror.Response "internal server error"
+// @Router /users/me [patch]
 // @Security CookieSession
-func (h *HTTPHandler) UpdateUser(c *fiber.Ctx) error {
+func (h *HTTPHandler) UpdateOwnProfile(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
-
-	updateUserDto := new(UpdateUserRequest)
-	if err := apierror.BindJSON(c, updateUserDto); err != nil {
-		return err
-	}
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	user, err := h.service.UpdateUser(c.UserContext(), UpdateInput{
-		ID:       profile.ID,
-		Email:    profile.Email,
-		Name:     updateUserDto.Name,
-		NickName: updateUserDto.NickName,
-		RoleID:   profile.RoleID,
-		GroupID:  updateUserDto.GroupID,
+	var request UpdateOwnProfileRequest
+	if err := apierror.BindJSON(c, &request); err != nil {
+		return err
+	}
+
+	user, err := h.service.UpdateOwnProfile(c.UserContext(), profile.ID, ProfilePatch{
+		Name:        request.Name,
+		NickName:    request.NickName,
+		NickNameSet: request.nickNameSet,
+		GroupID:     request.GroupID,
+		GroupIDSet:  request.groupIDSet,
 	})
 	if err != nil {
 		return mapUserError(err)
 	}
 
 	return c.JSON(httpidentity.Response(user))
+}
+
+// UpdateUser checks the legacy path ID and delegates to UpdateOwnProfile.
+//
+// Deprecated: use PATCH /users/me through UpdateOwnProfile.
+//
+// @Summary Update user (deprecated)
+// @Description Deprecated alias of PATCH /users/me with the same partial-update body. The path ID must match the signed-in user.
+// @Tags User
+// @Deprecated
+// @Accept  json
+// @Produce  json
+// @Param   id    path      string  true  "User ID"
+// @Param   user  body      UpdateOwnProfileRequest  true  "Editable profile fields"
+// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
+// @Success 200    {object} httpidentity.ProfileResponse
+// @Failure 400    {object} apierror.Response  "cannot parse body"
+// @Failure 401    {object} apierror.Response  "unauthorized"
+// @Failure 403    {object} apierror.Response  "path ID does not match the signed-in user or invalid CSRF token"
+// @Failure 404    {object} apierror.Response  "user not found"
+// @Failure 500    {object} apierror.Response  "internal server error"
+// @Router  /users/{id} [patch]
+// @Security CookieSession
+func (h *HTTPHandler) UpdateUser(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
+	if profile == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+	if c.Params("id") != profile.ID {
+		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "You can only update your own profile")
+	}
+
+	return h.UpdateOwnProfile(c)
 }
 
 // AdminUpdateUser updates administrator-editable account fields.

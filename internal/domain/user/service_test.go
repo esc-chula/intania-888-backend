@@ -17,8 +17,8 @@ type fakeAccountRepository struct {
 	Repository
 	user         *identity.User
 	seenContext  context.Context
-	saved        *identity.User
-	savedProfile *UpdateInput
+	savedActorID string
+	savedProfile *ProfilePatch
 	calls        []string
 	deductError  error
 	lookupError  error
@@ -33,16 +33,19 @@ func (r *fakeAccountRepository) GetByID(ctx context.Context, _ string) (*identit
 	return &copy, nil
 }
 
-func (r *fakeAccountRepository) Update(ctx context.Context, user *identity.User) error {
+func (r *fakeAccountRepository) PatchProfile(ctx context.Context, actorID string, input ProfilePatch) error {
 	r.seenContext = ctx
-	copy := *user
-	r.saved = &copy
-	return nil
-}
-
-func (r *fakeAccountRepository) UpdateProfile(ctx context.Context, input UpdateInput) error {
-	r.seenContext = ctx
+	r.savedActorID = actorID
 	r.savedProfile = &input
+	if input.Name != nil {
+		r.user.Name = *input.Name
+	}
+	if input.NickNameSet {
+		r.user.NickName = input.NickName
+	}
+	if input.GroupIDSet {
+		r.user.GroupID = input.GroupID
+	}
 	return nil
 }
 
@@ -117,18 +120,20 @@ func TestDeductCoinUsesTransactionAndPreservesContextAndFailures(t *testing.T) {
 	}
 }
 
-func TestUpdateUserPreservesObservedBalanceAndResponseTimestamp(t *testing.T) {
+func TestUpdateOwnProfilePreservesBalanceAndResponseTimestamp(t *testing.T) {
 	repo := &fakeAccountRepository{user: &identity.User{ID: "actor", RemainingCoin: 12345, CreatedAt: time.Now()}}
 	ctx := context.Background()
-	result, err := NewService(repo, zap.NewNop()).UpdateUser(ctx, UpdateInput{ID: "actor", Email: "actor@example.test", RoleID: "USER", Name: "Updated"})
+	name := "Updated"
+	result, err := NewService(repo, zap.NewNop()).UpdateOwnProfile(ctx, "actor", ProfilePatch{Name: &name})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.RemainingCoin.MinorUnits() != 12345 {
 		t.Fatalf("profile response changed the observed balance: result=%v", result)
 	}
-	if repo.savedProfile == nil || repo.savedProfile.ID != "actor" || repo.savedProfile.Name != "Updated" {
-		t.Fatalf("profile update was not saved: %+v", repo.savedProfile)
+	if repo.savedActorID != "actor" || repo.savedProfile == nil ||
+		repo.savedProfile.Name == nil || *repo.savedProfile.Name != "Updated" {
+		t.Fatalf("profile update was not saved for actor: actor=%q input=%+v", repo.savedActorID, repo.savedProfile)
 	}
 	if !result.CreatedAt.IsZero() {
 		t.Fatalf("single-user response timestamp changed: %v", result.CreatedAt)

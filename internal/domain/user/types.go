@@ -17,15 +17,16 @@ type CreateInput struct {
 	CreatedAt time.Time
 }
 
-// UpdateInput describes a profile update for the authenticated account.
-// Email and role are supplied from the authenticated actor, never the request body.
-type UpdateInput struct {
-	ID       string
-	Email    string
-	Name     string
+// ProfilePatch contains the editable fields of the authenticated user's profile.
+// A nil Name leaves it unchanged. Nickname and group can be explicitly cleared.
+type ProfilePatch struct {
+	Name     *string
 	NickName *string
-	RoleID   string
-	GroupID  *string
+	// NickNameSet distinguishes an omitted nickname from an explicit nil that clears it.
+	NickNameSet bool
+	GroupID     *string
+	// GroupIDSet distinguishes an omitted group from an explicit nil that clears it.
+	GroupIDSet bool
 }
 
 // AdminUpdateInput describes editable profile fields and the explicit balance.

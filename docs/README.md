@@ -147,6 +147,37 @@ go run ./cmd/seed --policy-file /secure/path/policies.json
 Existing administrators are promoted or demoted manually by an operator
 through `users.role_id`; the user-update API does not change roles.
 
+# Updating your profile
+
+Use `PATCH /api/v1/users/me` with the session cookie, configured frontend
+`Origin`, and `X-CSRF-Token` obtained from `GET /api/v1/auth/me`. The API takes
+the account ID from authentication. The request accepts only `name`,
+`nick_name`, and `group_id`:
+
+```json
+{
+  "nick_name": "Oak",
+  "group_id": null
+}
+```
+
+Send only fields to change. Omitted fields remain unchanged; `null` clears
+`nick_name` or `group_id`. A supplied `name` must be a nonempty string. A group
+ID must identify an existing group, or be null. Empty updates, invalid values,
+and unknown fields return `400 INVALID_REQUEST`. The API rejects `id`, `email`,
+`role_id`, and `remaining_coin` in this request. Success returns `200` with the
+updated profile in the existing profile response format.
+
+**Deprecated:** `PATCH /api/v1/users/:id`. Migrate profile edits to `/users/me`.
+The legacy endpoint requires `:id` to equal the signed-in user's ID; a mismatch
+returns `403 FORBIDDEN`. For matching IDs it delegates to the same handler as
+`/users/me`, using the same editable fields, omission behavior, and nullable
+clears. The old identity, email, and role request fields are rejected.
+`GET /users/:id` remains available.
+
+Administrators continue to use `PATCH /api/v1/users/admin/:id` for edits to other
+accounts through the existing administrator-only route.
+
 # Browser authentication contract
 
 The frontend must use `credentials: "include"` for API requests. The only browser credential is the API's HttpOnly session cookie. Do not read or store an OAuth access token, refresh token, session ID, or external JWT in frontend JavaScript.

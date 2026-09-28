@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -61,30 +62,32 @@ func (r *gormRepository) GetAll(ctx context.Context) ([]*identity.User, error) {
 	return users, nil
 }
 
-// UpdateProfile writes only the permitted profile columns and leaves the balance untouched.
-// Empty strings and nil pointers retain the existing field omission behavior.
-func (r *gormRepository) UpdateProfile(ctx context.Context, input UpdateInput) error {
-	updates := make(map[string]any, 5)
+// PatchProfile applies only supplied editable fields, including explicit nullable clears.
+// It never writes the account identity, email, role, or balance.
+func (r *gormRepository) PatchProfile(ctx context.Context, actorID string, input ProfilePatch) error {
+	updates := make(map[string]any, 3)
 
-	if input.Email != "" {
-		updates["email"] = input.Email
+	if input.Name != nil {
+		updates["name"] = *input.Name
 	}
-	if input.Name != "" {
-		updates["name"] = input.Name
+	if input.NickNameSet {
+		updates["nick_name"] = input.NickName
 	}
-	if input.NickName != nil {
-		updates["nick_name"] = *input.NickName
-	}
-	if input.RoleID != "" {
-		updates["role_id"] = input.RoleID
-	}
-	if input.GroupID != nil {
-		updates["group_id"] = *input.GroupID
+	if input.GroupIDSet {
+		updates["group_id"] = input.GroupID
 	}
 
-	if err := r.db.WithContext(ctx).Model(&persistence.User{}).
-		Where("id = ?", input.ID).Updates(updates).Error; err != nil {
-		return fmt.Errorf("update user profile: %w", err)
+	result := r.db.WithContext(ctx).Model(&persistence.User{}).
+		Where("id = ?", actorID).Updates(updates)
+	if result.Error != nil {
+		var constraintError *pgconn.PgError
+		if errors.As(result.Error, &constraintError) && constraintError.Code == "23503" {
+			return fmt.Errorf("patch user profile: %w", errors.Join(ErrProfileGroupNotFound, result.Error))
+		}
+		return fmt.Errorf("patch user profile: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
 	}
 	return nil
 }

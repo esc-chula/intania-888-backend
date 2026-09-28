@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -68,31 +69,29 @@ func (s *Service) GetAllUsers(ctx context.Context) ([]*identity.Profile, error) 
 	return profiles, nil
 }
 
-// UpdateUser updates profile fields without writing the account balance.
-// The returned profile includes the balance observed before the profile write.
-func (s *Service) UpdateUser(ctx context.Context, input UpdateInput) (*identity.Profile, error) {
-	existed, err := s.repo.GetByID(ctx, input.ID)
-	if err != nil {
+// UpdateOwnProfile applies supplied profile fields to the authenticated account.
+// actorID must come from trusted authentication. Identity, email, role, and balance
+// cannot be changed through this use case. The result is read after the update.
+func (s *Service) UpdateOwnProfile(ctx context.Context, actorID string, input ProfilePatch) (*identity.Profile, error) {
+	if strings.TrimSpace(actorID) == "" || (input.Name == nil && !input.NickNameSet && !input.GroupIDSet) {
+		return nil, ErrInvalidProfileUpdate
+	}
+	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
+		return nil, ErrInvalidProfileUpdate
+	}
+	if (input.NickName != nil && !input.NickNameSet) || (input.GroupID != nil && !input.GroupIDSet) {
+		return nil, ErrInvalidProfileUpdate
+	}
+	if input.GroupID != nil && strings.TrimSpace(*input.GroupID) == "" {
+		return nil, ErrInvalidProfileUpdate
+	}
+
+	if err := s.repo.PatchProfile(ctx, actorID, input); err != nil {
 		return nil, err
 	}
 
-	user := &identity.User{
-		ID:            input.ID,
-		Email:         input.Email,
-		Name:          input.Name,
-		NickName:      input.NickName,
-		RoleID:        input.RoleID,
-		GroupID:       input.GroupID,
-		RemainingCoin: existed.RemainingCoin,
-	}
-	if err := s.repo.UpdateProfile(ctx, input); err != nil {
-		return nil, err
-	}
-
-	s.log.Info("User updated successfully", zap.String("user_id", user.ID))
-	result := profileFromUser(user)
-	result.CreatedAt = zeroTime
-	return result, nil
+	s.log.Info("User profile updated successfully", zap.String("user_id", actorID))
+	return s.GetUser(ctx, actorID)
 }
 
 // AdminUpdateUser updates profile fields and balance while preserving role ownership.

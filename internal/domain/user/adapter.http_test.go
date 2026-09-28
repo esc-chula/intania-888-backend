@@ -19,17 +19,23 @@ import (
 
 type fakeHTTPService struct {
 	ServicePort
-	err   error
-	input UpdateInput
+	err     error
+	actorID string
+	input   ProfilePatch
 }
 
 func (s *fakeHTTPService) GetUser(context.Context, string) (*identity.Profile, error) {
 	return nil, s.err
 }
 
-func (s *fakeHTTPService) UpdateUser(_ context.Context, input UpdateInput) (*identity.Profile, error) {
+func (s *fakeHTTPService) UpdateOwnProfile(_ context.Context, actorID string, input ProfilePatch) (*identity.Profile, error) {
+	s.actorID = actorID
 	s.input = input
-	return &identity.Profile{ID: input.ID, Email: input.Email, Name: input.Name, RoleID: input.RoleID, RemainingCoin: value.MustMoneyFromMinor(12345)}, nil
+	name := ""
+	if input.Name != nil {
+		name = *input.Name
+	}
+	return &identity.Profile{ID: actorID, Email: "actor@example.test", Name: name, RoleID: "USER", RemainingCoin: value.MustMoneyFromMinor(12345)}, nil
 }
 
 func TestUserHTTPErrorMappingPreservesStatusAndRedactsStorageErrors(t *testing.T) {
@@ -70,7 +76,7 @@ func TestUserHTTPErrorMappingPreservesStatusAndRedactsStorageErrors(t *testing.T
 	}
 }
 
-func TestUpdateUserUsesAuthenticatedActorAndPreservesWireShape(t *testing.T) {
+func TestDeprecatedUpdateUserDelegatesToOwnProfileAndPreservesWireShape(t *testing.T) {
 	service := &fakeHTTPService{}
 	handler := NewHTTPHandler(service)
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
@@ -78,7 +84,7 @@ func TestUpdateUserUsesAuthenticatedActorAndPreservesWireShape(t *testing.T) {
 		httpidentity.SetProfile(c, &identity.Profile{ID: "actor", Email: "actor@example.test", RoleID: "USER"})
 		return handler.UpdateUser(c)
 	})
-	request := httptest.NewRequest("PATCH", "/users/other", strings.NewReader(`{"id":"body-id","email":"body@example.test","role_id":"ADMIN","name":"Updated"}`))
+	request := httptest.NewRequest("PATCH", "/users/actor", strings.NewReader(`{"name":"Updated"}`))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := app.Test(request)
 	if err != nil {
@@ -93,8 +99,8 @@ func TestUpdateUserUsesAuthenticatedActorAndPreservesWireShape(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if service.input.ID != "actor" || service.input.Email != "actor@example.test" || service.input.RoleID != "USER" {
-		t.Fatalf("client-controlled account identity: %+v", service.input)
+	if service.actorID != "actor" || service.input.Name == nil || *service.input.Name != "Updated" {
+		t.Fatalf("profile update was not delegated for the authenticated actor: actor=%q input=%+v", service.actorID, service.input)
 	}
 	if response.StatusCode != 200 || body["remaining_coin"] != "123.45" || body["nick_name"] != nil || body["group_id"] != nil || body["created_at"] != "0001-01-01T00:00:00Z" || len(body) != 8 {
 		t.Fatalf("wire shape changed: status=%d body=%+v", response.StatusCode, body)

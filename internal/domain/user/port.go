@@ -18,9 +18,10 @@ type Repository interface {
 	GetByEmail(context.Context, string) (*identity.User, error)
 	// GetAll retrieves all account snapshots.
 	GetAll(context.Context) ([]*identity.User, error)
-	// UpdateProfile writes nonzero profile fields without changing the account balance.
-	// Nil nickname and group pointers leave their stored values unchanged.
-	UpdateProfile(context.Context, UpdateInput) error
+	// PatchProfile updates only supplied name, nickname, and group fields for the actor.
+	// Explicitly supplied nil nickname and group values clear their stored columns.
+	// Missing accounts return ErrUserNotFound.
+	PatchProfile(context.Context, string, ProfilePatch) error
 	// Update preserves the existing nonzero-field update behavior.
 	Update(context.Context, *identity.User) error
 	// WithinTransaction commits the callback's writes together or rolls them back.
@@ -44,8 +45,8 @@ type ServicePort interface {
 	GetUser(context.Context, string) (*identity.Profile, error)
 	// GetAllUsers retrieves every account profile.
 	GetAllUsers(context.Context) ([]*identity.Profile, error)
-	// UpdateUser updates the authenticated account profile.
-	UpdateUser(context.Context, UpdateInput) (*identity.Profile, error)
+	// UpdateOwnProfile applies a partial update to the authenticated actor's profile.
+	UpdateOwnProfile(context.Context, string, ProfilePatch) (*identity.Profile, error)
 	// AdminUpdateUser updates administrator-editable fields.
 	AdminUpdateUser(context.Context, string, AdminUpdateInput) error
 	// DeductCoin subtracts a balance under a row lock and returns the remaining amount.
