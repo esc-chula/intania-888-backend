@@ -27,18 +27,23 @@ import (
 )
 
 const shutdownTimeout = 10 * time.Second
+const readinessTimeout = time.Second
+
+// ReadinessCheck verifies that one application dependency can serve requests.
+type ReadinessCheck func(context.Context) error
 
 // FiberHTTPServer owns the HTTP application, shared middleware, and route composition.
 type FiberHTTPServer struct {
-	app            *fiber.App
-	cfg            config.Config
-	logger         *zap.Logger
-	allowedOrigins map[string]struct{}
+	app             *fiber.App
+	cfg             config.Config
+	logger          *zap.Logger
+	allowedOrigins  map[string]struct{}
+	readinessChecks []ReadinessCheck
 }
 
 // NewFiberHTTPServer constructs the HTTP application after validating origins and Swagger settings.
 // It also sets the generated Swagger document's public URL metadata; it does not listen.
-func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger) (*FiberHTTPServer, error) {
+func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger, readinessChecks ...ReadinessCheck) (*FiberHTTPServer, error) {
 	allowedOrigins, err := parseAllowedOrigins(cfg.GetCORS().AllowOrigins)
 	if err != nil {
 		return nil, err
@@ -57,9 +62,10 @@ func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger) (*FiberHTTPServer
 		app: fiber.New(fiber.Config{
 			ErrorHandler: apierror.ErrorHandler(logger),
 		}),
-		cfg:            cfg,
-		logger:         logger,
-		allowedOrigins: allowedOrigins,
+		cfg:             cfg,
+		logger:          logger,
+		allowedOrigins:  allowedOrigins,
+		readinessChecks: readinessChecks,
 	}, nil
 }
 
@@ -96,8 +102,8 @@ func configureSwaggerInfo(cfg config.Config) error {
 }
 
 // Start listens on the configured address and blocks until an interrupt or termination signal.
-// Listener and shutdown failures preserve the existing fatal process-exit behavior.
-func (s *FiberHTTPServer) Start() {
+// Listener and shutdown errors are returned so callers can close their dependencies.
+func (s *FiberHTTPServer) Start() error {
 	url := fmt.Sprintf("%v:%d", s.cfg.GetServer().Host, s.cfg.GetServer().Port)
 
 	// init modules
@@ -106,17 +112,22 @@ func (s *FiberHTTPServer) Start() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(quit)
+	listenErr := make(chan error, 1)
 
 	// Run the server in a goroutine so it doesn't block
 	go func() {
 		s.logger.Sugar().Infof("SUCU Backend is starting on %v", url)
-		if err := s.app.Listen(url); err != nil {
-			s.logger.Sugar().Fatalf("Error while starting server: %v", err)
-		}
+		listenErr <- s.app.Listen(url)
 	}()
 
-	// Wait for a termination signal
-	<-quit
+	select {
+	case err := <-listenErr:
+		if err != nil {
+			return fmt.Errorf("listen on %s: %w", url, err)
+		}
+		return nil
+	case <-quit:
+	}
 	s.logger.Sugar().Info("Gracefully shutting down server...")
 
 	// Create a deadline for shutdown
@@ -125,10 +136,11 @@ func (s *FiberHTTPServer) Start() {
 
 	// Shut down the server
 	if err := s.shutdown(ctx); err != nil {
-		s.logger.Sugar().Fatalf("Error during server shutdown: %v", err)
+		return fmt.Errorf("shutdown HTTP server: %w", err)
 	}
 
 	s.logger.Sugar().Info("Server shutdown complete.")
+	return nil
 }
 
 func (s *FiberHTTPServer) shutdown(ctx context.Context) error {
@@ -139,6 +151,10 @@ func (s *FiberHTTPServer) shutdown(ctx context.Context) error {
 // It returns the /api/v1 router for feature registration and should be called once at startup.
 func (s *FiberHTTPServer) InitHTTPServer() fiber.Router {
 	s.app.Use(apierror.RequestID())
+	s.app.Get("/healthz", func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"})
+	})
+	s.app.Get("/readyz", s.readinessHandler())
 	s.registerSwagger()
 
 	// set global prefix
@@ -181,6 +197,22 @@ func (s *FiberHTTPServer) InitHTTPServer() fiber.Router {
 	})
 
 	return router
+}
+
+func (s *FiberHTTPServer) readinessHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx, cancel := context.WithTimeout(context.Background(), readinessTimeout)
+		defer cancel()
+
+		for _, check := range s.readinessChecks {
+			if err := check(ctx); err != nil {
+				s.logger.Warn("Readiness check failed", zap.Error(err))
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"status": "not_ready"})
+			}
+		}
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ready"})
+	}
 }
 
 func (s *FiberHTTPServer) registerSwagger() {

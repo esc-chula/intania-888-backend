@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -45,20 +49,63 @@ import (
 // @name Cookie
 // @description Browser cookie session (production uses __Host-session). Mutations also require X-CSRF-Token and an allowed Origin. Swagger 2.0 has no native cookie authentication; use an authenticated browser session.
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() (runErr error) {
 	// config setup
 	cfg := config.GetConfig()
 	if err := config.ValidateSecurity(cfg); err != nil {
-		panic("invalid security configuration: " + err.Error())
+		return fmt.Errorf("invalid security configuration: %w", err)
 	}
 	defaultDailyReward, err := value.ParseMoney(cfg.GetDailyReward().DefaultAmount)
 	if err != nil {
-		panic("invalid DAILY_REWARD_DEFAULT_AMOUNT: " + err.Error())
+		return fmt.Errorf("invalid DAILY_REWARD_DEFAULT_AMOUNT: %w", err)
 	}
 
 	isProduction := strings.EqualFold(strings.TrimSpace(cfg.GetServer().Env), "production")
-	db := database.NewGORMDatabase(cfg)
-	cache := cache.NewRedisClient(cfg)
 	logger := logger.NewLogger(cfg)
+	if logger == nil {
+		return fmt.Errorf("SERVER_ENV must be development or production")
+	}
+	defer func() {
+		_ = logger.Sync()
+	}()
+
+	db := database.NewGORMDatabase(cfg)
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get PostgreSQL connection pool: %w", err)
+	}
+	defer func() {
+		if err := sqlDB.Close(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close PostgreSQL connection pool: %w", err))
+		}
+	}()
+
+	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := sqlDB.PingContext(startupCtx); err != nil {
+		cancelStartup()
+		return fmt.Errorf("check PostgreSQL at startup: %w", err)
+	}
+	cancelStartup()
+
+	cacheClient := cache.NewRedisClient(cfg)
+	defer func() {
+		if err := cacheClient.Close(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close Redis client: %w", err))
+		}
+	}()
+	startupCtx, cancelStartup = context.WithTimeout(context.Background(), 5*time.Second)
+	if err := cacheClient.Ping(startupCtx); err != nil {
+		cancelStartup()
+		return fmt.Errorf("check Redis at startup: %w", err)
+	}
+	cancelStartup()
+
 	oauthConfig := oauth.LoadOAuthConfig(cfg)
 
 	// init all layers
@@ -66,10 +113,10 @@ func main() {
 	userSvc := user.NewService(userRepo, logger.Named("UserSvc"))
 	userHTTP := user.NewHTTPHandler(userSvc)
 	policyRepo := policy.NewGORMRepository(db)
-	policySvc := policy.NewService(policyRepo, policy.NewRedisSnapshotCache(cache), logger.Named("PolicySvc"))
+	policySvc := policy.NewService(policyRepo, policy.NewRedisSnapshotCache(cacheClient), logger.Named("PolicySvc"))
 	policyHTTP := policy.NewHTTPHandler(policySvc)
 
-	authRepo := auth.NewRedisRepository(cache)
+	authRepo := auth.NewRedisRepository(cacheClient)
 	authSvc := auth.NewService(
 		authRepo,
 		userRepo,
@@ -79,7 +126,7 @@ func main() {
 	)
 
 	midRepo := middleware.NewGORMRepository(db)
-	midSvc := middleware.NewService(midRepo, middleware.NewRedisSessionStore(cache), cfg, policySvc)
+	midSvc := middleware.NewService(midRepo, middleware.NewRedisSessionStore(cacheClient), cfg, policySvc)
 	midHTTP := middleware.NewHTTPHandler(
 		midSvc,
 		isProduction,
@@ -112,9 +159,12 @@ func main() {
 	sportTypeHTTP := sporttype.NewHTTPHandler(sportTypeSvc)
 
 	// init router
-	httpServer, err := server.NewFiberHTTPServer(cfg, logger)
+	httpServer, err := server.NewFiberHTTPServer(cfg, logger,
+		func(ctx context.Context) error { return sqlDB.PingContext(ctx) },
+		cacheClient.Ping,
+	)
 	if err != nil {
-		logger.Fatal("invalid Swagger configuration", zap.Error(err))
+		return fmt.Errorf("invalid Swagger configuration: %w", err)
 	}
 
 	router := httpServer.InitHTTPServer()
@@ -139,5 +189,9 @@ func main() {
 	authHTTP.RegisterExternalRoutes(externalRouter, midHTTP.ExternalAPIMiddleware)
 
 	// start server
-	httpServer.Start()
+	if err := httpServer.Start(); err != nil {
+		logger.Error("HTTP server stopped with an error", zap.Error(err))
+		return err
+	}
+	return nil
 }

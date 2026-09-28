@@ -18,7 +18,6 @@ type RedisClient struct {
 }
 
 // NewRedisClient configures a Redis connection without probing the server.
-// Connection failures are reported by subsequent operations.
 func NewRedisClient(cfg config.Config) *RedisClient {
 	addr := fmt.Sprintf("%s:%d", cfg.GetCache().Host, cfg.GetCache().Port)
 
@@ -27,11 +26,17 @@ func NewRedisClient(cfg config.Config) *RedisClient {
 		Password: cfg.GetCache().Password,
 	})
 
-	if cache == nil {
-		panic("failed to initialize Redis")
-	}
-
 	return &RedisClient{client: cache}
+}
+
+// Ping checks whether Redis is reachable using the caller's deadline.
+func (r *RedisClient) Ping(ctx context.Context) error {
+	return r.client.Ping(ctx).Err()
+}
+
+// Close releases the Redis client's connections.
+func (r *RedisClient) Close() error {
+	return r.client.Close()
 }
 
 // SetValue JSON-encodes value and stores it under key. The TTL is measured in seconds.
