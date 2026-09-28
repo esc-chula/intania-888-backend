@@ -13,11 +13,11 @@ client impact, the reason for the redesign, and the required action.
 | Comparison | Revision |
 | --- | --- |
 | Backend `main` | `3c82b1d` (`origin/main` at comparison time) |
-| Backend `development` API implementation | `a532a02` |
+| Backend `development` API implementation | `74495fd` |
 
-This guide compares the API behavior at these revisions. The development
-revision includes the exact-decimal string contract; `7ea9d96`, its parent,
-still emits numeric rates.
+This guide compares API behavior at these revisions. The development revision
+includes exact-decimal strings and admin-managed sport types with restrictive
+foreign keys in the fresh schema.
 All routes below are relative to the unchanged API base path, `/api/v1`.
 
 | Change | Affected client work |
@@ -31,6 +31,7 @@ All routes below are relative to the unchanged API base path, `/api/v1`.
 | [Self profile](#self-profile-updates) | Profile forms and editable fields |
 | [Errors](#errors-and-request-validation) | API wrappers, validation, failure messages |
 | [Access policy administration](#access-policy-administration) | Admin allowlist and blacklist controls |
+| [Sport types](#sport-type-administration) | Admin create/rename/delete controls, shared sport selectors and labels |
 
 For endpoint replacements, use the [route lookup](#route-lookup). For deployment
 preparation and acceptance checks, use the [migration checklist](#migration-checklist).
@@ -347,6 +348,45 @@ sessions, so access changes take effect across the browser API.
 `/auth/policies/{id}` with the browser session and mutation protections. Use
 [the policy reference](README.md#access-policy-administration) for resource fields.
 
+### Sport type administration
+
+| Before: `main` | After: sport-type CRUD addition |
+| --- | --- |
+| Authenticated `GET /sport-types` catalogue only. | Catalogue read remains; `GET /sport-types/{id}` reads one entry. |
+| Sport catalogue maintained through seed data. | Admin create, rename, and delete routes under `/sport-types/admin`. |
+| Deleting a sport can cascade into matches and tournament groups. | Restrictive foreign keys preserve all referenced records. |
+
+**Impact:** add management controls to the admin sports page. Load selectors and
+labels from the catalogue so newly created sports and renamed titles appear
+throughout the frontend. Titles can be duplicated; use IDs as keys and values.
+
+**Why it changed:** administrators can manage the catalogue without a deployment.
+Restrictive database constraints prevent deletion from removing fixtures or
+tournament data, including when a new reference races with DELETE.
+
+**Required action:** retain authenticated catalogue reads. Admins create with
+`POST /sport-types/admin`:
+
+```json
+{ "id": "BADMINTON_ALL", "title": "Badminton" }
+```
+
+Rename with `PATCH /sport-types/admin/BADMINTON_ALL` and only a `title` field.
+Delete an unused entry with `DELETE /sport-types/admin/BADMINTON_ALL`. Mutations
+require the browser session, allowed Origin, and CSRF token. IDs are immutable
+1–100-character ASCII identifiers using letters, digits, underscores, or hyphens.
+Titles are trimmed and must contain 1–100 characters; duplicate titles are allowed.
+Unknown fields are rejected. Existing IDs return `409 CONFLICT`; missing entries
+return `404 RESOURCE_NOT_FOUND`.
+
+Display `409 SPORT_TYPE_IN_USE` clearly and retain the entry: a match, tournament
+group, or stage record still references it. DELETE otherwise returns an empty
+`204`. The fresh schema now defines restrictive foreign keys. Recreate local
+databases built from the earlier baseline before enabling deletion; editing an
+applied baseline does not alter their constraints. Seeding
+preserves renamed titles but explicitly rerunning it can restore deleted default
+entries. See the [frontend handoff](frontend-sport-types.md) for consumers and checks.
+
 ## Route lookup
 
 ### Removed, replaced, or deprecated routes
@@ -375,9 +415,13 @@ sessions, so access changes take effect across the browser API.
 | `PUT /matches/{id}/result` | Admin terminal result and settlement |
 | `GET /auth/policies`, `POST /auth/policies` | Admin policy list/create |
 | `PATCH /auth/policies/{id}`, `DELETE /auth/policies/{id}` | Admin policy update/disable |
+| `GET /sport-types/{id}` | Authenticated single catalogue entry |
+| `POST /sport-types/admin` | Admin sport creation |
+| `PATCH /sport-types/admin/{id}` | Admin sport rename |
+| `DELETE /sport-types/admin/{id}` | Admin deletion of unused sports |
 
-`GET /sport-types` exists in both compared revisions. The frontend can use this
-catalogue instead of a hardcoded list; it is not an added route in this release.
+`GET /sport-types` exists in both compared revisions. It remains the catalogue
+source for authenticated frontend selectors; the management routes above are new.
 
 ## Migration checklist
 
@@ -392,6 +436,9 @@ catalogue instead of a hardcoded list; it is not an added route in this release.
   restore-test the archive, provision a fresh database, apply Goose migrations,
   and seed required reference data. This release does not convert legacy rows
   in place. Do not use migration `down` or `reset` as an upgrade step.
+- [ ] Recreate local databases from the revised fresh schema before enabling
+  sport management; confirm restrictive sport references on matches, groups,
+  and stages. Existing databases do not pick up edits to an applied baseline.
 
 ### 2. Update the shared client
 
@@ -418,7 +465,8 @@ catalogue instead of a hardcoded list; it is not an added route in this release.
   editable fields.
 - [ ] [Access administration](#access-policy-administration): use `/auth/policies`
   for admin allowlist/blacklist controls with session and mutation protections.
-- [ ] Use the existing `/sport-types` catalogue for sport selection where applicable.
+- [ ] Add [admin sport controls](#sport-type-administration) and replace fixed
+  sport lists and title-to-ID maps with catalogue IDs and current titles.
 
 ### 4. Cut over and smoke-check
 
@@ -437,6 +485,8 @@ controlled accounts and resources against the prepared deployment.
 | Check displayed odds and accumulator payout previews. | Integer half-up formatting; payout is rounded once at the final money amount. |
 | Void a pending bill as admin, then repeat. | One refund; repeating the void preserves the returned bill. |
 | Set and delete a daily override as admin. | Schedule reflects the override, then the configured default applies. |
+| Create and rename a sport as admin. | Admin page, selectors, and labels show the new/current title under the same ID. |
+| Delete an unused sport, then try a referenced sport. | Unused entry returns `204`; referenced entry returns `409 SPORT_TYPE_IN_USE`, preserving dependents. |
 | Set a match result, then repeat it. | Identical result succeeds without duplicate settlement. |
 | Submit a conflicting result or void a settled bill. | `409` remains visible to the operator. |
 | Log out, then request `/auth/me`. | Logout returns `204`; protected profile request returns `401`. |
@@ -446,6 +496,7 @@ controlled accounts and resources against the prepared deployment.
 - [Backend API reference and error contract](README.md)
 - [Generated OpenAPI specification](swagger.yaml)
 - [Exact-decimal frontend handoff](frontend-exact-decimals.md)
+- [Sport-type frontend handoff](frontend-sport-types.md)
 - [Exact money decision](adr/0001-exact-money-representation.md)
 - [Authentication routes](../internal/domain/auth/adapter.http.go)
 - [Bill routes](../internal/domain/bill/adapter.http.go) and [request/response DTOs](../internal/domain/bill/adapter.http.dto.go)
@@ -453,6 +504,7 @@ controlled accounts and resources against the prepared deployment.
 - [Event routes](../internal/domain/event/adapter.http.go) and [request/response DTOs](../internal/domain/event/adapter.http.dto.go)
 - [User routes](../internal/domain/user/adapter.http.go) and [request/response DTOs](../internal/domain/user/adapter.http.dto.go)
 - [Policy routes](../internal/domain/policy/adapter.http.go)
+- [Sport-type routes](../internal/domain/sporttype/adapter.http.go) and [fresh-schema deletion constraints](../migrations/00001_fresh_schema.sql)
 - [Shared error contract](../internal/apierror/error.go) and [strict JSON decoding](../internal/apierror/json.go)
 
 The compared revisions above identify this guide's API contract. Linked source

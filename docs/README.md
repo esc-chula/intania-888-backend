@@ -23,6 +23,47 @@ Use the [frontend handoff](frontend-exact-decimals.md) for exact parsing,
 formatting, accumulator previews, and client acceptance checks. Rate storage and
 arithmetic are unchanged; this serialization change needs no database migration.
 
+## Sport type administration
+
+Authenticated catalogue reads retain the `{ "id": "...", "title": "..." }`
+shape. Sport management uses dedicated admin routes under `/api/v1`:
+
+| Route | Access | Success |
+| --- | --- | --- |
+| `GET /sport-types` | Authenticated user | `200` list; empty catalogue is `[]` |
+| `GET /sport-types/{id}` | Authenticated user | `200` resource |
+| `POST /sport-types/admin` | Admin | `201` resource |
+| `PATCH /sport-types/admin/{id}` | Admin | `200` resource |
+| `DELETE /sport-types/admin/{id}` | Admin | `204`, empty body |
+
+All mutations require the browser session, allowed Origin, and `X-CSRF-Token`.
+Create accepts only `id` and `title`:
+
+```json
+{ "id": "BADMINTON_ALL", "title": "Badminton" }
+```
+
+IDs are immutable and contain 1–100 ASCII letters, digits, underscores, or
+hyphens. IDs are not trimmed. Create and PATCH trim the title and require 1–100
+Unicode characters. PATCH accepts only `{ "title": "New title" }`. Duplicate
+titles are allowed; an existing ID returns `409 CONFLICT`. Missing resources
+return `404 RESOURCE_NOT_FOUND`. Unknown fields and invalid bodies use the
+shared `400 INVALID_REQUEST` contract.
+
+The fresh Goose schema (`00001_fresh_schema.sql`) uses restrictive sport-type
+foreign keys. Recreate local databases built from the older baseline before
+enabling admin deletion; editing an applied baseline does not update them.
+DELETE removes only unused entries. Matches, tournament groups, or stage
+references block deletion with
+`409 SPORT_TYPE_IN_USE`; dependent records and the sport entry remain intact.
+Constraints enforce this during concurrent writes. Archiving is outside this API.
+
+Catalogue seeding inserts missing defaults without overwriting edited titles.
+Explicitly rerunning `make seed` can restore deleted default entries.
+
+Use the [frontend handoff](frontend-sport-types.md) for admin controls and dynamic
+selectors. Keep sport IDs as keys; display titles are mutable and may be duplicated.
+
 ## Access
 
 Development:

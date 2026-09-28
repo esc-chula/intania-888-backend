@@ -80,6 +80,12 @@ The example Compose setup publishes PostgreSQL on port `5432` and Redis on
 | `make docs` | Regenerate the Swagger files |
 | `make docs-check` | Check that generated Swagger files match the source annotations |
 
+Catalogue seeding inserts missing defaults without overwriting edited titles.
+Explicitly rerunning `make seed` restores deleted default sport entries. Admins
+manage sports through `/api/v1/sport-types/admin`; see the
+[API reference](docs/README.md#sport-type-administration) and
+[frontend handoff](docs/frontend-sport-types.md).
+
 Integration tests use ports `55432` and `56379` by default. Override
 `TEST_POSTGRES_PORT`, `TEST_REDIS_PORT`, or `TEST_COMPOSE_PROJECT` if those
 resources conflict with another local task. These tests reset their dedicated
