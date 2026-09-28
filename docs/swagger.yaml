@@ -184,6 +184,22 @@ definitions:
     - bet_amount
     - risk_level
     type: object
+  model.CreateSportTypeRequest:
+    properties:
+      id:
+        example: BADMINTON_ALL
+        maxLength: 100
+        minLength: 1
+        type: string
+      title:
+        example: Badminton
+        maxLength: 100
+        minLength: 1
+        type: string
+    required:
+    - id
+    - title
+    type: object
   model.DailyRewardScheduleItem:
     properties:
       amount:
@@ -418,6 +434,16 @@ definitions:
         type: string
       type:
         type: string
+    type: object
+  model.UpdateSportTypeRequest:
+    properties:
+      title:
+        example: Badminton (all years)
+        maxLength: 100
+        minLength: 1
+        type: string
+    required:
+    - title
     type: object
   model.UseStealTokenRequestDto:
     properties:
@@ -2136,13 +2162,235 @@ paths:
             items:
               $ref: '#/definitions/model.SportTypeDto'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apierror.Response'
         "500":
           description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
       - CookieSession: []
       summary: Get all sport types
+      tags:
+      - SportType
+  /sport-types/{id}:
+    get:
+      parameters:
+      - description: Sport type ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SportTypeDto'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
+      summary: Get a sport type
+      tags:
+      - SportType
+  /sport-types/admin:
+    post:
+      consumes:
+      - application/json
+      description: Requires administrator permission, an allowed Origin, and session
+        CSRF. IDs use 1–100 ASCII letters, digits, underscores, or hyphens. Trimmed
+        titles use 1–100 characters; duplicate titles are allowed.
+      parameters:
+      - description: Session CSRF token
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      - description: Sport type
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreateSportTypeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.SportTypeDto'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
+      summary: Create a sport type (admin)
+      tags:
+      - SportType
+  /sport-types/admin/{id}:
+    delete:
+      description: Requires administrator permission, an allowed Origin, and session
+        CSRF. Referenced entries return 409 SPORT_TYPE_IN_USE; missing entries return
+        404 RESOURCE_NOT_FOUND.
+      parameters:
+      - description: Sport type ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Session CSRF token
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
+      summary: Delete an unused sport type (admin)
+      tags:
+      - SportType
+    patch:
+      consumes:
+      - application/json
+      description: Requires administrator permission, an allowed Origin, and session
+        CSRF. Only title is accepted; trim it to 1–100 characters. Duplicate titles
+        are allowed.
+      parameters:
+      - description: Immutable sport type ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Session CSRF token
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
+      - description: New title
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateSportTypeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.SportTypeDto'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
+      summary: Rename a sport type (admin)
       tags:
       - SportType
   /users:

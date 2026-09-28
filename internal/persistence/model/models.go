@@ -160,8 +160,8 @@ type SportType struct {
 	CreatedAt time.Time ``
 	UpdatedAt time.Time ``
 
-	Matches         []Match     `gorm:"foreignKey:TypeID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TournamentGroup []GroupHead `gorm:"foreignKey:TypeID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Matches         []Match     `gorm:"foreignKey:TypeID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+	TournamentGroup []GroupHead `gorm:"foreignKey:TypeID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 }
 
 // DailyReward maps a date-specific daily reward override. Reward uses

@@ -38,7 +38,17 @@ func main() {
 	}
 
 	db := database.NewGORMDatabase(config.GetConfig())
-	err := db.Transaction(func(tx *gorm.DB) error {
+	if err := seedCatalogue(db); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Print("catalogue seed complete; no match schedule was imported")
+}
+
+// seedCatalogue inserts missing defaults, preserving edits to existing titles.
+// Explicitly rerunning it restores deleted default sport IDs.
+func seedCatalogue(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
 		colors := []persistence.Color{
 			{ID: "VIOLET", Title: "สีม่วง"},
 			{ID: "BLUE", Title: "สีฟ้า"},
@@ -100,11 +110,6 @@ func main() {
 
 		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&sports).Error
 	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Print("catalogue seed complete; no match schedule was imported")
 }
 
 func importPolicies(filename string, dryRun bool) error {

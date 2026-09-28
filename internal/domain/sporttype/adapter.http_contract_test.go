@@ -16,6 +16,7 @@ import (
 )
 
 type contractService struct {
+	ServicePort
 	rows    []*SportType
 	err     error
 	context context.Context
@@ -45,7 +46,7 @@ func TestSportTypeHTTPPreservesCatalogueEmptyListsAndContext(t *testing.T) {
 			NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error {
 				c.SetUserContext(ctx)
 				return c.Next()
-			})
+			}, func(c *fiber.Ctx) error { return c.Next() })
 			response, err := app.Test(httptest.NewRequest("GET", "/sport-types", nil))
 			if err != nil {
 				t.Fatal(err)
@@ -70,7 +71,7 @@ func TestSportTypeHTTPRedactsDependencyErrorsAndCorrelatesRequest(t *testing.T) 
 	service := &contractService{err: errors.New("database secret")}
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 	app.Use(apierror.RequestID())
-	NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error { return c.Next() })
+	NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error { return c.Next() }, func(c *fiber.Ctx) error { return c.Next() })
 	response, err := app.Test(httptest.NewRequest("GET", "/sport-types", nil))
 	if err != nil {
 		t.Fatal(err)

@@ -178,7 +178,7 @@ func run() (runErr error) {
 	colorHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
 	eventHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 	stakeMineHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
-	sportTypeHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
+	sportTypeHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 
 	// Register external API routes. Deprecated: retain them while their original purpose and
 	// consumers are investigated. Do not add new integrations to these routes.

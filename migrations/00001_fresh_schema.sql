@@ -45,7 +45,7 @@ CREATE TABLE matches (
     teama_score integer,
     teamb_score integer,
     winner_id varchar(100) REFERENCES colors(id) ON UPDATE CASCADE,
-    type_id varchar(100) NOT NULL REFERENCES sport_types(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    type_id varchar(100) NOT NULL REFERENCES sport_types(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     is_draw boolean NOT NULL DEFAULT false,
     start_time timestamptz NOT NULL,
     end_time timestamptz NOT NULL,
@@ -92,7 +92,7 @@ CREATE TABLE bill_terminal_events (
 );
 CREATE TABLE group_heads (
     id varchar(100) PRIMARY KEY, title varchar(100) NOT NULL,
-    type_id varchar(100) NOT NULL REFERENCES sport_types(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    type_id varchar(100) NOT NULL REFERENCES sport_types(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE group_lines (
@@ -102,7 +102,7 @@ CREATE TABLE group_lines (
     PRIMARY KEY(group_id, team_id)
 );
 CREATE TABLE group_stages (
-    id varchar(100) NOT NULL, type_id varchar(100) NOT NULL REFERENCES sport_types(id),
+    id varchar(100) NOT NULL, type_id varchar(100) NOT NULL REFERENCES sport_types(id) ON DELETE RESTRICT,
     color_id varchar(100) NOT NULL REFERENCES colors(id),
     created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY(id, type_id, color_id)
