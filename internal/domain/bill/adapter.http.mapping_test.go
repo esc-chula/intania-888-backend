@@ -46,7 +46,7 @@ func TestBillHTTPMappingPreservesNullableFieldsAndNestedMatch(t *testing.T) {
 	lines := object["lines"].([]any)
 	line := lines[0].(map[string]any)
 	nested := line["match"].(map[string]any)
-	if line["rate"] != float64(2) || nested["team_a_rate"] != float64(0) || nested["team_b_rate"] != float64(0) {
+	if line["rate"] != "2.000000" || nested["team_a_rate"] != "0.000000" || nested["team_b_rate"] != "0.000000" {
 		t.Fatalf("rate wire fields = %s", encoded)
 	}
 	if nested["team_a"] != "A" || nested["team_b"] != "B" || nested["winner"] != "" || nested["team_a_score"] != nil {

@@ -13,8 +13,8 @@ type Response struct {
 	TeamBID    string     `json:"team_b"`
 	TeamAScore *int       `json:"team_a_score"`
 	TeamBScore *int       `json:"team_b_score"`
-	TeamARate  value.Rate `json:"team_a_rate" swaggertype:"number"`
-	TeamBRate  value.Rate `json:"team_b_rate" swaggertype:"number"`
+	TeamARate  value.Rate `json:"team_a_rate" swaggertype:"string" example:"1.750000"`
+	TeamBRate  value.Rate `json:"team_b_rate" swaggertype:"string" example:"2.500000"`
 	WinnerID   string     `json:"winner"`
 	TypeID     string     `json:"type"`
 	IsDraw     bool       `json:"is_draw"`

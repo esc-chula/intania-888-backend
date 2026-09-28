@@ -100,7 +100,7 @@ func TestSignedMoneyAndRateJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if string(b) != "1.234567" {
+	if string(b) != `"1.234567"` {
 		t.Fatalf("rate JSON = %s", b)
 	}
 

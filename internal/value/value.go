@@ -1,7 +1,6 @@
 package value
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -269,18 +268,23 @@ func (r Rate) MicroUnits() int64 { return r.micro }
 // String returns the canonical rate with exactly six fractional digits.
 func (r Rate) String() string { return formatFixed(r.micro, 6) }
 
-// MarshalJSON returns the rate as a decimal JSON number.
-// Rate remains a JSON number for compatibility, while calculations remain fixed-point.
-func (r Rate) MarshalJSON() ([]byte, error) { return []byte(r.String()), nil }
+// MarshalJSON encodes Rate as a quoted decimal with six fractional digits.
+func (r Rate) MarshalJSON() ([]byte, error) { return json.Marshal(r.String()) }
 
-// UnmarshalJSON accepts a decimal JSON number using ParseRate.
-// Strings, null, and exponent notation are rejected; failures leave the receiver unchanged.
+// UnmarshalJSON accepts a decimal JSON string using ParseRate.
+// Numeric tokens and null are rejected, and failures leave the receiver unchanged.
 func (r *Rate) UnmarshalJSON(data []byte) error {
-	if r == nil || len(data) == 0 || bytes.Equal(data, []byte("null")) || data[0] == '"' {
+	if r == nil || len(data) == 0 || data[0] != '"' {
 		return ErrInvalidRate
 	}
 
-	parsed, err := ParseRate(string(data))
+	var raw string
+
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return ErrInvalidRate
+	}
+
+	parsed, err := ParseRate(raw)
 
 	if err != nil {
 		return err

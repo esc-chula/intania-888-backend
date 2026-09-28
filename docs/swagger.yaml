@@ -98,7 +98,8 @@ definitions:
       match_id:
         type: string
       rate:
-        type: number
+        example: "2.000000"
+        type: string
     type: object
   model.CandidatePreviewDto:
     properties:
@@ -228,13 +229,15 @@ definitions:
       team_a:
         type: string
       team_a_rate:
-        type: number
+        example: "1.750000"
+        type: string
       team_a_score:
         type: integer
       team_b:
         type: string
       team_b_rate:
-        type: number
+        example: "2.500000"
+        type: string
       team_b_score:
         type: integer
       type:
@@ -289,7 +292,8 @@ definitions:
       id:
         type: string
       multiplier:
-        type: number
+        example: "1.030000"
+        type: string
       revealed_count:
         type: integer
       risk_level:
@@ -312,7 +316,8 @@ definitions:
       game_id:
         type: string
       multiplier:
-        type: number
+        example: "1.030000"
+        type: string
       revealed_count:
         type: integer
       risk_level:
@@ -341,6 +346,8 @@ definitions:
       total_winnings:
         type: string
       win_rate:
+        description: WinRate is an approximate percentage, not an exact payout multiplier.
+        example: 33.333333
         type: number
     type: object
   model.MineTileDto:

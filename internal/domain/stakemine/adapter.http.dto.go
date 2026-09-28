@@ -37,7 +37,7 @@ type GameResponse struct {
 	Grid          []TileResponse `json:"grid"`
 	RevealedCount int            `json:"revealed_count"`
 	CurrentPayout value.Money    `json:"current_payout" swaggertype:"string"`
-	Multiplier    value.Rate     `json:"multiplier" swaggertype:"number"`
+	Multiplier    value.Rate     `json:"multiplier" swaggertype:"string" example:"1.030000"`
 	Status        string         `json:"status"`
 	CreatedAt     time.Time      `json:"created_at"`
 	CompletedAt   *time.Time     `json:"completed_at,omitempty"`
@@ -54,7 +54,8 @@ type StatsResponse struct {
 	NetProfit           value.SignedMoney `json:"net_profit" swaggertype:"string"`
 	ActiveWagered       *value.Money      `json:"active_wagered" swaggertype:"string"`
 	ActiveCurrentPayout *value.Money      `json:"active_current_payout" swaggertype:"string"`
-	WinRate             float64           `json:"win_rate"`
+	// WinRate is an approximate percentage, not an exact payout multiplier.
+	WinRate float64 `json:"win_rate" example:"33.333333"`
 } // @name model.MineGameStatsDto
 
 // HistoryResponse defines the HTTP response.
@@ -64,7 +65,7 @@ type HistoryResponse struct {
 	RiskLevel     string      `json:"risk_level"`
 	Status        string      `json:"status"`
 	FinalPayout   value.Money `json:"final_payout" swaggertype:"string"`
-	Multiplier    value.Rate  `json:"multiplier" swaggertype:"number"`
+	Multiplier    value.Rate  `json:"multiplier" swaggertype:"string" example:"1.030000"`
 	RevealedCount int         `json:"revealed_count"`
 	CreatedAt     time.Time   `json:"created_at"`
 	CompletedAt   *time.Time  `json:"completed_at,omitempty"`

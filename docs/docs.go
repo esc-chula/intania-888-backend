@@ -2880,7 +2880,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rate": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "2.000000"
                 }
             }
         },
@@ -3075,7 +3076,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "team_a_rate": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "1.750000"
                 },
                 "team_a_score": {
                     "type": "integer"
@@ -3084,7 +3086,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "team_b_rate": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "2.500000"
                 },
                 "team_b_score": {
                     "type": "integer"
@@ -3168,7 +3171,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "multiplier": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "1.030000"
                 },
                 "revealed_count": {
                     "type": "integer"
@@ -3203,7 +3207,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "multiplier": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "1.030000"
                 },
                 "revealed_count": {
                     "type": "integer"
@@ -3247,7 +3252,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "win_rate": {
-                    "type": "number"
+                    "description": "WinRate is an approximate percentage, not an exact payout multiplier.",
+                    "type": "number",
+                    "example": 33.333333
                 }
             }
         },

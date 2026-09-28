@@ -23,7 +23,7 @@ type HeadResponse struct {
 type LineResponse struct {
 	BillID    string         `json:"bill_id"`
 	MatchID   string         `json:"match_id"`
-	Rate      value.Rate     `json:"rate" swaggertype:"number"`
+	Rate      value.Rate     `json:"rate" swaggertype:"string" example:"2.000000"`
 	BettingOn string         `json:"betting_on"`
 	Match     match.Response `json:"match"`
 } // @name model.BillLineDto
