@@ -1,6 +1,9 @@
 package color
 
 import (
+	"github.com/google/uuid"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/gofiber/fiber/v2"
 )
@@ -27,16 +30,19 @@ func (h *ColorHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.M
 // @Produce json
 // @Param type_id query string false "Type ID to filter"
 // @Success 200 {array} model.ColorDto
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /colors/leaderboards [get]
 // @Security BearerAuth
 func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 	typeId := c.Query("type_id", "")
+	if err := validateOptionalID("type_id", typeId); err != nil {
+		return err
+	}
 
 	colors, err := h.service.GetAllLeaderboards(typeId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get leaderboards"})
+		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to get leaderboards")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(colors)
@@ -50,22 +56,34 @@ func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 // @Param type_id query string false "Type ID to filter"
 // @Param group_id query string false "Group ID to filter"
 // @Success 200 {array} model.ColorDto
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Failure 400 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /colors/group-stage [get]
 // @Security BearerAuth
 func (h *ColorHttpHandler) GetGroupStageTable(c *fiber.Ctx) error {
 	typeId := c.Query("type_id", "")
 	groupId := c.Query("group_id", "")
+	if err := validateOptionalID("type_id", typeId); err != nil {
+		return err
+	}
+	if err := validateOptionalID("group_id", groupId); err != nil {
+		return err
+	}
 
 	colors, err := h.service.GetGroupStageTable(typeId, groupId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get group stage table"})
+		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to get group stage table")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(colors)
 }
 
-type ErrorResponse struct {
-	Message string `json:"message"`
+func validateOptionalID(field, value string) error {
+	if value == "" {
+		return nil
+	}
+	if _, err := uuid.Parse(value); err != nil {
+		return apierror.Invalid(map[string]string{field: "must be a valid ID"})
+	}
+	return nil
 }

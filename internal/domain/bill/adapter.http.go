@@ -1,11 +1,9 @@
 package bill
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"io"
 
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/utils"
@@ -34,33 +32,20 @@ func (h *BillHttpHandler) RegisterRoutes(r fiber.Router, mid *middleware.Middlew
 	a.Put("/:id/void", h.VoidBill)
 }
 
-func strictJSON(c *fiber.Ctx, dst any) error {
-	dec := json.NewDecoder(bytes.NewReader(c.Body()))
-	dec.DisallowUnknownFields()
-
-	if err := dec.Decode(dst); err != nil {
-		return err
-	}
-
-	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("request must contain one JSON value")
-	}
-
-	return nil
-}
-
-func billError(c *fiber.Ctx, err error) error {
+func mapBillError(err error) error {
 	switch {
+	case errors.Is(err, ErrMatchNotFound):
+		return apierror.Wrap(err, fiber.StatusNotFound, "RESOURCE_NOT_FOUND", "Match not found")
 	case errors.Is(err, ErrInvalidBill):
-		return c.Status(400).JSON(ErrorResponse{"Invalid request payload"})
+		return apierror.Wrap(err, fiber.StatusBadRequest, "INVALID_REQUEST", "Invalid bill request")
 	case errors.Is(err, ErrInsufficientBalance):
-		return c.Status(422).JSON(ErrorResponse{"Insufficient balance"})
+		return apierror.Wrap(err, fiber.StatusUnprocessableEntity, "INSUFFICIENT_BALANCE", "Insufficient balance")
 	case errors.Is(err, ErrBillConflict):
-		return c.Status(409).JSON(ErrorResponse{"Bill is already settled"})
+		return apierror.Wrap(err, fiber.StatusConflict, "BILL_CONFLICT", "Bill state conflicts with this operation")
 	case errors.Is(err, gorm.ErrRecordNotFound):
-		return c.Status(404).JSON(ErrorResponse{"Bill not found"})
+		return apierror.Wrap(err, fiber.StatusNotFound, "RESOURCE_NOT_FOUND", "Bill not found")
 	default:
-		return c.Status(500).JSON(ErrorResponse{"Bill operation failed"})
+		return err
 	}
 }
 
@@ -72,27 +57,32 @@ func billError(c *fiber.Ctx, err error) error {
 // @Produce json
 // @Param bill body model.CreateBillRequest true "Bill stake and selections"
 // @Success 201 {object} model.BillHeadDto
-// @Failure 400 {object} ErrorResponse
-// @Failure 422 {object} ErrorResponse
+// @Failure 400 {object} apierror.Response
+// @Failure 401 {object} apierror.Response
+// @Failure 403 {object} apierror.Response
+// @Failure 404 {object} apierror.Response
+// @Failure 409 {object} apierror.Response
+// @Failure 422 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /bills [post]
 // @Security BearerAuth
 func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 	u := utils.GetUserProfileFromCtx(c)
 
 	if u == nil {
-		return c.Status(400).JSON(ErrorResponse{"User profile missing"})
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
 	var req model.CreateBillRequest
 
-	if err := strictJSON(c, &req); err != nil {
-		return c.Status(400).JSON(ErrorResponse{"Invalid request payload"})
+	if err := apierror.BindJSON(c, &req); err != nil {
+		return err
 	}
 
 	v, err := h.service.CreateBill(u.Id, &req)
 
 	if err != nil {
-		return billError(c, err)
+		return mapBillError(err)
 	}
 
 	return c.Status(201).JSON(v)
@@ -104,19 +94,25 @@ func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
 // @Produce json
 // @Param id path string true "Bill ID"
 // @Success 200 {object} model.BillHeadDto
+// @Failure 401 {object} apierror.Response
+// @Failure 404 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /bills/{id} [get]
 // @Security BearerAuth
 func (h *BillHttpHandler) GetBill(c *fiber.Ctx) error {
 	u := utils.GetUserProfileFromCtx(c)
 
 	if u == nil {
-		return c.SendStatus(400)
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+	if c.Params("id") == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
 
 	v, e := h.service.GetBill(c.Params("id"), u.Id)
 
 	if e != nil {
-		return billError(c, e)
+		return mapBillError(e)
 	}
 
 	return c.JSON(v)
@@ -133,13 +129,13 @@ func (h *BillHttpHandler) GetAllBills(c *fiber.Ctx) error {
 	u := utils.GetUserProfileFromCtx(c)
 
 	if u == nil {
-		return c.SendStatus(400)
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
 	v, e := h.service.GetAllBills(u.Id)
 
 	if e != nil {
-		return billError(c, e)
+		return mapBillError(e)
 	}
 
 	return c.JSON(v)
@@ -156,7 +152,7 @@ func (h *BillHttpHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
 	v, e := h.service.GetAllBillsAdmin()
 
 	if e != nil {
-		return billError(c, e)
+		return mapBillError(e)
 	}
 
 	return c.JSON(v)
@@ -170,31 +166,35 @@ func (h *BillHttpHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
 // @Param id path string true "Bill ID"
 // @Param request body model.VoidBillRequest true "Audit reason"
 // @Success 200 {object} model.BillHeadDto
-// @Failure 409 {object} ErrorResponse
+// @Failure 400 {object} apierror.Response
+// @Failure 401 {object} apierror.Response
+// @Failure 403 {object} apierror.Response
+// @Failure 404 {object} apierror.Response
+// @Failure 409 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /bills/admin/{id}/void [put]
 // @Security BearerAuth
 func (h *BillHttpHandler) VoidBill(c *fiber.Ctx) error {
 	u := utils.GetUserProfileFromCtx(c)
 
 	if u == nil {
-		return c.SendStatus(401)
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+	if c.Params("id") == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
 
 	var req model.VoidBillRequest
 
-	if e := strictJSON(c, &req); e != nil {
-		return c.Status(400).JSON(ErrorResponse{"Invalid request payload"})
+	if e := apierror.BindJSON(c, &req); e != nil {
+		return e
 	}
 
 	v, e := h.service.VoidBill(c.Params("id"), u.Id, req.Reason)
 
 	if e != nil {
-		return billError(c, e)
+		return mapBillError(e)
 	}
 
 	return c.JSON(v)
-}
-
-type ErrorResponse struct {
-	Message string `json:"message"`
 }

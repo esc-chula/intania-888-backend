@@ -1,10 +1,15 @@
 package user
 
 import (
+	"errors"
+	"strings"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type UserHttpHandler struct {
@@ -30,12 +35,12 @@ func (h *UserHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.Mi
 func (h *UserHttpHandler) CreateUser(c *fiber.Ctx) error {
 	user := new(model.UserDto)
 
-	if err := c.BodyParser(user); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
+	if err := apierror.BindJSON(c, user); err != nil {
+		return err
 	}
 
 	if err := h.service.CreateUser(user); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(user)
@@ -47,15 +52,18 @@ func (h *UserHttpHandler) CreateUser(c *fiber.Ctx) error {
 // @Produce  json
 // @Param   id    path      string  true  "User ID"
 // @Success 200    {object} model.UserDto
-// @Failure 404    {object} map[string]string  "user not found"
+// @Failure 404    {object} apierror.Response  "user not found"
 // @Router  /users/{id} [get]
 // @Security BearerAuth
 func (h *UserHttpHandler) GetUser(c *fiber.Ctx) error {
 	id := c.Params("id")
+	if strings.TrimSpace(id) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
 
 	user, err := h.service.GetUser(id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
+		return mapUserError(err)
 	}
 
 	return c.JSON(user)
@@ -66,13 +74,13 @@ func (h *UserHttpHandler) GetUser(c *fiber.Ctx) error {
 // @Tags User
 // @Produce  json
 // @Success 200    {array}  model.UserDto
-// @Failure 500    {object} map[string]string  "internal server error"
+// @Failure 500    {object} apierror.Response  "internal server error"
 // @Router  /users [get]
 // @Security BearerAuth
 func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
 	users, err := h.service.GetAllUsers()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	return c.JSON(users)
@@ -86,16 +94,21 @@ func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
 // @Param   id    path      string  true  "User ID"
 // @Param   user  body      model.UpdateUserDto  true  "Updated user information"
 // @Success 200    {object} model.UserDto
-// @Failure 400    {object} map[string]string  "cannot parse body"
-// @Failure 500    {object} map[string]string  "internal server error"
+// @Failure 400    {object} apierror.Response  "cannot parse body"
+// @Failure 401    {object} apierror.Response  "unauthorized"
+// @Failure 404    {object} apierror.Response  "user not found"
+// @Failure 500    {object} apierror.Response  "internal server error"
 // @Router  /users/{id} [patch]
 // @Security BearerAuth
 func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 	profile := utils.GetUserProfileFromCtx(c)
 
 	updateUserDto := new(model.UpdateUserDto)
-	if err := c.BodyParser(updateUserDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
+	if err := apierror.BindJSON(c, updateUserDto); err != nil {
+		return err
+	}
+	if profile == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
 	user := model.UserDto{
@@ -109,7 +122,7 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.UpdateUser(&user); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return mapUserError(err)
 	}
 
 	return c.JSON(user)
@@ -123,26 +136,32 @@ func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
 // @Param   id    path      string  true  "User ID"
 // @Param   user  body      model.AdminUpdateUserDto  true  "Updated user information"
 // @Success 200    {object} model.UserDto
-// @Failure 400    {object} map[string]string  "cannot parse body"
-// @Failure 500    {object} map[string]string  "internal server error"
+// @Failure 400    {object} apierror.Response  "cannot parse body"
+// @Failure 401    {object} apierror.Response  "unauthorized"
+// @Failure 403    {object} apierror.Response  "administrator permission required"
+// @Failure 404    {object} apierror.Response  "user not found"
+// @Failure 500    {object} apierror.Response  "internal server error"
 // @Router  /users/admin/{id} [patch]
 // @Security BearerAuth
 func (h *UserHttpHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	userId := c.Params("id")
+	if strings.TrimSpace(userId) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
 
 	userDto := new(model.AdminUpdateUserDto)
-	if err := c.BodyParser(userDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
+	if err := apierror.BindJSON(c, userDto); err != nil {
+		return err
 	}
 
 	if err := h.service.AdminUpdateUser(userId, userDto); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return mapUserError(err)
 	}
 
 	// Return updated user
 	updatedUser, err := h.service.GetUser(userId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return mapUserError(err)
 	}
 
 	return c.JSON(updatedUser)
@@ -163,41 +182,28 @@ func (h *UserHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middl
 // @Produce json
 // @Param request body model.DeductCoinRequest true "Deduction request"
 // @Success 200 {object} model.DeductCoinResponse
-// @Failure 400 {object} map[string]interface{} "Invalid amount or parse error"
-// @Failure 401 {object} map[string]interface{} "Missing or invalid token"
-// @Failure 403 {object} map[string]interface{} "Insufficient balance or blacklisted"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Failure 400 {object} apierror.Response "Invalid amount or parse error"
+// @Failure 401 {object} apierror.Response "Missing or invalid token"
+// @Failure 404 {object} apierror.Response "User not found"
+// @Failure 422 {object} apierror.Response "Insufficient balance"
+// @Failure 500 {object} apierror.Response "Internal server error"
 // @Router /external/deduct-coin [post]
 // @Security BearerAuth
 func (h *UserHttpHandler) DeductCoin(c *fiber.Ctx) error {
 	profile := utils.GetUserProfileFromCtx(c)
-
-	var req model.DeductCoinRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "cannot parse body",
-		})
+	if profile == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	// Validate amount range
-	if req.Amount.MinorUnits() < 1_00 || req.Amount.MinorUnits() > 1_000_000_00 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "amount must be between 1 and 1,000,000 coins",
-		})
+	var req model.DeductCoinRequest
+	if err := apierror.BindJSON(c, &req); err != nil {
+		return err
 	}
 
 	// Call service to deduct coins
 	remainingBalance, err := h.service.DeductCoin(profile.Id, req.Amount)
 	if err != nil {
-		if err.Error() == "insufficient balance" {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "insufficient balance",
-			})
-		}
-
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return mapUserError(err)
 	}
 
 	// Return success response
@@ -206,4 +212,15 @@ func (h *UserHttpHandler) DeductCoin(c *fiber.Ctx) error {
 		DeductedAmount:   req.Amount,
 		RemainingBalance: remainingBalance,
 	})
+}
+
+func mapUserError(err error) error {
+	switch {
+	case errors.Is(err, ErrUserNotFound), errors.Is(err, gorm.ErrRecordNotFound):
+		return apierror.Wrap(err, fiber.StatusNotFound, "RESOURCE_NOT_FOUND", "User not found")
+	case errors.Is(err, ErrInsufficientBalance):
+		return apierror.Wrap(err, fiber.StatusUnprocessableEntity, "INSUFFICIENT_BALANCE", "Insufficient balance")
+	default:
+		return err
+	}
 }

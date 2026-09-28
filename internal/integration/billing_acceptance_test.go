@@ -231,6 +231,15 @@ func TestBillPlacementRejectsInvalidRequests(t *testing.T) {
 			wantCash:  100_00,
 		},
 		{
+			name: "missing match",
+			request: model.CreateBillRequest{
+				Total: money(10_00),
+				Lines: []model.CreateBillLineRequest{line("MISSING", "A")},
+			},
+			wantError: bill.ErrMatchNotFound,
+			wantCash:  100_00,
+		},
+		{
 			name: "invalid team",
 			request: model.CreateBillRequest{
 				Total: money(10_00),

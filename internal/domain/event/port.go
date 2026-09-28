@@ -6,7 +6,15 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/model"
 )
 
-var ErrDailyRewardOverrideNotFound = errors.New("daily reward override not found")
+var (
+	ErrDailyRewardOverrideNotFound = errors.New("daily reward override not found")
+	ErrDailyRewardAlreadyClaimed   = errors.New("daily reward already claimed")
+	ErrInsufficientBalance         = errors.New("insufficient balance")
+	ErrStealTokenInvalid           = errors.New("invalid or expired steal token")
+	ErrStealTokenConflict          = errors.New("steal token already used")
+	ErrStealTokenForbidden         = errors.New("steal token is not owned by user")
+	ErrInvalidStealRequest         = errors.New("invalid steal request")
+)
 
 type EventRepository interface {
 	SetDailyRewardCache(key string, value interface{}, ttl int) error

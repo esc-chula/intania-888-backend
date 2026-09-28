@@ -1,7 +1,19 @@
 package stakemine
 
 import (
+	"errors"
+
 	"github.com/esc-chula/intania-888-backend/internal/model"
+)
+
+var (
+	ErrInvalidGameRequest  = errors.New("invalid Stake Mines request")
+	ErrInsufficientBalance = errors.New("insufficient balance")
+	ErrGameNotFound        = errors.New("Stake Mines game not found")
+	ErrNoActiveGame        = errors.New("active Stake Mines game not found")
+	ErrGameConflict        = errors.New("Stake Mines game state conflict")
+	ErrGameForbidden       = errors.New("Stake Mines game access forbidden")
+	ErrUserNotFound        = errors.New("user not found")
 )
 
 type StakeMineService interface {

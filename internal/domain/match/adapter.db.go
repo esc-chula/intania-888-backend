@@ -91,5 +91,12 @@ func (r *matchRepositoryImpl) UpdateMatch(v *model.Match) error {
 }
 
 func (r *matchRepositoryImpl) Delete(id string) error {
-	return r.db.Delete(&model.Match{}, "id = ?", id).Error
+	result := r.db.Delete(&model.Match{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

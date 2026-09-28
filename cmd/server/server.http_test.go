@@ -1,11 +1,14 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/esc-chula/intania-888-backend/docs"
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
@@ -209,14 +212,28 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 		t.Fatalf("exact-origin status = %d, want %d", response.StatusCode, http.StatusNoContent)
 	}
 
+	if got := response.Header.Get("Access-Control-Expose-Headers"); !strings.Contains(got, "X-Request-ID") {
+		t.Fatalf("exposed headers = %q, want X-Request-ID", got)
+	}
+
 	unknownOrigin := httptest.NewRequest(http.MethodGet, "/api/v1/safe", nil)
 	unknownOrigin.Header.Set("Origin", "https://frontend.example.test")
 	response, err = httpServer.app.Test(unknownOrigin)
 	if err != nil {
 		t.Fatalf("unknown-origin request error = %v", err)
 	}
-	if response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("unknown-origin status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("unknown-origin status = %d, want %d", response.StatusCode, http.StatusForbidden)
+	}
+	if response.Header.Get("X-Request-ID") == "" {
+		t.Fatal("origin rejection did not include X-Request-ID")
+	}
+	var errorBody map[string]string
+	if err := json.NewDecoder(response.Body).Decode(&errorBody); err != nil {
+		t.Fatalf("decode origin error body: %v", err)
+	}
+	if errorBody["code"] != "FORBIDDEN" || errorBody["request_id"] != response.Header.Get("X-Request-ID") {
+		t.Fatalf("origin error contract = %#v", errorBody)
 	}
 
 	missingOrigin := httptest.NewRequest(http.MethodPost, "/api/v1/mutate", nil)
@@ -224,8 +241,27 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 	if err != nil {
 		t.Fatalf("missing-origin request error = %v", err)
 	}
-	if response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("missing-origin status = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("missing-origin status = %d, want %d", response.StatusCode, http.StatusForbidden)
+	}
+}
+
+func TestUnmatchedAPIPathUsesSharedErrorContract(t *testing.T) {
+	httpServer, _ := newOriginGuardTestServer(t)
+	response, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/not-registered", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusNotFound)
+	}
+	var body apierror.Response
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "RESOURCE_NOT_FOUND" || body.RequestID == "" || body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
+		t.Fatalf("unmatched route error = %#v; header=%q", body, response.Header.Get(apierror.RequestIDHeader))
 	}
 }
 

@@ -139,7 +139,7 @@ func (s *userServiceImpl) DeductCoin(userId string, amount model.Money) (model.M
 			Where("id = ?", userId).
 			First(&user).Error; err != nil {
 			s.log.Named("DeductCoin").Error("User not found", zap.Error(err))
-			return errors.New("user not found")
+			return errors.Join(ErrUserNotFound, err)
 		}
 
 		// 2. Validate balance (allow exactly 0, reject negative)
@@ -148,7 +148,7 @@ func (s *userServiceImpl) DeductCoin(userId string, amount model.Money) (model.M
 				zap.String("userId", userId),
 				zap.Int64("balance_minor", user.RemainingCoin),
 				zap.Int64("amount_minor", amount.MinorUnits()))
-			return errors.New("insufficient balance")
+			return ErrInsufficientBalance
 		}
 
 		// 3. Atomic deduction using SQL expression

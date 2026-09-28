@@ -1,6 +1,7 @@
 package sporttype
 
 import (
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/gofiber/fiber/v2"
 )
@@ -25,18 +26,14 @@ func (h *SportTypeHttpHandler) RegisterRoutes(router fiber.Router, mid *middlewa
 // @Accept json
 // @Produce json
 // @Success 200 {object} []model.SportTypeDto
-// @Failure 500 {object} ErrorResponse
+// @Failure 500 {object} apierror.Response
 // @Router /sport-types [get]
 // @Security BearerAuth
 func (h *SportTypeHttpHandler) GetAllSportTypes(c *fiber.Ctx) error {
 	sportTypes, err := h.service.GetAllSportTypes()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get sport types"})
+		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to get sport types")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(sportTypes)
-}
-
-type ErrorResponse struct {
-	Message string `json:"message"`
 }

@@ -4,11 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/gofiber/fiber/v2"
 )
@@ -30,10 +30,10 @@ func (h *HttpHandler) RegisterRoutes(router fiber.Router, authMiddleware, adminM
 }
 
 type CreatePolicyRequest struct {
-	Kind          string     `json:"kind"`
-	PrincipalType string     `json:"principal_type"`
-	Principal     string     `json:"principal"`
-	Reason        string     `json:"reason"`
+	Kind          string     `json:"kind" validate:"required,oneof=allowlist blacklist"`
+	PrincipalType string     `json:"principal_type" validate:"required,oneof=email google_subject"`
+	Principal     string     `json:"principal" validate:"required"`
+	Reason        string     `json:"reason" validate:"required"`
 	ExpiresAt     *time.Time `json:"expires_at"`
 }
 
@@ -58,6 +58,11 @@ func (r *UpdatePolicyRequest) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
+	for field := range fields {
+		if field != "reason" && field != "enabled" && field != "expires_at" {
+			return errors.New("unknown field")
+		}
+	}
 	r.Reason = value.Reason
 	r.Enabled = value.Enabled
 	r.ExpiresAt = nil
@@ -71,6 +76,30 @@ func (r *UpdatePolicyRequest) UnmarshalJSON(data []byte) error {
 			}
 			r.ExpiresAt = &expiresAt
 		}
+	}
+	return nil
+}
+
+func (r CreatePolicyRequest) ValidateRequest() map[string]string {
+	details := make(map[string]string)
+	if strings.TrimSpace(r.Kind) == "" {
+		details["kind"] = "is required"
+	}
+	if strings.TrimSpace(r.PrincipalType) == "" {
+		details["principal_type"] = "is required"
+	}
+	if strings.TrimSpace(r.Principal) == "" {
+		details["principal"] = "is required"
+	}
+	if strings.TrimSpace(r.Reason) == "" {
+		details["reason"] = "is required"
+	}
+	return details
+}
+
+func (r UpdatePolicyRequest) ValidateRequest() map[string]string {
+	if r.Reason == nil && !r.expiresAtSet && r.Enabled == nil {
+		return map[string]string{"body": "must include at least one policy field"}
 	}
 	return nil
 }
@@ -90,17 +119,19 @@ type PolicyListResponse struct {
 // @Param limit query int false "page size, maximum 200"
 // @Param cursor query string false "opaque pagination cursor"
 // @Success 200 {object} PolicyListResponse
-// @Failure 401 {object} map[string]string
-// @Failure 403 {object} map[string]string
+// @Failure 400 {object} apierror.Response
+// @Failure 401 {object} apierror.Response
+// @Failure 403 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /auth/policies [get]
 func (h *HttpHandler) List(c *fiber.Ctx) error {
 	limit, err := parseLimit(c.Query("limit"))
 	if err != nil {
-		return policyError(c, fiber.StatusBadRequest, "invalid limit")
+		return apierror.Invalid(map[string]string{"limit": "must be between 1 and 200"})
 	}
 	offset, err := decodeCursor(c.Query("cursor"))
 	if err != nil {
-		return policyError(c, fiber.StatusBadRequest, "invalid cursor")
+		return apierror.Invalid(map[string]string{"cursor": "is invalid"})
 	}
 
 	result, err := h.service.List(ListFilter{
@@ -111,7 +142,7 @@ func (h *HttpHandler) List(c *fiber.Ctx) error {
 		Offset:        offset,
 	})
 	if err != nil {
-		return mapPolicyError(c, err)
+		return mapPolicyError(err)
 	}
 
 	response := PolicyListResponse{Items: result.Items}
@@ -124,12 +155,12 @@ func (h *HttpHandler) List(c *fiber.Ctx) error {
 
 func (h *HttpHandler) Create(c *fiber.Ctx) error {
 	var request CreatePolicyRequest
-	if err := c.BodyParser(&request); err != nil {
-		return policyError(c, fiber.StatusBadRequest, "invalid policy request")
+	if err := apierror.BindJSON(c, &request); err != nil {
+		return err
 	}
 	created, err := h.service.Create(CreateInput(request))
 	if err != nil {
-		return mapPolicyError(c, err)
+		return mapPolicyError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(created)
 }
@@ -141,15 +172,16 @@ func (h *HttpHandler) Create(c *fiber.Ctx) error {
 // @Produce json
 // @Param policy body CreatePolicyRequest true "access policy"
 // @Success 201 {object} AccessPolicy
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Failure 403 {object} map[string]string
-// @Failure 409 {object} map[string]string
+// @Failure 400 {object} apierror.Response
+// @Failure 401 {object} apierror.Response
+// @Failure 403 {object} apierror.Response
+// @Failure 409 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /auth/policies [post]
 func (h *HttpHandler) Update(c *fiber.Ctx) error {
 	var request UpdatePolicyRequest
-	if err := c.BodyParser(&request); err != nil {
-		return policyError(c, fiber.StatusBadRequest, "invalid policy request")
+	if err := apierror.BindJSON(c, &request); err != nil {
+		return err
 	}
 
 	input := UpdateInput{}
@@ -166,9 +198,12 @@ func (h *HttpHandler) Update(c *fiber.Ctx) error {
 		input.Enabled = *request.Enabled
 	}
 
+	if strings.TrimSpace(c.Params("id")) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
 	updated, err := h.service.Update(c.Params("id"), input)
 	if err != nil {
-		return mapPolicyError(c, err)
+		return mapPolicyError(err)
 	}
 	return c.JSON(updated)
 }
@@ -181,14 +216,18 @@ func (h *HttpHandler) Update(c *fiber.Ctx) error {
 // @Param id path string true "policy ID"
 // @Param policy body UpdatePolicyRequest true "policy changes"
 // @Success 200 {object} AccessPolicy
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Failure 403 {object} map[string]string
-// @Failure 404 {object} map[string]string
+// @Failure 400 {object} apierror.Response
+// @Failure 401 {object} apierror.Response
+// @Failure 403 {object} apierror.Response
+// @Failure 404 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /auth/policies/{id} [patch]
 func (h *HttpHandler) Delete(c *fiber.Ctx) error {
+	if strings.TrimSpace(c.Params("id")) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
 	if _, err := h.service.Disable(c.Params("id")); err != nil {
-		return mapPolicyError(c, err)
+		return mapPolicyError(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -198,9 +237,10 @@ func (h *HttpHandler) Delete(c *fiber.Ctx) error {
 // @Tags Auth Policy
 // @Param id path string true "policy ID"
 // @Success 204 "policy disabled"
-// @Failure 401 {object} map[string]string
-// @Failure 403 {object} map[string]string
-// @Failure 404 {object} map[string]string
+// @Failure 401 {object} apierror.Response
+// @Failure 403 {object} apierror.Response
+// @Failure 404 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
 // @Router /auth/policies/{id} [delete]
 func parseLimit(raw string) (int, error) {
 	if raw == "" {
@@ -232,21 +272,17 @@ func decodeCursor(cursor string) (int, error) {
 	return offset, nil
 }
 
-func policyError(c *fiber.Ctx, status int, message string) error {
-	return c.Status(status).JSON(fiber.Map{"error": message})
-}
-
-func mapPolicyError(c *fiber.Ctx, err error) error {
+func mapPolicyError(err error) error {
 	switch {
 	case errors.Is(err, ErrInvalidPolicy):
-		return policyError(c, http.StatusBadRequest, "invalid access policy")
+		return apierror.Wrap(err, fiber.StatusBadRequest, "INVALID_REQUEST", "Invalid access policy")
 	case errors.Is(err, ErrPolicyNotFound):
-		return policyError(c, http.StatusNotFound, "access policy not found")
+		return apierror.Wrap(err, fiber.StatusNotFound, "RESOURCE_NOT_FOUND", "Access policy not found")
 	case errors.Is(err, ErrPolicyConflict):
-		return policyError(c, http.StatusConflict, "access policy already exists")
+		return apierror.Wrap(err, fiber.StatusConflict, "CONFLICT", "Access policy already exists")
 	case errors.Is(err, security.ErrPolicyUnavailable):
-		return policyError(c, http.StatusServiceUnavailable, "access policy is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Access policy is unavailable")
 	default:
-		return policyError(c, http.StatusInternalServerError, "unable to update access policy")
+		return err
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/docs"
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 
@@ -48,7 +49,9 @@ func NewFiberHttpServer(cfg config.Config, logger *zap.Logger) (*FiberHttpServer
 	}
 
 	return &FiberHttpServer{
-		app:            fiber.New(),
+		app: fiber.New(fiber.Config{
+			ErrorHandler: apierror.ErrorHandler(logger),
+		}),
 		cfg:            cfg,
 		logger:         logger,
 		allowedOrigins: allowedOrigins,
@@ -121,6 +124,7 @@ func (s *FiberHttpServer) Start() {
 }
 
 func (s *FiberHttpServer) InitHttpServer() fiber.Router {
+	s.app.Use(apierror.RequestID())
 	s.registerSwagger()
 
 	// set global prefix
@@ -134,14 +138,14 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 		AllowOrigins:     s.cfg.GetCors().AllowOrigins,
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
 		AllowHeaders:     "Origin,X-PINGOTHER,Accept,Authorization,Content-Type,X-CSRF-Token",
-		ExposeHeaders:    "Link",
+		ExposeHeaders:    "Link,X-Request-ID",
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
 	// init logger
 	router.Use(logger.New(logger.Config{
-		Format:     "${time} ${status} - ${method} ${path}\n",
+		Format:     "${time} request_id=${locals:request_id} ${status} - ${method} ${path}\n",
 		TimeFormat: "2006/01/02 15:04:05",
 		TimeZone:   "Asia/Bangkok",
 	}))
@@ -153,9 +157,7 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 			return c.IP()
 		},
 		LimitReached: func(c *fiber.Ctx) error {
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"message": "Too many requests, please try again later.",
-			})
+			return apierror.New(fiber.StatusTooManyRequests, "TOO_MANY_REQUESTS", "Too many requests")
 		},
 	}))
 
@@ -199,9 +201,7 @@ func (s *FiberHttpServer) OriginGuard() fiber.Handler {
 			return c.Next()
 		}
 		if !s.isAllowedOrigin(origin) {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "origin is not allowed",
-			})
+			return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Origin is not allowed")
 		}
 
 		return c.Next()

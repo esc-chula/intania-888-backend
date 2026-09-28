@@ -6,10 +6,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/gofiber/fiber/v2"
 )
+
+func newFiberTestApp() *fiber.App {
+	return fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
+}
 
 type fakeHTTPService struct {
 	items       []*AccessPolicy
@@ -66,7 +71,7 @@ func (*fakeHTTPService) RefreshCache() error { return nil }
 func TestCreatePolicyRequestAndResponse(t *testing.T) {
 	service := &fakeHTTPService{}
 	handler := NewHttpHandler(service)
-	app := fiber.New()
+	app := newFiberTestApp()
 	app.Post("/auth/policies", func(c *fiber.Ctx) error {
 		c.Locals("user", &model.UserDto{Id: "admin-user", RoleId: security.RoleAdmin})
 		return handler.Create(c)
@@ -89,7 +94,7 @@ func TestCreatePolicyRequestAndResponse(t *testing.T) {
 func TestUpdatePolicyParsesNullableExpiryAndEnabled(t *testing.T) {
 	service := &fakeHTTPService{}
 	handler := NewHttpHandler(service)
-	app := fiber.New()
+	app := newFiberTestApp()
 	app.Patch("/auth/policies/:id", func(c *fiber.Ctx) error {
 		c.Locals("user", &model.UserDto{Id: "admin-user", RoleId: security.RoleAdmin})
 		return handler.Update(c)
@@ -117,7 +122,7 @@ func TestListPolicyReturnsCursor(t *testing.T) {
 		},
 	}
 	handler := NewHttpHandler(service)
-	app := fiber.New()
+	app := newFiberTestApp()
 	app.Get("/auth/policies", handler.List)
 
 	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/auth/policies?limit=1", nil))
@@ -135,10 +140,10 @@ func TestListPolicyReturnsCursor(t *testing.T) {
 func TestPolicyErrorsMapToContractStatuses(t *testing.T) {
 	service := &fakeHTTPService{createError: ErrPolicyConflict}
 	handler := NewHttpHandler(service)
-	app := fiber.New()
+	app := newFiberTestApp()
 	app.Post("/auth/policies", handler.Create)
 
-	request := httptest.NewRequest(http.MethodPost, "/auth/policies", strings.NewReader(`{"kind":"allowlist"}`))
+	request := httptest.NewRequest(http.MethodPost, "/auth/policies", strings.NewReader(`{"kind":"allowlist","principal_type":"email","principal":"student@example.test","reason":"test"}`))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := app.Test(request)
 	if err != nil {

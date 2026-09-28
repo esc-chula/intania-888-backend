@@ -1,6 +1,15 @@
 package user
 
-import "github.com/esc-chula/intania-888-backend/internal/model"
+import (
+	"errors"
+
+	"github.com/esc-chula/intania-888-backend/internal/model"
+)
+
+var (
+	ErrUserNotFound        = errors.New("user not found")
+	ErrInsufficientBalance = errors.New("insufficient balance")
+)
 
 type UserRepository interface {
 	Create(user *model.User) error

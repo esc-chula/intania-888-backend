@@ -114,7 +114,7 @@ func (r *eventRepository) RedeemDailyReward(userID string, date string, defaultR
 			return insert.Error
 		}
 		if insert.RowsAffected != 1 {
-			return errors.New("already redeemed daily reward")
+			return ErrDailyRewardAlreadyClaimed
 		}
 
 		balance, err := model.NewMoneyFromMinor(user.RemainingCoin)
@@ -191,7 +191,7 @@ func (r *eventRepository) CommitSlotSpin(userId string, spendAmount model.Money,
 
 		remaining, err := balance.Sub(spendAmount)
 		if err != nil {
-			return errors.New("insufficient coins")
+			return ErrInsufficientBalance
 		}
 
 		newBalance, err := remaining.Add(reward)
@@ -232,24 +232,27 @@ func (r *eventRepository) ConsumeStealToken(userId string, tokenValue string, vi
 			Where("token = ?", tokenValue).
 			First(&token).
 			Error; err != nil {
-			return errors.New("invalid or expired token")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrStealTokenInvalid
+			}
+			return err
 		}
 
 		if token.UserId != userId {
-			return errors.New("Idiot")
+			return ErrStealTokenForbidden
 		}
 
 		if token.IsUsed {
-			return errors.New("token already used")
+			return ErrStealTokenConflict
 		}
 
 		if time.Now().After(token.ExpiresAt) {
-			return errors.New("token expired")
+			return ErrStealTokenInvalid
 		}
 
 		candidateIDs := splitCSV(token.AllowedVictimIds)
 		if victimIndex < 0 || victimIndex >= len(candidateIDs) {
-			return errors.New("Idiot")
+			return ErrInvalidStealRequest
 		}
 
 		chosenVictimID := candidateIDs[victimIndex]
@@ -276,7 +279,7 @@ func (r *eventRepository) ConsumeStealToken(userId string, tokenValue string, vi
 		victim := lockedUsers[chosenVictimID]
 		thief := lockedUsers[userId]
 		if victim.RemainingCoin < minStealVictimBalanceMinor {
-			return errors.New("chosen victim has insufficient balance")
+			return ErrInsufficientBalance
 		}
 
 		percentage := model.MustRateFromMicro(stealPercentageMicro)
@@ -327,7 +330,7 @@ func (r *eventRepository) ConsumeStealToken(userId string, tokenValue string, vi
 			Update("is_used", true); update.Error != nil {
 			return update.Error
 		} else if update.RowsAffected != 1 {
-			return errors.New("token already used")
+			return ErrStealTokenConflict
 		}
 
 		result.CandidateIDs = candidateIDs

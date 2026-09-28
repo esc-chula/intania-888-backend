@@ -26,6 +26,7 @@ import (
 // @title Intania888 Backend - API
 // @version 1.0.0-breaking
 // @description Breaking backend release: all Money fields are fixed two-decimal strings and the current frontend is incompatible until migrated.
+// @description All failed /api/v1 requests use the apierror.Response schema with stable codes and X-Request-ID. See docs/README.md for the code catalog and frontend migration handoff.
 
 // @host      localhost:8080
 // @schemes   http

@@ -18,6 +18,7 @@ import (
 
 var (
 	ErrInvalidBill         = errors.New("invalid bill")
+	ErrMatchNotFound       = errors.New("match not found")
 	ErrInsufficientBalance = errors.New("insufficient balance")
 	ErrBillConflict        = errors.New("bill lifecycle conflict")
 )
@@ -68,7 +69,7 @@ func (s *billServiceImpl) CreateBill(userID string, req *model.CreateBillRequest
 		}
 
 		if len(ms) != len(lines) {
-			return ErrInvalidBill
+			return ErrMatchNotFound
 		}
 
 		byID := map[string]model.Match{}

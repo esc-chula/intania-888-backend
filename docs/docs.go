@@ -51,37 +51,25 @@ const docTemplate = `{
                     "400": {
                         "description": "invalid OAuth request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "403": {
                         "description": "email is not allowed",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "post-login redirect is not configured",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "503": {
                         "description": "OAuth login or access policy unavailable",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -111,6 +99,36 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/auth.ExternalTokenResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
                     }
                 }
             }
@@ -134,6 +152,24 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "revoked"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
                     }
                 }
             }
@@ -161,19 +197,13 @@ const docTemplate = `{
                     "400": {
                         "description": "redirect_to is not supported",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "503": {
                         "description": "OAuth login unavailable",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -193,19 +223,13 @@ const docTemplate = `{
                     "403": {
                         "description": "invalid CSRF token",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "503": {
                         "description": "session store or revocation unavailable",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -231,19 +255,13 @@ const docTemplate = `{
                     "401": {
                         "description": "unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "503": {
                         "description": "session or policy unavailable",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -298,22 +316,28 @@ const docTemplate = `{
                             "$ref": "#/definitions/policy.PolicyListResponse"
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -351,37 +375,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -410,28 +428,25 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -476,37 +491,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -576,13 +585,43 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -657,10 +696,40 @@ const docTemplate = `{
                             "$ref": "#/definitions/model.BillHeadDto"
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/bill.ErrorResponse"
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -694,6 +763,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/model.BillHeadDto"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -744,13 +831,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/color.ErrorResponse"
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/color.ErrorResponse"
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -795,13 +882,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/color.ErrorResponse"
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/color.ErrorResponse"
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -832,28 +919,19 @@ const docTemplate = `{
                     "401": {
                         "description": "unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "403": {
                         "description": "admin access required",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "Failed to list daily reward schedule",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -908,19 +986,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request payload",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "admin access required",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "Failed to set daily reward",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -959,48 +1043,33 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Reward date is required",
+                        "description": "Invalid reward date",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "403": {
                         "description": "admin access required",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "404": {
                         "description": "Daily reward override not found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "Failed to delete daily reward override",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1034,22 +1103,28 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "400": {
-                        "description": "not found user profile in context",
+                    "401": {
+                        "description": "unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "user not found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "daily reward already claimed",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "internal server error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1090,19 +1165,31 @@ const docTemplate = `{
                     "400": {
                         "description": "invalid spend amount or user profile",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "user not found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "insufficient balance",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "internal server error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1147,19 +1234,43 @@ const docTemplate = `{
                     "400": {
                         "description": "invalid request or token",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "missing or invalid authorization",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "token is not available to this user",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "requested resource not found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "token state conflict",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "insufficient balance",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1205,29 +1316,31 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid amount or parse error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "Missing or invalid token",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
-                    "403": {
-                        "description": "Insufficient balance or blacklisted",
+                    "404": {
+                        "description": "User not found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Insufficient balance",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1260,19 +1373,13 @@ const docTemplate = `{
                     "401": {
                         "description": "missing or invalid authorization",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "503": {
                         "description": "token, user, or policy status unavailable",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1315,6 +1422,24 @@ const docTemplate = `{
                                 "$ref": "#/definitions/model.MatchesByDate"
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
                     }
                 }
             },
@@ -1341,7 +1466,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.MatchDto"
+                            "$ref": "#/definitions/model.CreateMatchRequest"
                         }
                     }
                 ],
@@ -1353,6 +1478,30 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1414,6 +1563,24 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/model.MatchDto"
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
                     }
                 }
             },
@@ -1439,12 +1606,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Match",
+                        "description": "Match fields to update",
                         "name": "match",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.MatchDto"
+                            "$ref": "#/definitions/model.UpdateMatchRequest"
                         }
                     }
                 ],
@@ -1456,6 +1623,36 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1487,6 +1684,30 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1537,13 +1758,40 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1590,6 +1838,36 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
                     }
                 }
             }
@@ -1619,15 +1897,19 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1672,15 +1954,43 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1728,15 +2038,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1767,15 +2081,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1815,22 +2127,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1871,15 +2180,37 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1932,15 +2263,37 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -1977,7 +2330,7 @@ const docTemplate = `{
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/sporttype.ErrorResponse"
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -2011,10 +2364,7 @@ const docTemplate = `{
                     "500": {
                         "description": "internal server error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -2066,19 +2416,31 @@ const docTemplate = `{
                     "400": {
                         "description": "cannot parse body",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "administrator permission required",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "user not found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "internal server error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -2118,10 +2480,7 @@ const docTemplate = `{
                     "404": {
                         "description": "user not found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -2171,19 +2530,25 @@ const docTemplate = `{
                     "400": {
                         "description": "cannot parse body",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "user not found",
+                        "schema": {
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     },
                     "500": {
                         "description": "internal server error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/apierror.Response"
                         }
                     }
                 }
@@ -2191,6 +2556,26 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "apierror.Response": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.ExternalTokenResponse": {
             "type": "object",
             "properties": {
@@ -2218,30 +2603,20 @@ const docTemplate = `{
         },
         "auth.externalTokenRequest": {
             "type": "object",
+            "required": [
+                "user_id"
+            ],
             "properties": {
                 "user_id": {
                     "type": "string"
                 }
             }
         },
-        "bill.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "color.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
         "model.AdminUpdateUserDto": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "group_id": {
                     "type": "string"
@@ -2336,6 +2711,10 @@ const docTemplate = `{
         },
         "model.CreateBillLineRequest": {
             "type": "object",
+            "required": [
+                "betting_on",
+                "match_id"
+            ],
             "properties": {
                 "betting_on": {
                     "type": "string"
@@ -2347,9 +2726,14 @@ const docTemplate = `{
         },
         "model.CreateBillRequest": {
             "type": "object",
+            "required": [
+                "lines",
+                "total"
+            ],
             "properties": {
                 "lines": {
                     "type": "array",
+                    "minItems": 1,
                     "items": {
                         "$ref": "#/definitions/model.CreateBillLineRequest"
                     }
@@ -2357,6 +2741,33 @@ const docTemplate = `{
                 "total": {
                     "type": "string",
                     "example": "100.00"
+                }
+            }
+        },
+        "model.CreateMatchRequest": {
+            "type": "object",
+            "required": [
+                "end_time",
+                "start_time",
+                "team_a",
+                "team_b",
+                "type"
+            ],
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "team_a": {
+                    "type": "string"
+                },
+                "team_b": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
@@ -2473,9 +2884,16 @@ const docTemplate = `{
         },
         "model.MatchResultRequest": {
             "type": "object",
+            "required": [
+                "outcome"
+            ],
             "properties": {
                 "outcome": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "winner",
+                        "draw"
+                    ]
                 },
                 "winner_id": {
                     "type": "string"
@@ -2616,17 +3034,26 @@ const docTemplate = `{
         },
         "model.ScoreDto": {
             "type": "object",
+            "required": [
+                "team_a_score",
+                "team_b_score"
+            ],
             "properties": {
                 "team_a_score": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "team_b_score": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },
         "model.SetDailyRewardRequest": {
             "type": "object",
+            "required": [
+                "amount"
+            ],
             "properties": {
                 "amount": {
                     "type": "string"
@@ -2644,8 +3071,31 @@ const docTemplate = `{
                 }
             }
         },
+        "model.UpdateMatchRequest": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "team_a": {
+                    "type": "string"
+                },
+                "team_b": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "model.UpdateUserDto": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "email": {
                     "type": "string"
@@ -2669,12 +3119,17 @@ const docTemplate = `{
         },
         "model.UseStealTokenRequestDto": {
             "type": "object",
+            "required": [
+                "token",
+                "victim_index"
+            ],
             "properties": {
                 "token": {
                     "type": "string"
                 },
                 "victim_index": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },
@@ -2759,6 +3214,9 @@ const docTemplate = `{
         },
         "model.VoidBillRequest": {
             "type": "object",
+            "required": [
+                "reason"
+            ],
             "properties": {
                 "reason": {
                     "type": "string"
@@ -2799,18 +3257,32 @@ const docTemplate = `{
         },
         "policy.CreatePolicyRequest": {
             "type": "object",
+            "required": [
+                "kind",
+                "principal",
+                "principal_type",
+                "reason"
+            ],
             "properties": {
                 "expires_at": {
                     "type": "string"
                 },
                 "kind": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "allowlist",
+                        "blacklist"
+                    ]
                 },
                 "principal": {
                     "type": "string"
                 },
                 "principal_type": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "email",
+                        "google_subject"
+                    ]
                 },
                 "reason": {
                     "type": "string"
@@ -2844,14 +3316,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "sporttype.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
         }
     },
     "securityDefinitions": {
@@ -2871,7 +3335,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/v1",
 	Schemes:          []string{"http"},
 	Title:            "Intania888 Backend - API",
-	Description:      "Breaking backend release: all Money fields are fixed two-decimal strings and the current frontend is incompatible until migrated.",
+	Description:      "Breaking backend release: all Money fields are fixed two-decimal strings and the current frontend is incompatible until migrated.\nAll failed /api/v1 requests use the apierror.Response schema with stable codes and X-Request-ID. See docs/README.md for the code catalog and frontend migration handoff.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

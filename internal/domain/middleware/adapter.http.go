@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/utils"
@@ -46,40 +47,39 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 	id := c.Cookies(h.CookieName())
 	if id == "" {
 		clearBrowserSessionCookie(c, h.production)
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing session"})
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
 	session, err := h.service.GetSession(id)
 	if err != nil {
 		if errors.Is(err, ErrSessionMissing) {
 			clearBrowserSessionCookie(c, h.production)
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid or expired session"})
+			return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		}
-		h.log.Error("Read browser session", zap.Error(err))
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "session store unavailable"})
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
 	}
 
 	user, err := h.service.GetMe(session.UserId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			clearBrowserSessionCookie(c, h.production)
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid session user"})
+			return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		}
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "user status unavailable"})
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "User status is unavailable")
 	}
 
 	blacklisted, err := h.service.IsBlacklisted(user.Email, user.Id)
 	if err != nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "access policy unavailable"})
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Access policy is unavailable")
 	}
 	if blacklisted {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
 	if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead && c.Method() != fiber.MethodOptions {
 		token := c.Get("X-CSRF-Token")
 		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(session.CSRFToken)) != 1 {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "invalid CSRF token"})
+			return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Invalid CSRF token")
 		}
 	}
 
@@ -102,11 +102,11 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 func (h *MiddlewareHttpHandler) AdminMiddleware(c *fiber.Ctx) error {
 	user := utils.GetUserProfileFromCtx(c)
 	if user == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
 	if !security.IsAdminRole(user.RoleId) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "admin access required"})
+		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator permission required")
 	}
 
 	return c.Next()

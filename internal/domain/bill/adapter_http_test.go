@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
@@ -13,8 +14,13 @@ import (
 	"go.uber.org/zap"
 )
 
+func newFiberTestApp() *fiber.App {
+	return fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
+}
+
 type contractService struct {
 	calls      int
+	createErr  error
 	voidCalls  int
 	voidActor  string
 	voidReason string
@@ -22,6 +28,9 @@ type contractService struct {
 
 func (s *contractService) CreateBill(userID string, req *model.CreateBillRequest) (*model.BillHeadDto, error) {
 	s.calls++
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
 
 	return &model.BillHeadDto{
 		Id:     "b",
@@ -30,6 +39,40 @@ func (s *contractService) CreateBill(userID string, req *model.CreateBillRequest
 		Status: "PENDING",
 		Lines:  []*model.BillLineDto{},
 	}, nil
+}
+
+func TestCreateBillMissingMatchUsesSharedNotFoundContract(t *testing.T) {
+	svc := &contractService{createErr: ErrMatchNotFound}
+	h := NewBillHttpHandler(svc)
+	app := newFiberTestApp()
+	app.Use(apierror.RequestID())
+	app.Post("/bills", func(c *fiber.Ctx) error {
+		c.Locals("user", &model.UserDto{Id: "u"})
+		return h.CreateBill(c)
+	})
+
+	request := httptest.NewRequest("POST", "/bills", strings.NewReader(`{"total":"100.00","lines":[{"match_id":"missing","betting_on":"A"}]}`))
+	request.Header.Set("Content-Type", "application/json")
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusNotFound {
+		t.Fatalf("status = %d; want %d", response.StatusCode, fiber.StatusNotFound)
+	}
+
+	var body apierror.Response
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "RESOURCE_NOT_FOUND" || body.Message != "Match not found" {
+		t.Fatalf("error body = %#v", body)
+	}
+	if body.RequestID == "" || response.Header.Get(apierror.RequestIDHeader) != body.RequestID {
+		t.Fatalf("request ID body/header mismatch: %#v, %q", body, response.Header.Get(apierror.RequestIDHeader))
+	}
 }
 
 func (*contractService) GetBill(string, string) (*model.BillHeadDto, error) {
@@ -61,7 +104,7 @@ func (s *contractService) VoidBill(id, actor, reason string) (*model.BillHeadDto
 func TestCreateBillStrictMoneyContract(t *testing.T) {
 	svc := &contractService{}
 	h := NewBillHttpHandler(svc)
-	app := fiber.New()
+	app := newFiberTestApp()
 
 	app.Post("/bills", func(c *fiber.Ctx) error {
 		c.Locals("user", &model.UserDto{Id: "u"})
@@ -127,7 +170,7 @@ func TestVoidBillRequiresAdminAndRecordsActor(t *testing.T) {
 		config.DefaultSessionIdleTTLSeconds,
 	)
 
-	app := fiber.New()
+	app := newFiberTestApp()
 	app.Put("/bills/admin/:id/void", func(c *fiber.Ctx) error {
 		c.Locals("user", &model.UserDto{Id: "user", RoleId: "USER"})
 
@@ -146,7 +189,7 @@ func TestVoidBillRequiresAdminAndRecordsActor(t *testing.T) {
 		t.Fatalf("non-admin status = %d; want %d", response.StatusCode, fiber.StatusForbidden)
 	}
 
-	adminApp := fiber.New()
+	adminApp := newFiberTestApp()
 	adminApp.Put("/bills/admin/:id/void", func(c *fiber.Ctx) error {
 		c.Locals("user", &model.UserDto{Id: "admin", RoleId: "ADMIN"})
 

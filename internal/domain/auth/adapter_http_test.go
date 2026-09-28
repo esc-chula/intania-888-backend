@@ -7,13 +7,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
+
+func newFiberTestApp() *fiber.App {
+	return fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
+}
 
 type fakeAuthService struct {
 	login       *OAuthLogin
@@ -51,7 +57,7 @@ func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 			svc := fakeAuthService{login: &OAuthLogin{URL: "https://accounts.example.test/?state=abc", State: "abc"}, credentials: &SessionCredentials{SessionID: "opaque", IsNewUser: true}, redirect: "https://frontend.example.test/app"}
 			h := NewAuthHttpHandler(svc, newHTTPConfig(tc.env), tc.production)
 
-			app := fiber.New()
+			app := newFiberTestApp()
 			app.Get("/login", h.Login)
 			app.Get("/callback", h.OAuthCallback)
 
@@ -87,10 +93,81 @@ func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 	}
 }
 
+func TestMapAuthError(t *testing.T) {
+	unknownError := errors.New("provider unavailable")
+
+	tests := []struct {
+		name      string
+		err       error
+		status    int
+		code      string
+		message   string
+		wantCause error
+	}{
+		{
+			name:      "wrapped invalid state",
+			err:       errors.Join(errors.New("oauth provider"), ErrInvalidOAuthState),
+			status:    fiber.StatusBadRequest,
+			code:      "INVALID_REQUEST",
+			message:   "Invalid or expired OAuth state",
+			wantCause: ErrInvalidOAuthState,
+		},
+		{
+			name:      "unverified email",
+			err:       ErrUnverifiedEmail,
+			status:    fiber.StatusForbidden,
+			code:      "FORBIDDEN",
+			message:   "Email is not allowed",
+			wantCause: ErrUnverifiedEmail,
+		},
+		{
+			name:      "disallowed email",
+			err:       ErrEmailNotAllowed,
+			status:    fiber.StatusForbidden,
+			code:      "FORBIDDEN",
+			message:   "Email is not allowed",
+			wantCause: ErrEmailNotAllowed,
+		},
+		{
+			name:      "policy unavailable",
+			err:       security.ErrPolicyUnavailable,
+			status:    fiber.StatusServiceUnavailable,
+			code:      "DEPENDENCY_UNAVAILABLE",
+			message:   "Access policy is unavailable",
+			wantCause: security.ErrPolicyUnavailable,
+		},
+		{
+			name:      "unknown oauth failure",
+			err:       unknownError,
+			status:    fiber.StatusServiceUnavailable,
+			code:      "DEPENDENCY_UNAVAILABLE",
+			message:   "OAuth login is unavailable",
+			wantCause: unknownError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mapped := mapAuthError(test.err)
+
+			var got *apierror.Error
+			if !errors.As(mapped, &got) {
+				t.Fatalf("mapped error type = %T; want *apierror.Error", mapped)
+			}
+			if got.Status != test.status || got.Code != test.code || got.Message != test.message {
+				t.Fatalf("mapped error = %#v", got)
+			}
+			if !errors.Is(mapped, test.wantCause) {
+				t.Fatalf("mapped error %v does not preserve cause %v", mapped, test.wantCause)
+			}
+		})
+	}
+}
+
 func TestMeReturnsCSRFOnlyToBrowser(t *testing.T) {
 	h := NewAuthHttpHandler(fakeAuthService{}, newHTTPConfig("development"), false)
 
-	app := fiber.New()
+	app := newFiberTestApp()
 	app.Get("/me", func(c *fiber.Ctx) error {
 		c.Locals("user", &model.UserDto{Id: "u"})
 		c.Locals("csrf_token", "secret")
@@ -147,7 +224,7 @@ func TestLogoutIdempotenceAndRetry(t *testing.T) {
 				config.DefaultSessionIdleTTLSeconds,
 			)
 
-			app := fiber.New()
+			app := newFiberTestApp()
 			app.Post("/logout", h.Logout)
 
 			req := httptest.NewRequest(http.MethodPost, "/logout", nil)

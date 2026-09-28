@@ -17,6 +17,8 @@ import (
 var (
 	ErrResultConflict = errors.New("conflicting terminal result")
 	ErrInvalidResult  = errors.New("invalid match result")
+	ErrInvalidMatch   = errors.New("invalid match")
+	ErrInvalidScore   = errors.New("invalid match score")
 )
 
 type matchServiceImpl struct {
@@ -30,6 +32,9 @@ func NewMatchService(repo MatchRepository, db *gorm.DB, log *zap.Logger) MatchSe
 }
 
 func (s *matchServiceImpl) CreateMatch(d *model.MatchDto) error {
+	if d == nil || d.TeamAId == "" || d.TeamBId == "" || d.TypeId == "" || !d.EndTime.After(d.StartTime) {
+		return ErrInvalidMatch
+	}
 	if d.Id == "" {
 		d.Id = uuid.NewString()
 	}
@@ -138,6 +143,9 @@ func (s *matchServiceImpl) GetAllMatches(f *model.MatchFilter) ([]*model.MatchDt
 }
 
 func (s *matchServiceImpl) UpdateMatchScore(id string, d *model.ScoreDto) error {
+	if d == nil || d.TeamAScore < 0 || d.TeamBScore < 0 {
+		return ErrInvalidScore
+	}
 	m, e := s.repo.GetById(id)
 	if e != nil {
 		return e
@@ -150,6 +158,9 @@ func (s *matchServiceImpl) UpdateMatchScore(id string, d *model.ScoreDto) error 
 }
 
 func (s *matchServiceImpl) UpdateMatch(id string, d *model.MatchDto) error {
+	if d == nil {
+		return ErrInvalidMatch
+	}
 	m, e := s.repo.GetById(id)
 	if e != nil {
 		return e
@@ -173,6 +184,9 @@ func (s *matchServiceImpl) UpdateMatch(id string, d *model.MatchDto) error {
 
 	if !d.EndTime.IsZero() {
 		m.EndTime = d.EndTime
+	}
+	if !m.EndTime.After(m.StartTime) {
+		return ErrInvalidMatch
 	}
 
 	return s.repo.UpdateMatch(m)

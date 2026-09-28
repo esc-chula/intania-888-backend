@@ -60,6 +60,22 @@ type MatchDto struct {
 	EndTime    time.Time `json:"end_time"`
 }
 
+type CreateMatchRequest struct {
+	TeamAId   string    `json:"team_a" validate:"required"`
+	TeamBId   string    `json:"team_b" validate:"required"`
+	TypeId    string    `json:"type" validate:"required"`
+	StartTime time.Time `json:"start_time" validate:"required"`
+	EndTime   time.Time `json:"end_time" validate:"required"`
+}
+
+type UpdateMatchRequest struct {
+	TeamAId   *string    `json:"team_a"`
+	TeamBId   *string    `json:"team_b"`
+	TypeId    *string    `json:"type"`
+	StartTime *time.Time `json:"start_time"`
+	EndTime   *time.Time `json:"end_time"`
+}
+
 type MatchesByType struct {
 	SportType string      `json:"sportType"`
 	Matches   []*MatchDto `json:"matches"`
@@ -71,8 +87,10 @@ type MatchesByDate struct {
 }
 
 type ScoreDto struct {
-	TeamAScore int `json:"team_a_score"`
-	TeamBScore int `json:"team_b_score"`
+	TeamAScore    int `json:"team_a_score" validate:"required,min=0"`
+	TeamBScore    int `json:"team_b_score" validate:"required,min=0"`
+	teamAScoreSet bool
+	teamBScoreSet bool
 }
 
 type ScheduleFilter string
@@ -107,21 +125,21 @@ type BillLineDto struct {
 }
 
 type CreateBillRequest struct {
-	Total Money                   `json:"total" swaggertype:"string" example:"100.00"`
-	Lines []CreateBillLineRequest `json:"lines"`
+	Total Money                   `json:"total" swaggertype:"string" example:"100.00" validate:"required"`
+	Lines []CreateBillLineRequest `json:"lines" validate:"required,min=1,dive"`
 }
 
 type CreateBillLineRequest struct {
-	MatchId   string `json:"match_id"`
-	BettingOn string `json:"betting_on"`
+	MatchId   string `json:"match_id" validate:"required"`
+	BettingOn string `json:"betting_on" validate:"required"`
 }
 
 type VoidBillRequest struct {
-	Reason string `json:"reason"`
+	Reason string `json:"reason" validate:"required"`
 }
 
 type MatchResultRequest struct {
-	Outcome  string  `json:"outcome"`
+	Outcome  string  `json:"outcome" validate:"required,oneof=winner draw"`
 	WinnerId *string `json:"winner_id,omitempty"`
 }
 
@@ -150,7 +168,8 @@ type DailyRewardCacheDto struct {
 }
 
 type SetDailyRewardRequest struct {
-	Amount Money `json:"amount" swaggertype:"string"`
+	Amount    Money `json:"amount" swaggertype:"string" validate:"required"`
+	amountSet bool
 }
 
 type DailyRewardScheduleItem struct {
@@ -166,7 +185,7 @@ type DailyRewardScheduleResponse struct {
 type UpdateUserDto struct {
 	Id       string  `json:"id"`
 	Email    string  `json:"email"`
-	Name     string  `json:"name"`
+	Name     string  `json:"name" validate:"required"`
 	NickName *string `json:"nick_name"`
 	RoleId   string  `json:"role_id"`
 	GroupId  *string `json:"group_id"`
@@ -175,7 +194,7 @@ type UpdateUserDto struct {
 // AdminUpdateUserDto intentionally excludes RoleId. Admin promotion and
 // demotion are controlled by the operator database workflow.
 type AdminUpdateUserDto struct {
-	Name          string  `json:"name"`
+	Name          string  `json:"name" validate:"required"`
 	NickName      *string `json:"nick_name"`
 	GroupId       *string `json:"group_id"`
 	RemainingCoin Money   `json:"remaining_coin" swaggertype:"string" example:"888.88"`
@@ -197,8 +216,9 @@ type CandidatePreviewDto struct {
 }
 
 type UseStealTokenRequestDto struct {
-	Token       string `json:"token"`
-	VictimIndex int    `json:"victim_index"`
+	Token          string `json:"token" validate:"required"`
+	VictimIndex    int    `json:"victim_index" validate:"required,min=0"`
+	victimIndexSet bool
 }
 
 type VictimDetailDto struct {
@@ -225,7 +245,8 @@ type CreateMineGameRequest struct {
 }
 
 type RevealMineTileRequest struct {
-	Index int `json:"index" validate:"required,min=0,max=15"`
+	Index    int `json:"index" validate:"required,min=0,max=15"`
+	indexSet bool
 }
 
 // Response DTOs

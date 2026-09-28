@@ -163,3 +163,42 @@ Development on `http://localhost:3000` and `http://localhost:8080` uses HttpOnly
 **Deprecated:** The `/external/*` routes and their external-token management routes remain available while their original purpose and consumers are investigated. Do not build new integrations against them.
 
 External clients use a separate, revocable one-hour JWT. An authenticated administrator can issue one for an existing user with `POST /api/v1/auth/external-tokens` and body `{"user_id":"..."}`; the response contains `token`, `id`, and `expires_in`. The administrator can revoke it with `DELETE /api/v1/auth/external-tokens/{id}`. Both administrative mutations require the browser session, allowed Origin, and CSRF header. The regular frontend should not request these tokens. Existing external JWTs must be reissued through this API at cutover.
+
+# API error contract and frontend handoff
+
+Every failed `/api/v1` request returns a stable code, a safe message, and the
+server generated request ID. `X-Request-ID` contains the same value and is
+exposed to configured browser origins. Validation failures can include
+`details` keyed by safe request field names. Clients should branch on `code`
+and display `message`; they must not parse message text. Unknown server errors
+are returned as `INTERNAL_ERROR` without internal details.
+
+```json
+{
+  "code": "DAILY_REWARD_ALREADY_CLAIMED",
+  "message": "Daily reward already claimed",
+  "request_id": "c48c6fe7-c83e-4e1f-a4d8-78370f2a94fd"
+}
+```
+
+The code catalog follows the status policy: `INVALID_REQUEST` (400),
+`UNAUTHORIZED` (401), `FORBIDDEN` (403), `RESOURCE_NOT_FOUND` (404),
+`DAILY_REWARD_ALREADY_CLAIMED`, `CONFLICT`, and domain state-conflict codes (409),
+`INSUFFICIENT_BALANCE` (422), `TOO_MANY_REQUESTS` (429),
+`DEPENDENCY_UNAVAILABLE` (503), and `INTERNAL_ERROR` (500). Domain conflict
+codes include `BILL_CONFLICT`, `MATCH_RESULT_CONFLICT`, `GAME_STATE_CONFLICT`,
+`STEAL_TOKEN_CONFLICT`, and `STEAL_TOKEN_INVALID`.
+
+Frontend migration steps:
+
+- Preserve structured failures through API wrappers that currently swallow or
+  replace them. Show `message` and use `code` for behavior.
+- Replace bill message matching with codes such as `INSUFFICIENT_BALANCE`,
+  `BILL_CONFLICT`, and `RESOURCE_NOT_FOUND`.
+- Advance the daily reward claim button only after a successful response. A
+  `DAILY_REWARD_ALREADY_CLAIMED` conflict may show the already-claimed state;
+  other failures must remain visible and retryable.
+- Include `X-Request-ID` in support reports so operators can find the server
+  log entry.
+
+The frontend migration is outside this backend branch.
