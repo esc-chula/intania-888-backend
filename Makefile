@@ -78,7 +78,7 @@ check-golangci:
 deps: check-docker
 	$(DOCKER_COMPOSE) up --detach --wait postgres redis
 
-dev: check-env check-air deps
+dev: check-env check-air deps docs
 	$(MAKE) APP_ENV=dev migrate
 	APP_ENV=dev $(AIR) -c $(AIR_CONFIG)
 

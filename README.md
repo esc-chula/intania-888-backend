@@ -44,18 +44,27 @@ migrations.
    make dev
    ```
 
-   `make dev` starts PostgreSQL and Redis with Compose, applies pending Goose
-   migrations, then runs the API through Air. The API listens on
+   `make dev` starts PostgreSQL and Redis with Compose, regenerates Swagger from
+   source annotations, applies pending Goose migrations, then runs the API
+   through Air. The API listens on
    `http://localhost:8080`. The Compose file starts only PostgreSQL and Redis;
    the Go process runs on the host. Accordingly, `.env.example` uses
    `DB_HOST=localhost`. If you run the API inside the same Compose network, use
    `DB_HOST=postgres` and `CACHE_HOST=redis` instead.
+
+4. For a fresh database, add the default sports, groups, and colors from a second
+   terminal:
+
+   ```sh
+   make seed
+   ```
 
 To run without Air, install the dependencies and migrations first, then start
 the Go process directly:
 
 ```sh
 make deps
+make docs
 make migrate-up
 APP_ENV=dev go run ./cmd/main.go
 ```
