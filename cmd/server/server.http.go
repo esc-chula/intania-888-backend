@@ -26,6 +26,8 @@ import (
 	swagger "github.com/arsmn/fiber-swagger/v2"
 )
 
+const shutdownTimeout = 10 * time.Second
+
 // FiberHTTPServer owns the HTTP application, shared middleware, and route composition.
 type FiberHTTPServer struct {
 	app            *fiber.App
@@ -103,6 +105,7 @@ func (s *FiberHTTPServer) Start() {
 	// Setup signal capturing for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 
 	// Run the server in a goroutine so it doesn't block
 	go func() {
@@ -117,15 +120,19 @@ func (s *FiberHTTPServer) Start() {
 	s.logger.Sugar().Info("Gracefully shutting down server...")
 
 	// Create a deadline for shutdown
-	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	// Shut down the server
-	if err := s.app.Shutdown(); err != nil {
+	if err := s.shutdown(ctx); err != nil {
 		s.logger.Sugar().Fatalf("Error during server shutdown: %v", err)
 	}
 
 	s.logger.Sugar().Info("Server shutdown complete.")
+}
+
+func (s *FiberHTTPServer) shutdown(ctx context.Context) error {
+	return s.app.ShutdownWithContext(ctx)
 }
 
 // InitHTTPServer installs request IDs, documentation routes, and shared API middleware.
