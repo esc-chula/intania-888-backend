@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -8,27 +9,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/identity"
 	"github.com/esc-chula/intania-888-backend/internal/security"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
-	oauthpkg "github.com/esc-chula/intania-888-backend/pkg/oauth"
-	"github.com/esc-chula/intania-888-backend/utils"
+
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	"golang.org/x/oauth2"
-	"gorm.io/gorm"
+
+	oauthpkg "github.com/esc-chula/intania-888-backend/pkg/oauth"
 )
 
 type authTestConfig struct {
 	server config.Server
-	jwt    config.Jwt
+	jwt    config.JWT
 	oauth  config.OAuth
 }
 
 func (c authTestConfig) GetServer() config.Server { return c.server }
-func (c authTestConfig) GetDb() config.Db         { return config.Db{} }
+func (c authTestConfig) GetDB() config.DB         { return config.DB{} }
 func (c authTestConfig) GetCache() config.Cache   { return config.Cache{} }
-func (c authTestConfig) GetJwt() config.Jwt       { return c.jwt }
+func (c authTestConfig) GetJWT() config.JWT       { return c.jwt }
 func (c authTestConfig) GetOAuth() config.OAuth   { return c.oauth }
 func (c authTestConfig) GetSession() config.Session {
 	return config.Session{
@@ -39,7 +40,7 @@ func (c authTestConfig) GetSession() config.Session {
 func (c authTestConfig) GetSwagger() config.Swagger {
 	return config.Swagger{}
 }
-func (c authTestConfig) GetCors() config.Cors               { return config.Cors{} }
+func (c authTestConfig) GetCORS() config.CORS               { return config.CORS{} }
 func (c authTestConfig) GetDailyReward() config.DailyReward { return config.DailyReward{} }
 
 type memoryAuthRepository struct {
@@ -168,42 +169,42 @@ func (r *memoryAuthRepository) CompareAndSwapCacheValues(expected map[string]int
 }
 
 type memoryUserRepository struct {
-	users       map[string]*model.User
+	users       map[string]*identity.User
 	createCount int
 }
 
 func newMemoryUserRepository() *memoryUserRepository {
-	return &memoryUserRepository{users: make(map[string]*model.User)}
+	return &memoryUserRepository{users: make(map[string]*identity.User)}
 }
 
-func (r *memoryUserRepository) Create(user *model.User) error {
+func (r *memoryUserRepository) Create(ctx context.Context, user *identity.User) error {
 	r.users[user.Email] = user
 	r.createCount++
 	return nil
 }
 
-func (r *memoryUserRepository) GetById(id string) (*model.User, error) {
+func (r *memoryUserRepository) GetByID(ctx context.Context, id string) (*identity.User, error) {
 	for _, user := range r.users {
-		if user.Id == id {
+		if user.ID == id {
 			return user, nil
 		}
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, identity.ErrUserNotFound
 }
 
-func (r *memoryUserRepository) GetByEmail(email string) (*model.User, error) {
+func (r *memoryUserRepository) GetByEmail(ctx context.Context, email string) (*identity.User, error) {
 	user, ok := r.users[email]
 	if !ok {
-		return nil, gorm.ErrRecordNotFound
+		return nil, identity.ErrUserNotFound
 	}
 	return user, nil
 }
 
-func (r *memoryUserRepository) GetAll() ([]*model.User, error) { return nil, nil }
-func (r *memoryUserRepository) Update(*model.User) error       { return nil }
+func (r *memoryUserRepository) GetAll() ([]*identity.User, error) { return nil, nil }
+func (r *memoryUserRepository) Update(*identity.User) error       { return nil }
 
-func (r *memoryUserRepository) DeductCoin(string, model.Money) (model.Money, error) {
-	return model.Money{}, nil
+func (r *memoryUserRepository) DeductCoin(string, value.Money) (value.Money, error) {
+	return value.Money{}, nil
 }
 
 type fakeGoogleOAuthClient struct {
@@ -218,15 +219,15 @@ type testPolicyChecker struct {
 	err         error
 }
 
-func (c testPolicyChecker) EvaluateLogin(string, string, string) (security.PolicyDecision, error) {
+func (c testPolicyChecker) EvaluateLogin(context.Context, string, string, string) (security.PolicyDecision, error) {
 	return security.PolicyDecision{Allowed: true}, c.err
 }
 
-func (c testPolicyChecker) IsBlacklisted(string, string) (bool, error) {
+func (c testPolicyChecker) IsBlacklisted(context.Context, string, string) (bool, error) {
 	return c.blacklisted, c.err
 }
 
-func (c fakeGoogleOAuthClient) GetUserInfo(_, codeVerifier string) (*oauthpkg.GoogleUserInfo, error) {
+func (c fakeGoogleOAuthClient) GetUserInfo(ctx context.Context, _, codeVerifier string) (*oauthpkg.GoogleUserInfo, error) {
 	if c.verifier != nil {
 		*c.verifier = codeVerifier
 	}
@@ -235,17 +236,17 @@ func (c fakeGoogleOAuthClient) GetUserInfo(_, codeVerifier string) (*oauthpkg.Go
 
 func (c fakeGoogleOAuthClient) OAuthConfig() *oauth2.Config { return c.config }
 
-func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*authServiceImpl, *memoryAuthRepository, *memoryUserRepository) {
+func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*Service, *memoryAuthRepository, *memoryUserRepository) {
 	repo := newMemoryAuthRepository()
 	users := newMemoryUserRepository()
 	cfg := authTestConfig{
 		server: config.Server{Name: "intania-test", Env: "development"},
-		jwt: config.Jwt{
+		jwt: config.JWT{
 			AccessTokenSecret: "access-secret",
 		},
 		oauth: config.OAuth{
 			StateExpiration:      120,
-			PostLoginRedirectUrl: "https://frontend.example.test/after-login?source=oauth",
+			PostLoginRedirectURL: "https://frontend.example.test/after-login?source=oauth",
 		},
 	}
 	verifier := new(string)
@@ -261,13 +262,13 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*authServiceImpl, *memor
 		info:     info,
 		verifier: verifier,
 	}
-	service := NewAuthService(repo, users, cfg, zap.NewNop(), client, testPolicyChecker{}).(*authServiceImpl)
+	service := NewService(repo, users, cfg, client, testPolicyChecker{})
 	return service, repo, users
 }
 
-func createOAuthState(t *testing.T, service *authServiceImpl) string {
+func createOAuthState(t *testing.T, service *Service) string {
 	t.Helper()
-	login, err := service.StartOAuthLogin()
+	login, err := service.StartOAuthLogin(context.Background())
 	if err != nil {
 		t.Fatalf("StartOAuthLogin() error = %v", err)
 	}
@@ -287,8 +288,8 @@ func createOAuthState(t *testing.T, service *authServiceImpl) string {
 	if parsed.Query().Get("code_verifier") != "" {
 		t.Fatal("OAuth URL contains the PKCE verifier")
 	}
-	var stateRecord model.OAuthStateRecord
-	if err := service.authRepo.GetCacheValue(utils.ToOAuthStateCacheKey(login.State), &stateRecord); err != nil {
+	var stateRecord oauthStateRecord
+	if err := service.authRepo.(*memoryAuthRepository).GetCacheValue(security.ToOAuthStateCacheKey(login.State), &stateRecord); err != nil {
 		t.Fatalf("OAuth state lookup error: %v", err)
 	}
 	if stateRecord.CodeVerifier == "" {
@@ -300,20 +301,20 @@ func createOAuthState(t *testing.T, service *authServiceImpl) string {
 func TestOAuthStateIsBoundAndConsumedOnce(t *testing.T) {
 	service, repo, _ := newAuthTestService(&oauthpkg.GoogleUserInfo{})
 	state := createOAuthState(t, service)
-	if got := repo.ttls[utils.ToOAuthStateCacheKey(state)]; got != 120 {
+	if got := repo.ttls[security.ToOAuthStateCacheKey(state)]; got != 120 {
 		t.Fatalf("state TTL = %d, want 120", got)
 	}
 
-	if _, err := service.VerifyOAuthLogin("code", state, "different", ""); !errors.Is(err, ErrInvalidOAuthState) {
+	if _, err := service.VerifyOAuthLogin(context.Background(), "code", state, "different", ""); !errors.Is(err, ErrInvalidOAuthState) {
 		t.Fatalf("mismatched state error = %v, want ErrInvalidOAuthState", err)
 	}
-	if _, err := service.VerifyOAuthLogin("code", state, state, ""); !errors.Is(err, ErrUnverifiedEmail) {
+	if _, err := service.VerifyOAuthLogin(context.Background(), "code", state, state, ""); !errors.Is(err, ErrUnverifiedEmail) {
 		t.Fatalf("unverified email error = %v, want ErrUnverifiedEmail", err)
 	}
 	if client, ok := service.oauthClient.(*fakeGoogleOAuthClient); !ok || client.verifier == nil || *client.verifier == "" {
 		t.Fatal("OAuth code exchange did not receive the server-side PKCE verifier")
 	}
-	if _, err := service.VerifyOAuthLogin("code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
+	if _, err := service.VerifyOAuthLogin(context.Background(), "code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
 		t.Fatalf("replayed state error = %v, want ErrInvalidOAuthState", err)
 	}
 }
@@ -325,115 +326,142 @@ func TestExpiredOAuthStateCannotBeConsumed(t *testing.T) {
 	})
 	state := createOAuthState(t, service)
 	repo.mu.Lock()
-	repo.expires[utils.ToOAuthStateCacheKey(state)] = time.Now().Add(-time.Second)
+	repo.expires[security.ToOAuthStateCacheKey(state)] = time.Now().Add(-time.Second)
 	repo.mu.Unlock()
 
-	if _, err := service.VerifyOAuthLogin("code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
+	if _, err := service.VerifyOAuthLogin(context.Background(), "code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
 		t.Fatalf("expired OAuth state error = %v, want ErrInvalidOAuthState", err)
 	}
 }
 
-func (r *memoryAuthRepository) RotateSession(
+func (r *memoryAuthRepository) RotateSession(ctx context.Context,
 	userKey, sessionKey, previousKey string,
-	value interface{},
+	state security.Session,
 	idleTTLSeconds, absoluteTTLSeconds int,
 ) error {
 	r.mu.Lock()
 	old := string(r.values[userKey])
 	r.mu.Unlock()
-	if err := r.SetCacheValue(sessionKey, value, idleTTLSeconds); err != nil {
+	if err := r.SetCacheValue(sessionKey, sessionRecord{UserID: state.UserID, CreatedAt: state.CreatedAt, ExpiresAt: state.ExpiresAt, CSRFToken: state.CSRFToken}, idleTTLSeconds); err != nil {
 		return err
 	}
 	if err := r.SetCacheValue(userKey, sessionKey, absoluteTTLSeconds); err != nil {
 		return err
 	}
-	if previousKey != utils.ToSessionCacheKey("") {
-		_ = r.DeleteSession(previousKey)
+	if previousKey != security.ToSessionCacheKey("") {
+		if err := r.DeleteSession(context.Background(), previousKey); err != nil {
+			return err
+		}
 	}
 	if old != "" {
 		var previous string
-		_ = json.Unmarshal([]byte(old), &previous)
-		_ = r.DeleteSession(previous)
+		if err := json.Unmarshal([]byte(old), &previous); err != nil {
+			return err
+		}
+		if err := r.DeleteSession(context.Background(), previous); err != nil {
+			return err
+		}
 	}
 	return nil
 }
-func (r *memoryAuthRepository) DeleteSession(key string) error { return r.DeleteCacheValues(key) }
+func (r *memoryAuthRepository) DeleteSession(ctx context.Context, key string) error {
+	return r.DeleteCacheValues(key)
+}
 
 func TestOpaqueSessionRotationAndFailedLogin(t *testing.T) {
-	info := &oauthpkg.GoogleUserInfo{Id: "google-id", Email: "student@student.chula.ac.th", VerifiedEmail: true}
+	info := &oauthpkg.GoogleUserInfo{ID: "google-id", Email: "student@student.chula.ac.th", VerifiedEmail: true}
 	service, repo, _ := newAuthTestService(info)
 	state := createOAuthState(t, service)
-	first, err := service.VerifyOAuthLogin("code", state, state, "")
+	first, err := service.VerifyOAuthLogin(context.Background(), "code", state, state, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !first.IsNewUser || first.SessionID == "" {
 		t.Fatal("new login missing opaque session")
 	}
-	var record model.SessionRecord
-	if err := repo.GetCacheValue(utils.ToSessionCacheKey(first.SessionID), &record); err != nil {
+	var record sessionRecord
+	if err := repo.GetCacheValue(security.ToSessionCacheKey(first.SessionID), &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.UserId != "google-id" || record.CSRFToken == "" || record.ExpiresAt-record.CreatedAt != 30*24*3600 {
+	if record.UserID != "google-id" || record.CSRFToken == "" || record.ExpiresAt-record.CreatedAt != 30*24*3600 {
 		t.Fatalf("invalid session: %+v", record)
 	}
-	if _, err := service.VerifyOAuthLogin("code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
+	if _, err := service.VerifyOAuthLogin(context.Background(), "code", state, state, ""); !errors.Is(err, ErrInvalidOAuthState) {
 		t.Fatalf("reused state: %v", err)
 	}
 	client := service.oauthClient.(*fakeGoogleOAuthClient)
 	client.err = errors.New("Google failed")
 	badState := createOAuthState(t, service)
-	if _, err := service.VerifyOAuthLogin("code", badState, badState, first.SessionID); err == nil {
+	if _, err := service.VerifyOAuthLogin(context.Background(), "code", badState, badState, first.SessionID); err == nil {
 		t.Fatal("expected failed login")
 	}
-	if err := repo.GetCacheValue(utils.ToSessionCacheKey(first.SessionID), &record); err != nil {
+	if err := repo.GetCacheValue(security.ToSessionCacheKey(first.SessionID), &record); err != nil {
 		t.Fatal("failed login revoked previous session")
 	}
 	client.err = nil
 	secondState := createOAuthState(t, service)
-	second, err := service.VerifyOAuthLogin("code", secondState, secondState, first.SessionID)
+	second, err := service.VerifyOAuthLogin(context.Background(), "code", secondState, secondState, first.SessionID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if second.IsNewUser || second.SessionID == first.SessionID {
 		t.Fatal("session was not rotated")
 	}
-	if err := repo.GetCacheValue(utils.ToSessionCacheKey(first.SessionID), &record); err == nil {
+	if err := repo.GetCacheValue(security.ToSessionCacheKey(first.SessionID), &record); err == nil {
 		t.Fatal("old session still exists")
 	}
-	if err := service.Logout(second.SessionID); err != nil {
+	if err := service.Logout(context.Background(), second.SessionID); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.Logout(second.SessionID); err != nil {
+	if err := service.Logout(context.Background(), second.SessionID); err != nil {
 		t.Fatal("logout is not idempotent")
 	}
 }
 
 func TestExternalTokenIssuanceAndRevocationNeedNoAuditDatabase(t *testing.T) {
 	service, repo, users := newAuthTestService(nil)
-	if err := users.Create(&model.User{Id: "existing-user", Email: "existing@example.test"}); err != nil {
+	if err := users.Create(context.Background(), &identity.User{ID: "existing-user", Email: "existing@example.test"}); err != nil {
 		t.Fatal(err)
 	}
-	token, id, err := service.IssueExternalToken("existing-user")
+	token, id, err := service.IssueExternalToken(context.Background(), "existing-user")
 	if err != nil {
 		t.Fatal(err)
 	}
-	subject, tokenID, err := utils.JwtParseExternalToken(token, service.cfg.GetJwt().AccessTokenSecret, service.cfg.GetServer().Name)
+	subject, tokenID, err := security.JWTParseExternalToken(token, service.cfg.GetJWT().AccessTokenSecret, service.cfg.GetServer().Name)
 	if err != nil || subject != "existing-user" || tokenID != id {
 		t.Fatalf("external token claims = %q, %q, %v", subject, tokenID, err)
 	}
-	var record ExternalTokenRecord
-	key := utils.ToExternalTokenCacheKey(id)
+	var record externalTokenRecord
+	key := security.ToExternalTokenCacheKey(id)
 	if err := repo.GetCacheValue(key, &record); err != nil || record.SubjectID != subject {
 		t.Fatalf("external token record = %+v, %v", record, err)
 	}
-	if err := service.RevokeExternalToken(id); err != nil {
+	if err := service.RevokeExternalToken(context.Background(), id); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.GetCacheValue(key, &record); err == nil {
 		t.Fatal("revoked external token is still active")
 	}
-	if _, _, err := service.IssueExternalToken("missing-user"); !errors.Is(err, gorm.ErrRecordNotFound) {
+	if _, _, err := service.IssueExternalToken(context.Background(), "missing-user"); !errors.Is(err, identity.ErrUserNotFound) {
 		t.Fatalf("missing user error = %v", err)
 	}
+}
+
+func (r *memoryAuthRepository) StoreOAuthState(ctx context.Context, key string, state OAuthState, ttl int) error {
+	return r.SetCacheValue(key, oauthStateRecord(state), ttl)
+}
+
+func (r *memoryAuthRepository) ConsumeOAuthState(ctx context.Context, key string) (OAuthState, error) {
+	var record oauthStateRecord
+	if err := r.ConsumeCacheValue(key, &record); err != nil {
+		if errors.Is(err, redis.Nil) {
+			return OAuthState{}, errors.Join(ErrInvalidOAuthState, err)
+		}
+		return OAuthState{}, err
+	}
+	return OAuthState(record), nil
+}
+
+func (r *memoryAuthRepository) StoreExternalToken(ctx context.Context, key, subject string, ttl int) error {
+	return r.SetCacheValue(key, externalTokenRecord{SubjectID: subject}, ttl)
 }

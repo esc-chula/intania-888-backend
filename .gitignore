@@ -7,3 +7,6 @@ tmp
 .env.local
 .env.prod
 /requirements
+
+!docs/coding-standard.md
+!docs/refactor-followups.md

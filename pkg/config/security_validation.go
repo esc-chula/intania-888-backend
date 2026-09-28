@@ -17,7 +17,7 @@ func ValidateSecurity(cfg Config) error {
 
 	server := cfg.GetServer()
 	cache := cfg.GetCache()
-	jwt := cfg.GetJwt()
+	jwt := cfg.GetJWT()
 	oauth := cfg.GetOAuth()
 	session := cfg.GetSession()
 
@@ -30,7 +30,7 @@ func ValidateSecurity(cfg Config) error {
 	if strings.TrimSpace(cache.Host) == "" || cache.Port <= 0 || cache.Port > 65535 {
 		return fmt.Errorf("CACHE_HOST and CACHE_PORT are required")
 	}
-	if strings.TrimSpace(oauth.ClientId) == "" || strings.TrimSpace(oauth.ClientSecret) == "" {
+	if strings.TrimSpace(oauth.ClientID) == "" || strings.TrimSpace(oauth.ClientSecret) == "" {
 		return fmt.Errorf("OAuth client ID and secret are required")
 	}
 	if oauth.StateExpiration <= 0 {
@@ -46,15 +46,15 @@ func ValidateSecurity(cfg Config) error {
 		return fmt.Errorf("SESSION_ABSOLUTE_TTL_SECONDS must be at least SESSION_IDLE_TTL_SECONDS")
 	}
 
-	if _, err := validateAbsoluteURL(oauth.RedirectUrl, "OAUTH_REDIRECT_URI", false, false); err != nil {
+	if _, err := validateAbsoluteURL(oauth.RedirectURL, "OAUTH_REDIRECT_URI", false, false); err != nil {
 		return err
 	}
-	postLoginOrigin, err := validateAbsoluteURL(oauth.PostLoginRedirectUrl, "OAUTH_POST_LOGIN_REDIRECT_URL", false, true)
+	postLoginOrigin, err := validateAbsoluteURL(oauth.PostLoginRedirectURL, "OAUTH_POST_LOGIN_REDIRECT_URL", false, true)
 	if err != nil {
 		return err
 	}
 
-	origins, err := validateConfiguredOrigins(cfg.GetCors().AllowOrigins)
+	origins, err := validateConfiguredOrigins(cfg.GetCORS().AllowOrigins)
 	if err != nil {
 		return err
 	}
@@ -70,21 +70,21 @@ func ValidateSecurity(cfg Config) error {
 		if len(jwt.AccessTokenSecret) < 32 {
 			return fmt.Errorf("JWT_ACCESS_TOKEN_SECRET must contain at least 32 characters in production")
 		}
-		if _, err := validateAbsoluteURL(oauth.RedirectUrl, "OAUTH_REDIRECT_URI", true, false); err != nil {
+		if _, err := validateAbsoluteURL(oauth.RedirectURL, "OAUTH_REDIRECT_URI", true, false); err != nil {
 			return err
 		}
 		if _, err := validateAbsoluteURL(
-			oauth.PostLoginRedirectUrl,
+			oauth.PostLoginRedirectURL,
 			"OAUTH_POST_LOGIN_REDIRECT_URL",
 			true,
 			true,
 		); err != nil {
 			return err
 		}
-		if strings.TrimSpace(server.Url) == "" {
+		if strings.TrimSpace(server.URL) == "" {
 			return fmt.Errorf("SERVER_URL is required in production")
 		}
-		if _, err := validateAbsoluteURL(server.Url, "SERVER_URL", true, false); err != nil {
+		if _, err := validateAbsoluteURL(server.URL, "SERVER_URL", true, false); err != nil {
 			return err
 		}
 	}

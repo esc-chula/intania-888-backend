@@ -16,11 +16,14 @@ TEST_DATABASE_URL ?= postgres://root:1234@localhost:$(TEST_POSTGRES_PORT)/intani
 
 # Resolve the generator from go.mod so docs checks use the project's pinned version.
 SWAG_CMD := $(GO) run github.com/swaggo/swag/cmd/swag
-GO_PACKAGES := ./cmd/... ./docs/... ./internal/... ./pkg/... ./utils/...
+# Each search root is a Go package, so Swag can resolve moved @name schemas through imports.
+SWAG_SEARCH_DIRS = cmd,$(shell $(GO) list -f '{{.Dir}}' ./internal/... ./pkg/... | paste -sd , -)
+GO_PACKAGES := ./cmd/... ./docs/... ./internal/... ./pkg/...
+GOLANGCI_VERSION := $(shell cat .golangci-version)
 DESTRUCTIVE_MIGRATION_CONFIRMATION := I_UNDERSTAND_DATA_WILL_BE_LOST
 
 .PHONY: help dev deps migrate migrate-up migrate-status migrate-down migrate-reset seed test test-race test-integration \
-	build fmt-check lint docs docs-check tidy ci check-env check-air check-docker check-golangci
+	build fmt fmt-check lint docs docs-check tidy ci check-env check-air check-docker check-golangci
 
 help:
 	@printf '%s\n' \
@@ -36,6 +39,7 @@ help:
 		'  make test-race                                Run tests with the race detector' \
 		'  make test-integration                         Run PostgreSQL acceptance tests' \
 		'  make build                                    Compile all Go packages' \
+		'  make fmt                                      Format authored Go code and imports' \
 		'  make lint                                     Check formatting, vet, and run golangci-lint' \
 		'  make docs                                     Regenerate API documentation' \
 		'  make docs-check                               Verify generated documentation files are current' \
@@ -65,6 +69,11 @@ check-golangci:
 		echo 'golangci-lint is required for make lint; install it or set GOLANGCI_LINT=/path/to/golangci-lint'; \
 		exit 1; \
 	}
+	@actual="$$("$(GOLANGCI_LINT)" version --short)"; \
+		if test "$$actual" != "$(GOLANGCI_VERSION)"; then \
+			echo "golangci-lint $(GOLANGCI_VERSION) is required; found $$actual"; \
+			exit 1; \
+		fi
 
 deps: check-docker
 	$(DOCKER_COMPOSE) up --detach --wait postgres redis
@@ -111,12 +120,21 @@ test-integration: check-docker
 		}; \
 		trap cleanup EXIT; \
 		TEST_POSTGRES_PORT="$(TEST_POSTGRES_PORT)" TEST_REDIS_PORT="$(TEST_REDIS_PORT)" $(DOCKER_COMPOSE) -f "$(TEST_COMPOSE_FILE)" -p "$(TEST_COMPOSE_PROJECT)" up --detach --wait postgres redis; \
-		INTANIA888_TEST_DATABASE_URL="$(TEST_DATABASE_URL)" INTANIA888_TEST_REDIS_ADDR="localhost:$(TEST_REDIS_PORT)" $(GO) test -tags=integration -p 1 -count=1 ./...
+		test -n "$(TEST_DATABASE_URL)" || { echo "TEST_DATABASE_URL is required"; exit 1; }; \
+		INTANIA888_REQUIRE_INTEGRATION=1 INTANIA888_TEST_DATABASE_URL="$(TEST_DATABASE_URL)" INTANIA888_TEST_REDIS_ADDR="localhost:$(TEST_REDIS_PORT)" $(GO) test -tags=integration -p 1 -count=1 ./...
 
 build:
 	$(GO) build ./...
 
-fmt-check:
+fmt: check-golangci
+	$(GOLANGCI_LINT) fmt
+
+fmt-check: check-golangci
+	@set -e; diff="$$( $(GOLANGCI_LINT) fmt --diff )"; \
+		if test -n "$$diff"; then \
+			printf '%s\n' "$$diff"; \
+			exit 1; \
+		fi
 	@files="$$(find . -type f -name '*.go' -not -path './vendor/*' -print)"; \
 		if test -n "$$files" && test -n "$$(gofmt -l $$files)"; then \
 			echo 'Go files are not gofmt-formatted:'; \
@@ -124,12 +142,12 @@ fmt-check:
 			exit 1; \
 		fi
 
-lint: fmt-check check-golangci
+lint: fmt-check
 	$(GO) vet ./...
 	$(GOLANGCI_LINT) run --allow-parallel-runners $(GO_PACKAGES)
 
 docs:
-	$(SWAG_CMD) init -g cmd/main.go -o docs
+	$(SWAG_CMD) init -g main.go -d "$(SWAG_SEARCH_DIRS)" -o docs
 
 docs-check:
 	@set -e; \
@@ -137,7 +155,7 @@ docs-check:
 		tmp_dir="$$tmp_root/docs"; \
 		mkdir "$$tmp_dir"; \
 		trap 'rm -rf "$$tmp_root"' EXIT; \
-		$(SWAG_CMD) init -g cmd/main.go -o "$$tmp_dir"; \
+		$(SWAG_CMD) init -g main.go -d "$(SWAG_SEARCH_DIRS)" -o "$$tmp_dir"; \
 		diff -u docs/docs.go "$$tmp_dir/docs.go"; \
 		diff -u docs/swagger.json "$$tmp_dir/swagger.json"; \
 		diff -u docs/swagger.yaml "$$tmp_dir/swagger.yaml"

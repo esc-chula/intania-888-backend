@@ -1,69 +1,48 @@
 package event
 
 import (
-	"errors"
+	"context"
+	"time"
 
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
-var (
-	ErrDailyRewardOverrideNotFound = errors.New("daily reward override not found")
-	ErrDailyRewardAlreadyClaimed   = errors.New("daily reward already claimed")
-	ErrInsufficientBalance         = errors.New("insufficient balance")
-	ErrStealTokenInvalid           = errors.New("invalid or expired steal token")
-	ErrStealTokenConflict          = errors.New("steal token already used")
-	ErrStealTokenForbidden         = errors.New("steal token is not owned by user")
-	ErrInvalidStealRequest         = errors.New("invalid steal request")
-)
-
-type EventRepository interface {
-	SetDailyRewardCache(key string, value interface{}, ttl int) error
-	GetDailyRewardCache(key string, value interface{}) error
-	GetReward(date string) (*model.DailyReward, error)
-	ListRewards() ([]model.DailyReward, error)
-	SetReward(reward *model.DailyReward) error
-	DeleteReward(date string) error
-	RedeemDailyReward(userID string, date string, defaultReward model.Money) (model.Money, error)
-
-	CreateStealToken(token *model.StealToken) error
-	GetStealTokenByToken(token string) (*model.StealToken, error)
-	MarkTokenAsUsed(tokenId string) error
-	DeleteExpiredTokens() error
-	CommitSlotSpin(userId string, spendAmount model.Money, reward model.Money, token *model.StealToken) error
-	ConsumeStealToken(userId string, token string, victimIndex int) (*StealTokenUseResult, error)
-
-	StealPercentageFromRandomUsers(
-		thiefUserId string,
-		victimCount int,
-		percentage model.Rate,
-	) (model.Money, []model.VictimDetailDto, error)
-	StealPercentageFromSpecificUser(
-		thiefUserId string,
-		victimUserId string,
-		percentage model.Rate,
-	) (model.Money, *model.VictimDetailDto, error)
-	GetRandomEligibleUsers(excludeUserId string, limit int) ([]model.User, error)
-	GetUsersByIds(userIds []string) ([]model.User, error)
+// Repository provides event queries and a transaction boundary without exposing a driver.
+type Repository interface {
+	// WithinTransaction commits the callback only on success; its repository must not escape the callback.
+	WithinTransaction(ctx context.Context, fn func(TransactionRepository) error) error
+	// ListRewards returns configured daily reward overrides.
+	ListRewards(ctx context.Context) ([]DailyReward, error)
+	// SetReward creates or replaces a daily reward override.
+	SetReward(ctx context.Context, reward DailyReward) error
+	// DeleteReward deletes an override or returns ErrDailyRewardOverrideNotFound.
+	DeleteReward(ctx context.Context, date string) error
+	// DeleteExpiredTokens deletes tokens expired before the supplied instant.
+	DeleteExpiredTokens(ctx context.Context, before time.Time) error
+	// GetUser reads the actor's current account state, returning ErrUserNotFound if absent.
+	GetUser(ctx context.Context, id string) (identity.User, error)
+	// GetRandomEligibleUsers selects candidates meeting a service-supplied minimum balance.
+	GetRandomEligibleUsers(ctx context.Context, excludeUserID string, minimumBalance int64, limit int) ([]identity.User, error)
 }
 
-type StealTokenUseResult struct {
-	CandidateIDs   []string
-	Candidates     []model.User
-	ChosenVictimID string
-	StolenAmount   model.Money
-	RaiderBalance  model.Money
-}
-
-type EventService interface {
-	RedeemDailyReward(req *model.UserDto) error
-	GetDailyRewardSchedule() (*model.DailyRewardScheduleResponse, error)
-	SpinSlotMachine(
-		req *model.UserDto,
-		spendAmount model.Money,
-	) (map[string]interface{}, error)
-	SetDailyReward(date string, amount model.Money) error
-	DeleteDailyReward(date string) error
-
-	// Use steal token
-	UseStealToken(userId string, token string, victimIndex int) (*model.UseStealTokenResponseDto, error)
+// TransactionRepository contains queries bound to one atomic event operation.
+// User locks are acquired in sorted ID order when more than one user is involved.
+type TransactionRepository interface {
+	// GetReward returns an override or ErrDailyRewardOverrideNotFound.
+	GetReward(ctx context.Context, date string) (DailyReward, error)
+	// LockUser locks an account row for update and returns its current state.
+	LockUser(ctx context.Context, id string) (identity.User, error)
+	// CreateDailyClaim returns false when the same user and date already exist.
+	CreateDailyClaim(ctx context.Context, userID, date string, reward value.Money) (bool, error)
+	// SetUserBalance writes the absolute balance within the current transaction.
+	SetUserBalance(ctx context.Context, id string, balance value.Money) error
+	// CreateStealToken inserts a token within the current transaction.
+	CreateStealToken(ctx context.Context, token StealToken) error
+	// LockStealToken locks a token row or returns ErrStealTokenInvalid.
+	LockStealToken(ctx context.Context, token string) (StealToken, error)
+	// GetUsersByIDs reads candidate snapshots before balance changes are applied.
+	GetUsersByIDs(ctx context.Context, ids []string) ([]identity.User, error)
+	// MarkTokenUsed conditionally consumes an unused token and reports whether it changed.
+	MarkTokenUsed(ctx context.Context, id string) (bool, error)
 }

@@ -1,25 +1,31 @@
 package color
 
 import (
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"context"
+
 	"gorm.io/gorm"
+
+	persistence "github.com/esc-chula/intania-888-backend/internal/persistence/model"
 )
 
-type colorRepository struct {
+// GORMRepository queries completed-match aggregates without applying response formatting.
+type GORMRepository struct {
 	db *gorm.DB
 }
 
-func NewColorRepository(db *gorm.DB) ColorRepository {
-	return &colorRepository{
+// NewGORMRepository constructs the color aggregate-query adapter.
+func NewGORMRepository(db *gorm.DB) *GORMRepository {
+	return &GORMRepository{
 		db: db,
 	}
 }
 
-func (r *colorRepository) GetAllLeaderboards(typeId string) ([]*model.Color, error) {
-	var colors []*model.Color
+// GetAllLeaderboards aggregates terminal matches for each color; an empty type ID includes every sport.
+func (r *GORMRepository) GetAllLeaderboards(ctx context.Context, typeID string) ([]*Standing, error) {
+	var colors []*persistence.Color
 
 	// Base query
-	query := r.db.Table("colors").
+	query := r.db.WithContext(ctx).Table("colors").
 		Select(`
 			colors.*, 
 			COUNT(matches.id) as total_matches, 
@@ -34,9 +40,9 @@ func (r *colorRepository) GetAllLeaderboards(typeId string) ([]*model.Color, err
 		ON (matches.winner_id IS NOT NULL OR matches.is_draw = TRUE) 
 		AND (colors.id = matches.teama_id OR colors.id = matches.teamb_id)
 	`
-	if typeId != "" {
+	if typeID != "" {
 		matchJoin += " AND matches.type_id = ?"
-		query = query.Joins(matchJoin, typeId)
+		query = query.Joins(matchJoin, typeID)
 	} else {
 		query = query.Joins(matchJoin)
 	}
@@ -46,14 +52,25 @@ func (r *colorRepository) GetAllLeaderboards(typeId string) ([]*model.Color, err
 		return nil, err
 	}
 
-	return colors, nil
+	rows := make([]*Standing, len(colors))
+	for i, color := range colors {
+		rows[i] = &Standing{
+			ID:           color.ID,
+			Title:        color.Title,
+			Won:          int64(color.Won),
+			Drawn:        int64(color.Drawn),
+			TotalMatches: int64(color.TotalMatches),
+		}
+	}
+	return rows, nil
 }
 
-func (r *colorRepository) GetGroupStageTable(typeId, groupId string) ([]*model.Color, error) {
-	var colors []*model.Color
+// GetGroupStageTable aggregates distinct terminal matches with optional sport and group-stage filters.
+func (r *GORMRepository) GetGroupStageTable(ctx context.Context, typeID, groupID string) ([]*Standing, error) {
+	var colors []*persistence.Color
 
 	// Base query
-	query := r.db.Table("colors").
+	query := r.db.WithContext(ctx).Table("colors").
 		Select(`
 			colors.*, 
 			COUNT(DISTINCT matches.id) as total_matches, 
@@ -68,19 +85,19 @@ func (r *colorRepository) GetGroupStageTable(typeId, groupId string) ([]*model.C
 		ON (matches.winner_id IS NOT NULL OR matches.is_draw = TRUE) 
 		AND (colors.id = matches.teama_id OR colors.id = matches.teamb_id)
 	`
-	if typeId != "" {
+	if typeID != "" {
 		matchJoin += " AND matches.type_id = ?"
-		query = query.Joins(matchJoin, typeId)
+		query = query.Joins(matchJoin, typeID)
 	} else {
 		query = query.Joins(matchJoin)
 	}
 
-	// Join group_stages table to filter by groupId
-	if groupId != "" {
+	// Join group_stages table to filter by groupID
+	if groupID != "" {
 		query = query.Joins(`
 			INNER JOIN group_stages
 			ON group_stages.color_id = colors.id 
-			AND group_stages.id = ?`, groupId)
+			AND group_stages.id = ?`, groupID)
 	}
 
 	// Execute the query
@@ -88,5 +105,15 @@ func (r *colorRepository) GetGroupStageTable(typeId, groupId string) ([]*model.C
 		return nil, err
 	}
 
-	return colors, nil
+	rows := make([]*Standing, len(colors))
+	for i, color := range colors {
+		rows[i] = &Standing{
+			ID:           color.ID,
+			Title:        color.Title,
+			Won:          int64(color.Won),
+			Drawn:        int64(color.Drawn),
+			TotalMatches: int64(color.TotalMatches),
+		}
+	}
+	return rows, nil
 }

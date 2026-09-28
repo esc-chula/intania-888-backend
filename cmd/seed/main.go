@@ -1,21 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/esc-chula/intania-888-backend/internal/domain/policy"
-	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/esc-chula/intania-888-backend/pkg/cache"
-	"github.com/esc-chula/intania-888-backend/pkg/config"
-	"github.com/esc-chula/intania-888-backend/pkg/database"
-	"github.com/esc-chula/intania-888-backend/utils/constant"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/esc-chula/intania-888-backend/internal/domain/policy"
+	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
+	persistence "github.com/esc-chula/intania-888-backend/internal/persistence/model"
+	"github.com/esc-chula/intania-888-backend/pkg/cache"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"github.com/esc-chula/intania-888-backend/pkg/database"
 )
 
 // seed installs mutable catalogue data without deleting or replacing existing rows.
@@ -35,15 +37,15 @@ func main() {
 		return
 	}
 
-	db := database.NewGormDatabase(config.GetConfig())
+	db := database.NewGORMDatabase(config.GetConfig())
 	err := db.Transaction(func(tx *gorm.DB) error {
-		colors := []model.Color{
-			{Id: "VIOLET", Title: "สีม่วง"},
-			{Id: "BLUE", Title: "สีฟ้า"},
-			{Id: "GREEN", Title: "สีเขียว"},
-			{Id: "PINK", Title: "สีชมพู"},
-			{Id: "ORANGE", Title: "สีส้ม"},
-			{Id: "YELLOW", Title: "สีเหลือง"},
+		colors := []persistence.Color{
+			{ID: "VIOLET", Title: "สีม่วง"},
+			{ID: "BLUE", Title: "สีฟ้า"},
+			{ID: "GREEN", Title: "สีเขียว"},
+			{ID: "PINK", Title: "สีชมพู"},
+			{ID: "ORANGE", Title: "สีส้ม"},
+			{ID: "YELLOW", Title: "สีเหลือง"},
 		}
 
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&colors).Error; err != nil {
@@ -59,29 +61,41 @@ func main() {
 			"A": "YELLOW", "F": "YELLOW", "L": "YELLOW",
 		}
 
-		groups := make([]model.IntaniaGroup, 0, len(groupColors))
+		groups := make([]persistence.IntaniaGroup, 0, len(groupColors))
 		for id, color := range groupColors {
-			groups = append(groups, model.IntaniaGroup{Id: id, ColorId: color})
+			groups = append(groups, persistence.IntaniaGroup{ID: id, ColorID: color})
 		}
 
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&groups).Error; err != nil {
 			return err
 		}
 
-		sports := []model.SportType{
-			{Id: constant.FOOTBALL_MALE_JR, Title: "ฟุตบอลชาย ปี 1"},
-			{Id: constant.FOOTBALL_MALE_SR, Title: "ฟุตบอลชาย ปี 2-4"},
-			{Id: constant.BASKETBALL_MALE_JR, Title: "บาสเก็ตบอลชาย ปี 1"},
-			{Id: constant.BASKETBALL_MALE_SR, Title: "บาสเก็ตบอลชาย ปี 2-4"},
-			{Id: constant.BASKETBALL_FEMALE_ALL, Title: "บาสเก็ตบอลหญิง รวมชั้นปี"},
-			{Id: constant.VOLLEYBALL_MALE_ALL, Title: "วอลเลย์บอลชาย รวมชั้นปี"},
-			{Id: constant.VOLLEYBALL_FEMALE_ALL, Title: "วอลเลย์บอลหญิง รวมชั้นปี"},
-			{Id: constant.CHAIRBALL_FEMALE_ALL, Title: "แชร์บอลหญิง รวมชั้นปี"},
-			{Id: constant.RUNNING, Title: "วิ่งเปี้ยว"},
-			{Id: constant.TUG_OF_WAR, Title: "ชักเย่อ"},
-			{Id: constant.TRADITIONAL_SPORTS, Title: "กีฬาพื้นบ้าน"},
-			{Id: constant.TUG_OF_WAR_CHAK_YOR, Title: "ชักเย่อ"},
-			{Id: constant.RUNNING_PIAW, Title: "วิ่งเปี้ยว"},
+		sports := []persistence.SportType{
+			{ID: sporttype.FootballMaleJunior, Title: "ฟุตบอลชาย ปี 1"},
+			{ID: sporttype.FootballMaleSenior, Title: "ฟุตบอลชาย ปี 2-4"},
+			{ID: sporttype.BasketballMaleJunior, Title: "บาสเก็ตบอลชาย ปี 1"},
+			{ID: sporttype.BasketballMaleSenior, Title: "บาสเก็ตบอลชาย ปี 2-4"},
+			{
+				ID:    sporttype.BasketballFemaleAll,
+				Title: "บาสเก็ตบอลหญิง รวมชั้นปี",
+			},
+			{
+				ID:    sporttype.VolleyballMaleAll,
+				Title: "วอลเลย์บอลชาย รวมชั้นปี",
+			},
+			{
+				ID:    sporttype.VolleyballFemaleAll,
+				Title: "วอลเลย์บอลหญิง รวมชั้นปี",
+			},
+			{
+				ID:    sporttype.ChairballFemaleAll,
+				Title: "แชร์บอลหญิง รวมชั้นปี",
+			},
+			{ID: sporttype.Running, Title: "วิ่งเปี้ยว"},
+			{ID: sporttype.TugOfWar, Title: "ชักเย่อ"},
+			{ID: sporttype.TraditionalSports, Title: "กีฬาพื้นบ้าน"},
+			{ID: sporttype.TugOfWarChakYor, Title: "ชักเย่อ"},
+			{ID: sporttype.RunningPiaw, Title: "วิ่งเปี้ยว"},
 		}
 
 		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&sports).Error
@@ -115,7 +129,7 @@ func importPolicies(filename string, dryRun bool) error {
 	}
 	if dryRun {
 		for index, entry := range input.Entries {
-			if _, err := policy.ValidateCreateInput(entry); err != nil {
+			if _, err := policy.ValidateCreateInput(entry.Input()); err != nil {
 				return fmt.Errorf("policy import entry %d: %w", index+1, err)
 			}
 		}
@@ -124,11 +138,11 @@ func importPolicies(filename string, dryRun bool) error {
 	}
 
 	cfg := config.GetConfig()
-	db := database.NewGormDatabase(cfg)
+	db := database.NewGORMDatabase(cfg)
 	policyCache := cache.NewRedisClient(cfg)
-	service := policy.NewService(policy.NewRepository(db), policyCache, zap.NewNop())
+	service := policy.NewService(policy.NewGORMRepository(db), policy.NewRedisSnapshotCache(policyCache), zap.NewNop())
 	for index, entry := range input.Entries {
-		if _, err := service.Create(entry); err != nil {
+		if _, err := service.Create(context.Background(), entry.Input()); err != nil {
 			return fmt.Errorf("policy import entry %d: %w", index+1, err)
 		}
 	}

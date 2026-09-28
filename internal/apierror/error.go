@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// RequestIDHeader carries the server-generated correlation ID for an API request.
 const RequestIDHeader = "X-Request-ID"
 
 // Error is an application error with a stable public code and message.
@@ -22,6 +23,7 @@ type Error struct {
 	Cause   error             `json:"-"`
 }
 
+// Error formats diagnostic code and cause; HTTP rendering uses the safe Message field.
 func (e *Error) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("%s: %v", e.Code, e.Cause)
@@ -29,20 +31,30 @@ func (e *Error) Error() string {
 	return e.Code + ": " + e.Message
 }
 
+// Unwrap exposes the original failure for errors.Is and errors.As.
 func (e *Error) Unwrap() error { return e.Cause }
 
+// New constructs a safe public failure without an internal cause.
 func New(status int, code, message string) *Error {
 	return &Error{Status: status, Code: code, Message: message}
 }
 
+// Wrap retains a diagnostic cause while exposing only the supplied public message.
 func Wrap(cause error, status int, code, message string) *Error {
 	return &Error{Status: status, Code: code, Message: message, Cause: cause}
 }
 
+// Invalid reports field-specific request validation failures using the shared 400 contract.
 func Invalid(details map[string]string) *Error {
-	return &Error{Status: http.StatusBadRequest, Code: "INVALID_REQUEST", Message: "Invalid request", Details: details}
+	return &Error{
+		Status:  http.StatusBadRequest,
+		Code:    "INVALID_REQUEST",
+		Message: "Invalid request",
+		Details: details,
+	}
 }
 
+// Response is the public failure envelope; internal causes never enter the JSON body.
 type Response struct {
 	Code      string            `json:"code"`
 	Message   string            `json:"message"`

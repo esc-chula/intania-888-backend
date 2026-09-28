@@ -1,31 +1,38 @@
 package policy
 
 import (
+	"context"
+	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
-type repository struct {
+// GORMRepository stores access policies using the established PostgreSQL schema.
+type GORMRepository struct {
 	db *gorm.DB
 }
 
-func NewRepository(db *gorm.DB) Repository {
-	return &repository{db: db}
+// NewGORMRepository constructs the PostgreSQL policy adapter.
+func NewGORMRepository(db *gorm.DB) *GORMRepository {
+	return &GORMRepository{db: db}
 }
 
-func (r *repository) ListActive(now time.Time) ([]*AccessPolicy, error) {
-	var policies []*AccessPolicy
-	err := r.db.
+// ListActive loads enabled policies that have not expired.
+func (r *GORMRepository) ListActive(ctx context.Context, now time.Time) ([]*AccessPolicy, error) {
+	var policies []*accessPolicyRow
+	err := r.db.WithContext(ctx).
 		Where("enabled = ?", true).
 		Where("expires_at IS NULL OR expires_at > ?", now).
 		Order("created_at DESC, id DESC").
 		Find(&policies).Error
-	return policies, err
+	return policiesFromRows(policies), err
 }
 
-func (r *repository) List(filter ListFilter) (ListResult, error) {
-	query := r.db.Model(&AccessPolicy{}).Order("created_at DESC, id DESC")
+// List loads a stable ordered policy page.
+func (r *GORMRepository) List(ctx context.Context, filter ListFilter) (ListResult, error) {
+	query := r.db.WithContext(ctx).Model(&accessPolicyRow{}).Order("created_at DESC, id DESC")
 	if filter.Kind != "" {
 		query = query.Where("kind = ?", filter.Kind)
 	}
@@ -43,43 +50,105 @@ func (r *repository) List(filter ListFilter) (ListResult, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	var policies []*AccessPolicy
+	var policies []*accessPolicyRow
 	if err := query.Offset(filter.Offset).Limit(limit + 1).Find(&policies).Error; err != nil {
 		return ListResult{}, err
 	}
-	result := ListResult{Items: policies}
+	result := ListResult{Items: policiesFromRows(policies)}
 	if len(policies) > limit {
 		result.HasMore = true
-		result.Items = policies[:limit]
+		result.Items = result.Items[:limit]
 	}
 	return result, nil
 }
 
-func (r *repository) FindByID(id string) (*AccessPolicy, error) {
-	var policy AccessPolicy
-	if err := r.db.Where("id = ?", id).First(&policy).Error; err != nil {
-		return nil, err
+// FindByID loads a policy and translates a missing row.
+func (r *GORMRepository) FindByID(ctx context.Context, id string) (*AccessPolicy, error) {
+	var policy accessPolicyRow
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&policy).Error; err != nil {
+		return nil, translateStorageError(err)
 	}
-	return &policy, nil
+	return policyFromRow(&policy), nil
 }
 
-func (r *repository) FindByIdentity(kind, principalType, principal string) (*AccessPolicy, error) {
-	var policy AccessPolicy
-	if err := r.db.Where("kind = ? AND principal_type = ? AND principal = ?", kind, principalType, principal).First(&policy).Error; err != nil {
-		return nil, err
+// FindByIdentity loads the unique principal identity.
+func (r *GORMRepository) FindByIdentity(ctx context.Context, kind, principalType, principal string) (*AccessPolicy, error) {
+	var policy accessPolicyRow
+	if err := r.db.WithContext(ctx).Where("kind = ? AND principal_type = ? AND principal = ?", kind, principalType, principal).First(&policy).Error; err != nil {
+		return nil, translateStorageError(err)
 	}
-	return &policy, nil
+	return policyFromRow(&policy), nil
 }
 
-func (r *repository) Create(policy *AccessPolicy) error {
-	return r.db.Create(policy).Error
+// Create inserts a policy and translates unique-key conflicts.
+func (r *GORMRepository) Create(ctx context.Context, policy *AccessPolicy) error {
+	row := policyToRow(policy)
+	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
+		return translateStorageError(err)
+	}
+	*policy = *policyFromRow(row)
+	return nil
 }
 
-func (r *repository) Update(policy *AccessPolicy) error {
-	return r.db.Model(&AccessPolicy{}).Where("id = ?", policy.ID).Updates(map[string]interface{}{
+// Update persists the mutable fields of a policy.
+func (r *GORMRepository) Update(ctx context.Context, policy *AccessPolicy) error {
+	return translateStorageError(r.db.WithContext(ctx).Model(&accessPolicyRow{}).Where("id = ?", policy.ID).Updates(map[string]interface{}{
 		"reason":     policy.Reason,
 		"enabled":    policy.Enabled,
 		"expires_at": policy.ExpiresAt,
 		"updated_at": policy.UpdatedAt,
-	}).Error
+	}).Error)
+}
+
+// accessPolicyRow owns the ORM schema independently from service snapshots.
+type accessPolicyRow struct {
+	ID            string     `gorm:"primaryKey;type:varchar(100)"`
+	Kind          string     `gorm:"type:varchar(20);not null"`
+	PrincipalType string     `gorm:"column:principal_type;type:varchar(20);not null"`
+	Principal     string     `gorm:"type:varchar(320);not null"`
+	Reason        string     `gorm:"type:varchar(500);not null"`
+	Enabled       bool       `gorm:"not null;default:true"`
+	ExpiresAt     *time.Time `gorm:"column:expires_at"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+// TableName preserves the established access-policy table.
+func (accessPolicyRow) TableName() string { return "auth_access_policies" }
+
+func policyToRow(policy *AccessPolicy) *accessPolicyRow {
+	return &accessPolicyRow{ID: policy.ID, Kind: policy.Kind, PrincipalType: policy.PrincipalType,
+		Principal: policy.Principal, Reason: policy.Reason, Enabled: policy.Enabled,
+		ExpiresAt: policy.ExpiresAt, CreatedAt: policy.CreatedAt, UpdatedAt: policy.UpdatedAt}
+}
+
+func policyFromRow(row *accessPolicyRow) *AccessPolicy {
+	if row == nil {
+		return nil
+	}
+	return &AccessPolicy{ID: row.ID, Kind: row.Kind, PrincipalType: row.PrincipalType,
+		Principal: row.Principal, Reason: row.Reason, Enabled: row.Enabled,
+		ExpiresAt: row.ExpiresAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+}
+
+func policiesFromRows(rows []*accessPolicyRow) []*AccessPolicy {
+	if rows == nil {
+		return nil
+	}
+	policies := make([]*AccessPolicy, len(rows))
+	for i, row := range rows {
+		policies[i] = policyFromRow(row)
+	}
+	return policies
+}
+
+func translateStorageError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrPolicyNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return ErrPolicyConflict
+	}
+	return err
 }

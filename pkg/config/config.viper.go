@@ -11,22 +11,26 @@ import (
 
 type viperConfig struct {
 	Server      `mapstructure:",squash"`
-	Db          `mapstructure:",squash"`
+	DB          `mapstructure:",squash"`
 	Cache       `mapstructure:",squash"`
-	Jwt         `mapstructure:",squash"`
+	JWT         `mapstructure:",squash"`
 	OAuth       `mapstructure:",squash"`
 	Session     `mapstructure:",squash"`
 	Swagger     `mapstructure:",squash"`
-	Cors        `mapstructure:",squash"`
+	CORS        `mapstructure:",squash"`
 	DailyReward `mapstructure:",squash"`
 }
 
 var (
 	once     sync.Once
-	instance Config
+	instance *viperConfig
 )
 
-func NewViperConfig() Config {
+// NewViperConfig loads the process-wide configuration once from defaults,
+// the environment, and the environment-specific file. Development requires
+// .env; production can run without bin/.env. Loading failures retain the
+// existing startup behavior: decoding and binding failures terminate the process.
+func NewViperConfig() *viperConfig {
 	once.Do(func() {
 		appEnv := getEnv()
 		v := viper.New()
@@ -93,6 +97,8 @@ func getEnv() string {
 	return "prod"
 }
 
+// GetConfig returns the existing process-wide configuration, loading it on first use.
+// Callers should obtain configuration during startup rather than request handling.
 func GetConfig() Config {
 	if instance == nil {
 		instance = NewViperConfig()
@@ -101,38 +107,47 @@ func GetConfig() Config {
 	return instance
 }
 
+// GetServer returns listener, environment, and public API URL settings.
 func (c *viperConfig) GetServer() Server {
 	return c.Server
 }
 
-func (c *viperConfig) GetDb() Db {
-	return c.Db
+// GetDB returns PostgreSQL connection settings.
+func (c *viperConfig) GetDB() DB {
+	return c.DB
 }
 
+// GetCache returns Redis connection settings.
 func (c *viperConfig) GetCache() Cache {
 	return c.Cache
 }
 
-func (c *viperConfig) GetJwt() Jwt {
-	return c.Jwt
+// GetJWT returns the signing secret for external bearer tokens.
+func (c *viperConfig) GetJWT() JWT {
+	return c.JWT
 }
 
+// GetOAuth returns Google OAuth credentials, redirects, and state lifetime.
 func (c *viperConfig) GetOAuth() OAuth {
 	return c.OAuth
 }
 
+// GetSession returns browser session idle and absolute lifetimes in seconds.
 func (c *viperConfig) GetSession() Session {
 	return c.Session
 }
 
+// GetSwagger returns documentation visibility and access settings.
 func (c *viperConfig) GetSwagger() Swagger {
 	return c.Swagger
 }
 
-func (c *viperConfig) GetCors() Cors {
-	return c.Cors
+// GetCORS returns the configured browser origin allowlist.
+func (c *viperConfig) GetCORS() CORS {
+	return c.CORS
 }
 
+// GetDailyReward returns the default daily reward as a decimal money string.
 func (c *viperConfig) GetDailyReward() DailyReward {
 	return c.DailyReward
 }

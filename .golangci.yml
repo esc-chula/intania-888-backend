@@ -1,0 +1,90 @@
+version: "2"
+
+run:
+  go: "1.22.5"
+  timeout: 5m
+  relative-path-mode: gomod
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/esc-chula/intania-888-backend
+
+linters:
+  default: none
+  enable:
+    - depguard
+    - errcheck
+    - errorlint
+    - govet
+    - ineffassign
+    - nolintlint
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    errcheck:
+      check-blank: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      enable-default-rules: false
+      rules:
+        - name: package-comments
+        - name: exported
+          arguments:
+            - check-private-receivers
+            - check-public-interface
+        - name: var-naming
+        - name: error-naming
+        - name: error-strings
+        - name: error-return
+        - name: indent-error-flow
+    depguard:
+      rules:
+        business:
+          files:
+            - "**/service*.go"
+            - "**/port.go"
+            - "**/types.go"
+            - "!$test"
+          deny:
+            - pkg: gorm.io
+              desc: "Database implementation belongs in adapter.db.go."
+            - pkg: github.com/jackc/pgx
+              desc: "Translate driver errors in persistence adapters."
+            - pkg: github.com/redis/go-redis
+              desc: "Use a feature-owned cache port."
+            - pkg: github.com/gofiber/fiber
+              desc: "HTTP implementation belongs in http files."
+            - pkg: github.com/esc-chula/intania-888-backend/internal/persistence
+              desc: "Use neutral feature snapshots at service boundaries."
+            - pkg: github.com/esc-chula/intania-888-backend/internal/apierror
+              desc: "HTTP errors belong in transport mapping."
+            - pkg: github.com/esc-chula/intania-888-backend/internal/httpidentity
+              desc: "Pass the neutral actor explicitly to use cases."
+        transport:
+          files:
+            - "**/adapter.http*.go"
+            - "!$test"
+          deny:
+            - pkg: gorm.io
+              desc: "HTTP adapters classify feature errors, never ORM errors."
+            - pkg: github.com/jackc/pgx
+              desc: "Driver failures must be translated by persistence."
+            - pkg: github.com/redis/go-redis
+              desc: "Cache failures must be translated by persistence."
+            - pkg: github.com/esc-chula/intania-888-backend/internal/persistence
+              desc: "HTTP responses map service results, not ORM records."
+  exclusions:
+    generated: strict
+    presets: []
+    rules:
+      - path: '_test\.go$'
+        linters:
+          - revive

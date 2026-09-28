@@ -1,30 +1,34 @@
 package sporttype
 
 import (
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"context"
+
 	"go.uber.org/zap"
 )
 
-type sportTypeService struct {
-	sportTypeRepo SportTypeRepository
+// Service provides the sport catalogue to application consumers.
+type Service struct {
+	sportTypeRepo Repository
 	log           *zap.Logger
 }
 
-func NewSportTypeService(sportTypeRepo SportTypeRepository, log *zap.Logger) SportTypeService {
-	return &sportTypeService{
+// NewService constructs the sport catalogue service from persistence and logging.
+func NewService(sportTypeRepo Repository, log *zap.Logger) *Service {
+	return &Service{
 		sportTypeRepo: sportTypeRepo,
 		log:           log,
 	}
 }
 
-func (s *sportTypeService) GetAllSportTypes() ([]*model.SportTypeDto, error) {
-	sportTypes, err := s.sportTypeRepo.GetAllSportTypes()
+// GetAllSportTypes returns every configured sport type and preserves repository failures.
+func (s *Service) GetAllSportTypes(ctx context.Context) ([]*SportType, error) {
+	sportTypes, err := s.sportTypeRepo.GetAllSportTypes(ctx)
 	if err != nil {
-		s.log.Named("GetAllSportTypes").Error("Failed to get sport types", zap.Error(err))
+
 		return nil, err
 	}
 
-	sportTypeDtos := ConvertSportTypesToDtos(sportTypes)
-	s.log.Named("GetAllSportTypes").Info("Retrieved all sport types successful", zap.Int("count", len(sportTypeDtos)))
-	return sportTypeDtos, nil
+	results := sportTypes
+	s.log.Named("GetAllSportTypes").Info("Retrieved all sport types successful", zap.Int("count", len(results)))
+	return results, nil
 }

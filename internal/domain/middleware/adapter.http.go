@@ -1,56 +1,59 @@
 package middleware
 
 import (
+	"context"
 	"crypto/subtle"
 	"errors"
 	"strings"
 
-	"github.com/esc-chula/intania-888-backend/internal/apierror"
-	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/esc-chula/intania-888-backend/internal/security"
-	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+	"github.com/esc-chula/intania-888-backend/internal/security"
 )
 
-type MiddlewareHttpHandler struct {
-	service        MiddlewareService
-	log            *zap.Logger
+// HTTPHandler authenticates browser sessions and enforces administrator permissions.
+type HTTPHandler struct {
+	service        ServicePort
 	production     bool
 	sessionIdleTTL int
 }
 
-func NewMiddlewareHttpHandler(
-	service MiddlewareService,
-	log *zap.Logger,
+// NewHTTPHandler binds identity checks to the browser cookie environment and idle lifetime in seconds.
+func NewHTTPHandler(
+	service ServicePort,
 	production bool,
 	sessionIdleTTL int,
-) *MiddlewareHttpHandler {
-	return &MiddlewareHttpHandler{
+) *HTTPHandler {
+	return &HTTPHandler{
 		service:        service,
-		log:            log,
 		production:     production,
 		sessionIdleTTL: sessionIdleTTL,
 	}
 }
 
-func (h *MiddlewareHttpHandler) CookieName() string {
-	return utils.SessionCookieName(h.production)
+// CookieName returns the environment-specific browser session cookie name.
+func (h *HTTPHandler) CookieName() string {
+	return security.SessionCookieName(h.production)
 }
 
-func (h *MiddlewareHttpHandler) Session(sessionID string) (*model.SessionRecord, error) {
-	return h.service.GetSession(sessionID)
+// Session loads and renews the session needed by the authentication logout adapter.
+func (h *HTTPHandler) Session(ctx context.Context, sessionID string) (*security.Session, error) {
+	return h.service.GetSession(ctx, sessionID)
 }
 
-func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
+// AuthMiddleware checks session, current account, blacklist status, and CSRF on mutations.
+// It renews the browser cookie and attaches the authenticated profile and session context before continuing.
+func (h *HTTPHandler) AuthMiddleware(c *fiber.Ctx) error {
 	id := c.Cookies(h.CookieName())
 	if id == "" {
 		clearBrowserSessionCookie(c, h.production)
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	session, err := h.service.GetSession(id)
+	session, err := h.service.GetSession(c.UserContext(), id)
 	if err != nil {
 		if errors.Is(err, ErrSessionMissing) {
 			clearBrowserSessionCookie(c, h.production)
@@ -59,16 +62,16 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
 	}
 
-	user, err := h.service.GetMe(session.UserId)
+	user, err := h.service.GetMe(c.UserContext(), session.UserID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, identity.ErrUserNotFound) {
 			clearBrowserSessionCookie(c, h.production)
 			return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		}
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "User status is unavailable")
 	}
 
-	blacklisted, err := h.service.IsBlacklisted(user.Email, user.Id)
+	blacklisted, err := h.service.IsBlacklisted(c.UserContext(), user.Email, user.ID)
 	if err != nil {
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Access policy is unavailable")
 	}
@@ -92,20 +95,20 @@ func (h *MiddlewareHttpHandler) AuthMiddleware(c *fiber.Ctx) error {
 		Secure:   h.production,
 		SameSite: fiber.CookieSameSiteLaxMode,
 	})
-	c.Locals("user", user)
-	c.Locals("session_id", id)
-	c.Locals("csrf_token", session.CSRFToken)
+	httpidentity.SetProfile(c, user)
+	httpidentity.SetSession(c, id, session.CSRFToken)
 
 	return c.Next()
 }
 
-func (h *MiddlewareHttpHandler) AdminMiddleware(c *fiber.Ctx) error {
-	user := utils.GetUserProfileFromCtx(c)
+// AdminMiddleware requires an authenticated administrator profile set by preceding authentication middleware.
+func (h *HTTPHandler) AdminMiddleware(c *fiber.Ctx) error {
+	user := httpidentity.GetProfile(c)
 	if user == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	if !security.IsAdminRole(user.RoleId) {
+	if !security.IsAdminRole(user.RoleID) {
 		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator permission required")
 	}
 
@@ -122,7 +125,7 @@ func parseBearerToken(header string) (string, bool) {
 
 func clearBrowserSessionCookie(c *fiber.Ctx, production bool) {
 	c.Cookie(&fiber.Cookie{
-		Name:     utils.SessionCookieName(production),
+		Name:     security.SessionCookieName(production),
 		Path:     "/",
 		MaxAge:   -1,
 		HTTPOnly: true,

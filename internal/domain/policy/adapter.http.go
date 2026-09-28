@@ -1,27 +1,29 @@
 package policy
 
 import (
+	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
-	"github.com/esc-chula/intania-888-backend/internal/security"
-	"github.com/gofiber/fiber/v2"
 )
 
-type HttpHandler struct {
-	service Service
+// HTTPHandler exposes administrator policy operations.
+type HTTPHandler struct {
+	service ServicePort
 }
 
-func NewHttpHandler(service Service) *HttpHandler {
-	return &HttpHandler{service: service}
+// NewHTTPHandler constructs the policy HTTP adapter.
+func NewHTTPHandler(service ServicePort) *HTTPHandler {
+	return &HTTPHandler{service: service}
 }
 
-func (h *HttpHandler) RegisterRoutes(router fiber.Router, authMiddleware, adminMiddleware fiber.Handler) {
+// RegisterRoutes protects all policy routes with authentication and administrator checks.
+func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authMiddleware, adminMiddleware fiber.Handler) {
 	protected := router.Group("/auth", authMiddleware).Group("/policies", adminMiddleware)
 	protected.Get("/", h.List)
 	protected.Post("/", h.Create)
@@ -29,86 +31,7 @@ func (h *HttpHandler) RegisterRoutes(router fiber.Router, authMiddleware, adminM
 	protected.Delete("/:id", h.Delete)
 }
 
-type CreatePolicyRequest struct {
-	Kind          string     `json:"kind" validate:"required,oneof=allowlist blacklist"`
-	PrincipalType string     `json:"principal_type" validate:"required,oneof=email google_subject"`
-	Principal     string     `json:"principal" validate:"required"`
-	Reason        string     `json:"reason" validate:"required"`
-	ExpiresAt     *time.Time `json:"expires_at"`
-}
-
-type UpdatePolicyRequest struct {
-	Reason       *string    `json:"reason"`
-	ExpiresAt    *time.Time `json:"expires_at"`
-	Enabled      *bool      `json:"enabled"`
-	expiresAtSet bool
-}
-
-func (r *UpdatePolicyRequest) UnmarshalJSON(data []byte) error {
-	type wire struct {
-		Reason    *string `json:"reason"`
-		Enabled   *bool   `json:"enabled"`
-		ExpiresAt string  `json:"expires_at"`
-	}
-	var value wire
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	for field := range fields {
-		if field != "reason" && field != "enabled" && field != "expires_at" {
-			return errors.New("unknown field")
-		}
-	}
-	r.Reason = value.Reason
-	r.Enabled = value.Enabled
-	r.ExpiresAt = nil
-	r.expiresAtSet = false
-	if raw, ok := fields["expires_at"]; ok {
-		r.expiresAtSet = true
-		if string(raw) != "null" {
-			var expiresAt time.Time
-			if err := json.Unmarshal(raw, &expiresAt); err != nil {
-				return err
-			}
-			r.ExpiresAt = &expiresAt
-		}
-	}
-	return nil
-}
-
-func (r CreatePolicyRequest) ValidateRequest() map[string]string {
-	details := make(map[string]string)
-	if strings.TrimSpace(r.Kind) == "" {
-		details["kind"] = "is required"
-	}
-	if strings.TrimSpace(r.PrincipalType) == "" {
-		details["principal_type"] = "is required"
-	}
-	if strings.TrimSpace(r.Principal) == "" {
-		details["principal"] = "is required"
-	}
-	if strings.TrimSpace(r.Reason) == "" {
-		details["reason"] = "is required"
-	}
-	return details
-}
-
-func (r UpdatePolicyRequest) ValidateRequest() map[string]string {
-	if r.Reason == nil && !r.expiresAtSet && r.Enabled == nil {
-		return map[string]string{"body": "must include at least one policy field"}
-	}
-	return nil
-}
-
-type PolicyListResponse struct {
-	Items      []*AccessPolicy `json:"items"`
-	NextCursor *string         `json:"next_cursor"`
-}
-
+// List returns the filtered policy page and next cursor.
 // @Summary List access policies
 // @Description Lists allowlist and blacklist entries for an administrator.
 // @Tags Auth Policy
@@ -118,13 +41,14 @@ type PolicyListResponse struct {
 // @Param status query string false "active, inactive, or all"
 // @Param limit query int false "page size, maximum 200"
 // @Param cursor query string false "opaque pagination cursor"
-// @Success 200 {object} PolicyListResponse
+// @Success 200 {object} ListResponse
 // @Failure 400 {object} apierror.Response
 // @Failure 401 {object} apierror.Response
 // @Failure 403 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /auth/policies [get]
-func (h *HttpHandler) List(c *fiber.Ctx) error {
+// @Security CookieSession
+func (h *HTTPHandler) List(c *fiber.Ctx) error {
 	limit, err := parseLimit(c.Query("limit"))
 	if err != nil {
 		return apierror.Invalid(map[string]string{"limit": "must be between 1 and 200"})
@@ -134,7 +58,7 @@ func (h *HttpHandler) List(c *fiber.Ctx) error {
 		return apierror.Invalid(map[string]string{"cursor": "is invalid"})
 	}
 
-	result, err := h.service.List(ListFilter{
+	result, err := h.service.List(c.UserContext(), ListFilter{
 		Kind:          strings.TrimSpace(c.Query("kind")),
 		PrincipalType: strings.TrimSpace(c.Query("principal_type")),
 		Status:        strings.TrimSpace(c.Query("status", StatusActive)),
@@ -145,7 +69,7 @@ func (h *HttpHandler) List(c *fiber.Ctx) error {
 		return mapPolicyError(err)
 	}
 
-	response := PolicyListResponse{Items: result.Items}
+	response := ListResponse{Items: policiesToResponse(result.Items)}
 	if result.HasMore {
 		next := encodeCursor(offset + len(result.Items))
 		response.NextCursor = &next
@@ -153,32 +77,52 @@ func (h *HttpHandler) List(c *fiber.Ctx) error {
 	return c.JSON(response)
 }
 
-func (h *HttpHandler) Create(c *fiber.Ctx) error {
-	var request CreatePolicyRequest
-	if err := apierror.BindJSON(c, &request); err != nil {
-		return err
-	}
-	created, err := h.service.Create(CreateInput(request))
-	if err != nil {
-		return mapPolicyError(err)
-	}
-	return c.Status(fiber.StatusCreated).JSON(created)
-}
-
+// Create creates a normalized access policy.
 // @Summary Create access policy
 // @Description Creates an allowlist or blacklist entry.
 // @Tags Auth Policy
 // @Accept json
 // @Produce json
 // @Param policy body CreatePolicyRequest true "access policy"
-// @Success 201 {object} AccessPolicy
+// @Success 201 {object} Response
 // @Failure 400 {object} apierror.Response
 // @Failure 401 {object} apierror.Response
 // @Failure 403 {object} apierror.Response
 // @Failure 409 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
+// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
 // @Router /auth/policies [post]
-func (h *HttpHandler) Update(c *fiber.Ctx) error {
+// @Security CookieSession
+func (h *HTTPHandler) Create(c *fiber.Ctx) error {
+	var request CreatePolicyRequest
+	if err := apierror.BindJSON(c, &request); err != nil {
+		return err
+	}
+	created, err := h.service.Create(c.UserContext(), CreateInput(request))
+	if err != nil {
+		return mapPolicyError(err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(policyToResponse(created))
+}
+
+// Update changes mutable fields while preserving policy identity.
+// @Summary Update access policy
+// @Description Updates reason, expiry, or enabled state. Identity and kind are immutable.
+// @Tags Auth Policy
+// @Accept json
+// @Produce json
+// @Param id path string true "policy ID"
+// @Param policy body UpdatePolicyRequest true "policy changes"
+// @Success 200 {object} Response
+// @Failure 400 {object} apierror.Response
+// @Failure 401 {object} apierror.Response
+// @Failure 403 {object} apierror.Response
+// @Failure 404 {object} apierror.Response
+// @Failure 500 {object} apierror.Response
+// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
+// @Router /auth/policies/{id} [patch]
+// @Security CookieSession
+func (h *HTTPHandler) Update(c *fiber.Ctx) error {
 	var request UpdatePolicyRequest
 	if err := apierror.BindJSON(c, &request); err != nil {
 		return err
@@ -201,37 +145,14 @@ func (h *HttpHandler) Update(c *fiber.Ctx) error {
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
-	updated, err := h.service.Update(c.Params("id"), input)
+	updated, err := h.service.Update(c.UserContext(), c.Params("id"), input)
 	if err != nil {
 		return mapPolicyError(err)
 	}
-	return c.JSON(updated)
+	return c.JSON(policyToResponse(updated))
 }
 
-// @Summary Update access policy
-// @Description Updates reason, expiry, or enabled state. Identity and kind are immutable.
-// @Tags Auth Policy
-// @Accept json
-// @Produce json
-// @Param id path string true "policy ID"
-// @Param policy body UpdatePolicyRequest true "policy changes"
-// @Success 200 {object} AccessPolicy
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /auth/policies/{id} [patch]
-func (h *HttpHandler) Delete(c *fiber.Ctx) error {
-	if strings.TrimSpace(c.Params("id")) == "" {
-		return apierror.Invalid(map[string]string{"id": "is required"})
-	}
-	if _, err := h.service.Disable(c.Params("id")); err != nil {
-		return mapPolicyError(err)
-	}
-	return c.SendStatus(fiber.StatusNoContent)
-}
-
+// Delete disables a policy without deleting its audit history.
 // @Summary Disable access policy
 // @Description Disables an allowlist or blacklist entry.
 // @Tags Auth Policy
@@ -241,7 +162,19 @@ func (h *HttpHandler) Delete(c *fiber.Ctx) error {
 // @Failure 403 {object} apierror.Response
 // @Failure 404 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
+// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
 // @Router /auth/policies/{id} [delete]
+// @Security CookieSession
+func (h *HTTPHandler) Delete(c *fiber.Ctx) error {
+	if strings.TrimSpace(c.Params("id")) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
+	if _, err := h.service.Disable(c.UserContext(), c.Params("id")); err != nil {
+		return mapPolicyError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func parseLimit(raw string) (int, error) {
 	if raw == "" {
 		return 50, nil
@@ -272,17 +205,14 @@ func decodeCursor(cursor string) (int, error) {
 	return offset, nil
 }
 
-func mapPolicyError(err error) error {
-	switch {
-	case errors.Is(err, ErrInvalidPolicy):
-		return apierror.Wrap(err, fiber.StatusBadRequest, "INVALID_REQUEST", "Invalid access policy")
-	case errors.Is(err, ErrPolicyNotFound):
-		return apierror.Wrap(err, fiber.StatusNotFound, "RESOURCE_NOT_FOUND", "Access policy not found")
-	case errors.Is(err, ErrPolicyConflict):
-		return apierror.Wrap(err, fiber.StatusConflict, "CONFLICT", "Access policy already exists")
-	case errors.Is(err, security.ErrPolicyUnavailable):
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Access policy is unavailable")
-	default:
-		return err
-	}
+// ServicePort is the policy functionality consumed by HTTP administration.
+type ServicePort interface {
+	// List returns the selected policy page.
+	List(ctx context.Context, filter ListFilter) (ListResult, error)
+	// Create adds a policy entry.
+	Create(ctx context.Context, input CreateInput) (*AccessPolicy, error)
+	// Update changes mutable fields of an existing entry.
+	Update(ctx context.Context, id string, input UpdateInput) (*AccessPolicy, error)
+	// Disable idempotently disables an existing entry.
+	Disable(ctx context.Context, id string) (*AccessPolicy, error)
 }

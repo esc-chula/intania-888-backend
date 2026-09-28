@@ -6,9 +6,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/pressly/goose/v3"
+
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/pkg/database"
-	"github.com/pressly/goose/v3"
 )
 
 func main() {
@@ -25,7 +26,7 @@ func main() {
 		}
 	}
 
-	db := database.NewGormDatabase(config.GetConfig())
+	db := database.NewGORMDatabase(config.GetConfig())
 	sqlDB, err := db.DB()
 	if err != nil {
 		log.Fatal(err)

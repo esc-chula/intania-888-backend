@@ -1,28 +1,28 @@
 package stakemine
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
-	"github.com/esc-chula/intania-888-backend/internal/apierror"
-	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
-	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
 )
 
-type StakeMineHttpHandler struct {
-	service StakeMineService
+// HTTPHandler serves Stake Mines HTTP endpoints.
+type HTTPHandler struct {
+	service ServicePort
 }
 
-func NewStakeMineHttpHandler(service StakeMineService) *StakeMineHttpHandler {
-	return &StakeMineHttpHandler{service: service}
+// NewHTTPHandler constructs Stake Mines HTTP handlers.
+func NewHTTPHandler(service ServicePort) *HTTPHandler {
+	return &HTTPHandler{service: service}
 }
 
-func (h *StakeMineHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/mines", mid.AuthMiddleware)
+// RegisterRoutes installs game routes using the supplied authentication middleware.
+func (h *HTTPHandler) RegisterRoutes(router fiber.Router, auth fiber.Handler) {
+	router = router.Group("/mines", auth)
 
 	router.Post("/create", h.CreateGame)
 	router.Post("/:id/reveal", h.RevealTile)
@@ -33,13 +33,15 @@ func (h *StakeMineHttpHandler) RegisterRoutes(router fiber.Router, mid *middlewa
 	router.Get("/:id", h.GetGame)
 }
 
+// CreateGame creates an authenticated game.
+//
 // @Summary Create a new Stake Mines game
 // @Description Start a new Stake Mines game with specified bet amount and risk level
 // @Tags StakeMines
 // @Accept json
 // @Produce json
-// @Param request body model.CreateMineGameRequest true "Game creation request"
-// @Success 200 {object} model.MineGameDto
+// @Param request body CreateGameRequest true "Game creation request"
+// @Success 200 {object} GameResponse
 // @Failure 400 {object} apierror.Response
 // @Failure 401 {object} apierror.Response
 // @Failure 403 {object} apierror.Response
@@ -48,34 +50,36 @@ func (h *StakeMineHttpHandler) RegisterRoutes(router fiber.Router, mid *middlewa
 // @Failure 422 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /mines/create [post]
-// @Security BearerAuth
-func (h *StakeMineHttpHandler) CreateGame(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
+// @Security CookieSession
+func (h *HTTPHandler) CreateGame(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	var req model.CreateMineGameRequest
+	var req CreateGameRequest
 	if err := apierror.BindJSON(c, &req); err != nil {
 		return err
 	}
 
-	game, err := h.service.CreateGame(profile.Id, &req)
+	game, err := h.service.CreateGame(c.UserContext(), profile.ID, CreateInput(req))
 	if err != nil {
 		return mapStakeMineError(err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(game)
+	return c.Status(fiber.StatusOK).JSON(gameResponse(game))
 }
 
+// RevealTile reveals a tile for the authenticated game owner.
+//
 // @Summary Reveal a tile in the game
 // @Description Reveal a specific tile in an active Stake Mines game
 // @Tags StakeMines
 // @Accept json
 // @Produce json
 // @Param id path string true "Game ID"
-// @Param request body model.RevealMineTileRequest true "Reveal tile request"
-// @Success 200 {object} map[string]interface{}
+// @Param request body RevealTileRequest true "Reveal tile request"
+// @Success 200 {object} RevealTileResponse
 // @Failure 400 {object} apierror.Response
 // @Failure 401 {object} apierror.Response
 // @Failure 403 {object} apierror.Response
@@ -83,39 +87,38 @@ func (h *StakeMineHttpHandler) CreateGame(c *fiber.Ctx) error {
 // @Failure 409 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /mines/{id}/reveal [post]
-// @Security BearerAuth
-func (h *StakeMineHttpHandler) RevealTile(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
+// @Security CookieSession
+func (h *HTTPHandler) RevealTile(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
-	gameId := c.Params("id")
-	if strings.TrimSpace(gameId) == "" {
+	gameID := c.Params("id")
+	if strings.TrimSpace(gameID) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
 
-	var req model.RevealMineTileRequest
+	var req RevealTileRequest
 	if err := apierror.BindJSON(c, &req); err != nil {
 		return err
 	}
 
-	game, message, err := h.service.RevealTile(profile.Id, gameId, &req)
+	game, message, err := h.service.RevealTile(c.UserContext(), profile.ID, gameID, RevealInput{Index: req.Index})
 	if err != nil {
 		return mapStakeMineError(err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": message,
-		"game":    game,
-	})
+	return c.Status(fiber.StatusOK).JSON(RevealTileResponse{Message: message, Game: gameResponse(game)})
 }
 
+// CashOut cashes out an authenticated game.
+//
 // @Summary Cash out from the current game
 // @Description Cash out and take winnings from an active Stake Mines game
 // @Tags StakeMines
 // @Produce json
 // @Param id path string true "Game ID"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} CashOutResponse
 // @Failure 400 {object} apierror.Response
 // @Failure 401 {object} apierror.Response
 // @Failure 403 {object} apierror.Response
@@ -123,95 +126,98 @@ func (h *StakeMineHttpHandler) RevealTile(c *fiber.Ctx) error {
 // @Failure 409 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /mines/{id}/cashout [post]
-// @Security BearerAuth
-func (h *StakeMineHttpHandler) CashOut(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
+// @Security CookieSession
+func (h *HTTPHandler) CashOut(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
-	gameId := c.Params("id")
-	if strings.TrimSpace(gameId) == "" {
+	gameID := c.Params("id")
+	if strings.TrimSpace(gameID) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
 
-	game, err := h.service.CashOut(profile.Id, gameId)
+	game, err := h.service.CashOut(c.UserContext(), profile.ID, gameID)
 	if err != nil {
 		return mapStakeMineError(err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Successfully cashed out!",
-		"game":    game,
-	})
+	return c.Status(fiber.StatusOK).JSON(CashOutResponse{Message: "Successfully cashed out!", Game: gameResponse(game)})
 }
 
+// GetGame serves an owned game.
+//
 // @Summary Get game details
 // @Description Get details of a specific Stake Mines game by ID
 // @Tags StakeMines
 // @Produce json
 // @Param id path string true "Game ID"
-// @Success 200 {object} model.MineGameDto
+// @Success 200 {object} GameResponse
 // @Failure 400 {object} apierror.Response
 // @Failure 401 {object} apierror.Response
 // @Failure 404 {object} apierror.Response
 // @Router /mines/{id} [get]
-// @Security BearerAuth
-func (h *StakeMineHttpHandler) GetGame(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
+// @Security CookieSession
+func (h *HTTPHandler) GetGame(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
-	gameId := c.Params("id")
-	if strings.TrimSpace(gameId) == "" {
+	gameID := c.Params("id")
+	if strings.TrimSpace(gameID) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
 
-	game, err := h.service.GetGame(profile.Id, gameId)
+	game, err := h.service.GetGame(c.UserContext(), profile.ID, gameID)
 	if err != nil {
 		return mapStakeMineError(err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(game)
+	return c.Status(fiber.StatusOK).JSON(gameResponse(game))
 }
 
+// GetActiveGame serves the authenticated account's active game.
+//
 // @Summary Get active game
 // @Description Get the current active Stake Mines game for the user
 // @Tags StakeMines
 // @Produce json
-// @Success 200 {object} model.MineGameDto
+// @Success 200 {object} GameResponse
 // @Failure 404 {object} apierror.Response
 // @Failure 401 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /mines/active [get]
-// @Security BearerAuth
-func (h *StakeMineHttpHandler) GetActiveGame(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
+// @Security CookieSession
+func (h *HTTPHandler) GetActiveGame(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	game, err := h.service.GetActiveGame(profile.Id)
+	game, err := h.service.GetActiveGame(c.UserContext(), profile.ID)
 	if err != nil {
 		return mapStakeMineError(err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(game)
+	return c.Status(fiber.StatusOK).JSON(gameResponse(game))
 }
 
+// GetHistory serves the existing newest-first game history page.
+//
 // @Summary Get game history
 // @Description Get user's Stake Mines game history with pagination
 // @Tags StakeMines
 // @Produce json
 // @Param limit query int false "Limit" default(20)
 // @Param offset query int false "Offset" default(0)
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} HistoryListResponse
 // @Failure 400 {object} apierror.Response
 // @Failure 401 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /mines/history [get]
-// @Security BearerAuth
-func (h *StakeMineHttpHandler) GetHistory(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
+// @Security CookieSession
+func (h *HTTPHandler) GetHistory(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
@@ -229,54 +235,35 @@ func (h *StakeMineHttpHandler) GetHistory(c *fiber.Ctx) error {
 		limit = 100
 	}
 
-	history, err := h.service.GetGameHistory(profile.Id, limit, offset)
+	history, err := h.service.GetGameHistory(c.UserContext(), profile.ID, limit, offset)
 	if err != nil {
 		return err
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"data":   history,
-		"limit":  limit,
-		"offset": offset,
-	})
+	return c.Status(fiber.StatusOK).JSON(HistoryListResponse{Data: historyResponses(history), Limit: limit, Offset: offset})
 }
 
+// GetStats serves realized game totals and active exposure.
+//
 // @Summary Get user statistics
 // @Description Get comprehensive statistics for the user's Stake Mines games
 // @Tags StakeMines
 // @Produce json
-// @Success 200 {object} model.MineGameStatsDto
+// @Success 200 {object} StatsResponse
 // @Failure 401 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /mines/stats [get]
-// @Security BearerAuth
-func (h *StakeMineHttpHandler) GetStats(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
+// @Security CookieSession
+func (h *HTTPHandler) GetStats(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	stats, err := h.service.GetStats(profile.Id)
+	stats, err := h.service.GetStats(c.UserContext(), profile.ID)
 	if err != nil {
 		return err
 	}
 
-	return c.Status(fiber.StatusOK).JSON(stats)
-}
-
-func mapStakeMineError(err error) error {
-	switch {
-	case errors.Is(err, ErrInvalidGameRequest):
-		return apierror.Wrap(err, fiber.StatusBadRequest, "INVALID_REQUEST", "Invalid Stake Mines request")
-	case errors.Is(err, ErrInsufficientBalance):
-		return apierror.Wrap(err, fiber.StatusUnprocessableEntity, "INSUFFICIENT_BALANCE", "Insufficient balance")
-	case errors.Is(err, ErrGameNotFound), errors.Is(err, ErrNoActiveGame), errors.Is(err, ErrUserNotFound), errors.Is(err, gorm.ErrRecordNotFound):
-		return apierror.Wrap(err, fiber.StatusNotFound, "RESOURCE_NOT_FOUND", "Stake Mines resource not found")
-	case errors.Is(err, ErrGameForbidden):
-		return apierror.Wrap(err, fiber.StatusForbidden, "FORBIDDEN", "Game access denied")
-	case errors.Is(err, ErrGameConflict):
-		return apierror.Wrap(err, fiber.StatusConflict, "GAME_STATE_CONFLICT", "Game state does not allow this action")
-	default:
-		return err
-	}
+	return c.Status(fiber.StatusOK).JSON(statsResponse(stats))
 }

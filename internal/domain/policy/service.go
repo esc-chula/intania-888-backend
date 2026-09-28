@@ -1,43 +1,37 @@
 package policy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/internal/security"
-	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
+
+	"github.com/esc-chula/intania-888-backend/internal/security"
 )
 
-const policyCacheTTL = 60
-
-var (
-	ErrInvalidPolicy  = errors.New("invalid access policy")
-	ErrPolicyNotFound = errors.New("access policy not found")
-	ErrPolicyConflict = errors.New("access policy already exists")
-)
-
-type service struct {
+// Service evaluates identities and manages access policies.
+type Service struct {
 	repo  Repository
-	cache Cache
+	cache SnapshotCache
 	log   *zap.Logger
 }
 
-func NewService(repo Repository, cache Cache, log *zap.Logger) Service {
+// NewService constructs a policy service with optional best-effort caching.
+func NewService(repo Repository, cache SnapshotCache, log *zap.Logger) *Service {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &service{repo: repo, cache: cache, log: log}
+	return &Service{repo: repo, cache: cache, log: log}
 }
 
-func (s *service) EvaluateLogin(email, googleSubject, role string) (security.PolicyDecision, error) {
-	policies, err := s.loadSnapshot()
+// EvaluateLogin checks blacklist rules before student, admin, and allowlist access.
+func (s *Service) EvaluateLogin(ctx context.Context, email, googleSubject, role string) (security.PolicyDecision, error) {
+	policies, err := s.loadSnapshot(ctx)
 	if err != nil {
 		return security.PolicyDecision{}, err
 	}
@@ -51,15 +45,17 @@ func (s *service) EvaluateLogin(email, googleSubject, role string) (security.Pol
 	return security.PolicyDecision{Allowed: allowed}, nil
 }
 
-func (s *service) IsBlacklisted(email, userID string) (bool, error) {
-	policies, err := s.loadSnapshot()
+// IsBlacklisted checks active email and Google subject blacklist entries.
+func (s *Service) IsBlacklisted(ctx context.Context, email, userID string) (bool, error) {
+	policies, err := s.loadSnapshot(ctx)
 	if err != nil {
 		return false, err
 	}
 	return matchesBlacklist(policies, security.NormalizeEmail(email), security.NormalizeGoogleSubject(userID)), nil
 }
 
-func (s *service) List(filter ListFilter) (ListResult, error) {
+// List validates filters and returns a page of policies.
+func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, error) {
 	if filter.Status == "" {
 		filter.Status = StatusActive
 	}
@@ -78,17 +74,18 @@ func (s *service) List(filter ListFilter) (ListResult, error) {
 	if filter.Offset < 0 {
 		return ListResult{}, ErrInvalidPolicy
 	}
-	return s.repo.List(filter)
+	return s.repo.List(ctx, filter)
 }
 
-func (s *service) Create(input CreateInput) (*AccessPolicy, error) {
+// Create normalizes and creates a policy, preserving a successful write if cache refresh fails.
+func (s *Service) Create(ctx context.Context, input CreateInput) (*AccessPolicy, error) {
 	normalized, err := ValidateCreateInput(input)
 	if err != nil {
 		return nil, err
 	}
-	if existing, findErr := s.repo.FindByIdentity(normalized.Kind, normalized.PrincipalType, normalized.Principal); findErr == nil && existing != nil {
+	if existing, findErr := s.repo.FindByIdentity(ctx, normalized.Kind, normalized.PrincipalType, normalized.Principal); findErr == nil && existing != nil {
 		return nil, ErrPolicyConflict
-	} else if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+	} else if findErr != nil && !errors.Is(findErr, ErrPolicyNotFound) {
 		return nil, findErr
 	}
 
@@ -103,20 +100,17 @@ func (s *service) Create(input CreateInput) (*AccessPolicy, error) {
 		CreatedAt:     time.Now().UTC(),
 		UpdatedAt:     time.Now().UTC(),
 	}
-	if err := s.repo.Create(policy); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, ErrPolicyConflict
-		}
+	if err := s.repo.Create(ctx, policy); err != nil {
 		return nil, err
 	}
-	s.refreshCacheBestEffort("create")
+	s.refreshCacheBestEffort(ctx, "create")
 	return policy, nil
 }
 
-func (s *service) Update(id string, input UpdateInput) (*AccessPolicy, error) {
-	policy, err := s.repo.FindByID(id)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+// Update changes only mutable policy fields.
+func (s *Service) Update(ctx context.Context, id string, input UpdateInput) (*AccessPolicy, error) {
+	policy, err := s.repo.FindByID(ctx, id)
+	if errors.Is(err, ErrPolicyNotFound) {
 		return nil, ErrPolicyNotFound
 	}
 	if err != nil {
@@ -141,16 +135,17 @@ func (s *service) Update(id string, input UpdateInput) (*AccessPolicy, error) {
 		policy.Enabled = input.Enabled
 	}
 	policy.UpdatedAt = time.Now().UTC()
-	if err := s.repo.Update(policy); err != nil {
+	if err := s.repo.Update(ctx, policy); err != nil {
 		return nil, err
 	}
-	s.refreshCacheBestEffort("update")
+	s.refreshCacheBestEffort(ctx, "update")
 	return policy, nil
 }
 
-func (s *service) Disable(id string) (*AccessPolicy, error) {
-	policy, err := s.repo.FindByID(id)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+// Disable idempotently disables an existing policy.
+func (s *Service) Disable(ctx context.Context, id string) (*AccessPolicy, error) {
+	policy, err := s.repo.FindByID(ctx, id)
+	if errors.Is(err, ErrPolicyNotFound) {
 		return nil, ErrPolicyNotFound
 	}
 	if err != nil {
@@ -161,15 +156,15 @@ func (s *service) Disable(id string) (*AccessPolicy, error) {
 	}
 	policy.Enabled = false
 	policy.UpdatedAt = time.Now().UTC()
-	if err := s.repo.Update(policy); err != nil {
+	if err := s.repo.Update(ctx, policy); err != nil {
 		return nil, err
 	}
-	s.refreshCacheBestEffort("disable")
+	s.refreshCacheBestEffort(ctx, "disable")
 	return policy, nil
 }
 
-func (s *service) refreshCacheBestEffort(operation string) {
-	if err := s.RefreshCache(); err != nil {
+func (s *Service) refreshCacheBestEffort(ctx context.Context, operation string) {
+	if err := s.RefreshCache(ctx); err != nil {
 		s.log.Warn("Policy mutation committed but cache refresh failed",
 			zap.String("operation", operation),
 			zap.Error(err),
@@ -177,41 +172,47 @@ func (s *service) refreshCacheBestEffort(operation string) {
 	}
 }
 
-func (s *service) RefreshCache() error {
+// RefreshCache replaces the active snapshot or invalidates it when refresh fails.
+func (s *Service) RefreshCache(ctx context.Context) error {
 	if s.cache == nil {
 		return nil
 	}
-	policies, err := s.repo.ListActive(time.Now())
+	policies, err := s.repo.ListActive(ctx, time.Now())
 	if err != nil {
-		_ = s.cache.DeleteValue(utils.ToPolicySnapshotCacheKey())
-		return fmt.Errorf("%w: refresh policy snapshot: %v", security.ErrPolicyUnavailable, err)
+		if cleanupErr := s.cache.Delete(ctx); cleanupErr != nil {
+			s.log.Warn("Unable to invalidate access policy cache", zap.Error(cleanupErr))
+		}
+		return fmt.Errorf("%w: refresh policy snapshot: %w", security.ErrPolicyUnavailable, err)
 	}
-	if err := s.cache.SetValue(utils.ToPolicySnapshotCacheKey(), policies, policyCacheTTL); err != nil {
-		_ = s.cache.DeleteValue(utils.ToPolicySnapshotCacheKey())
-		return fmt.Errorf("%w: write policy snapshot: %v", security.ErrPolicyUnavailable, err)
+	if err := s.cache.Store(ctx, policies); err != nil {
+		if cleanupErr := s.cache.Delete(ctx); cleanupErr != nil {
+			s.log.Warn("Unable to invalidate access policy cache", zap.Error(cleanupErr))
+		}
+		return fmt.Errorf("%w: write policy snapshot: %w", security.ErrPolicyUnavailable, err)
 	}
 	return nil
 }
 
-func (s *service) loadSnapshot() ([]*AccessPolicy, error) {
+func (s *Service) loadSnapshot(ctx context.Context) ([]*AccessPolicy, error) {
 	var policies []*AccessPolicy
 	if s.cache != nil {
-		if err := s.cache.GetValue(utils.ToPolicySnapshotCacheKey(), &policies); err == nil {
-			return policies, nil
+		if cached, err := s.cache.Load(ctx); err == nil {
+			return cached, nil
 		}
 	}
-	policies, err := s.repo.ListActive(time.Now())
+	policies, err := s.repo.ListActive(ctx, time.Now())
 	if err != nil {
-		return nil, fmt.Errorf("%w: load policy snapshot: %v", security.ErrPolicyUnavailable, err)
+		return nil, fmt.Errorf("%w: load policy snapshot: %w", security.ErrPolicyUnavailable, err)
 	}
 	if s.cache != nil {
-		if err := s.cache.SetValue(utils.ToPolicySnapshotCacheKey(), policies, policyCacheTTL); err != nil {
+		if err := s.cache.Store(ctx, policies); err != nil {
 			s.log.Warn("Unable to warm access policy cache", zap.Error(err))
 		}
 	}
 	return policies, nil
 }
 
+// ValidateCreateInput normalizes and validates a policy for service or bootstrap use.
 func ValidateCreateInput(input CreateInput) (CreateInput, error) {
 	input.Kind = strings.ToLower(strings.TrimSpace(input.Kind))
 	input.PrincipalType = strings.ToLower(strings.TrimSpace(input.PrincipalType))

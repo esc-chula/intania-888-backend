@@ -8,6 +8,9 @@ import "gorm.io/gorm"
 // discovering different parts of the same accumulator concurrently.
 const lifecycleLockKey int64 = 0x494e54414e494138
 
+// Acquire serializes billing lifecycle discovery using a transaction advisory lock.
+// The caller must supply an active transaction; PostgreSQL holds the lock until
+// commit or rollback. Other dialects return nil without acquiring a lock.
 func Acquire(tx *gorm.DB) error {
 	if tx.Name() != "postgres" {
 		return nil

@@ -6,22 +6,25 @@ import (
 	"os"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
-func NewGormDatabase(cfg config.Config) *gorm.DB {
+// NewGORMDatabase opens PostgreSQL using the configured credentials and SQL logger.
+// It preserves the existing startup contract and panics if the connection cannot open.
+func NewGORMDatabase(cfg config.Config) *gorm.DB {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
-		cfg.GetDb().Host,
-		cfg.GetDb().User,
-		cfg.GetDb().Password,
-		cfg.GetDb().Name,
-		cfg.GetDb().Port,
-		cfg.GetDb().SSLMode,
-		cfg.GetDb().Timezone,
+		cfg.GetDB().Host,
+		cfg.GetDB().User,
+		cfg.GetDB().Password,
+		cfg.GetDB().Name,
+		cfg.GetDB().Port,
+		cfg.GetDB().SSLMode,
+		cfg.GetDB().Timezone,
 	)
 
 	logger := logger.New(

@@ -36,6 +36,21 @@ definitions:
     required:
     - user_id
     type: object
+  event.SpinResponse:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/model.CandidatePreviewDto'
+        type: array
+      reward:
+        type: string
+      slots:
+        items:
+          type: string
+        type: array
+      stealToken:
+        $ref: '#/definitions/model.StealTokenDto'
+    type: object
   model.AdminUpdateUserDto:
     properties:
       group_id:
@@ -84,6 +99,17 @@ definitions:
         type: string
       rate:
         type: number
+    type: object
+  model.CandidatePreviewDto:
+    properties:
+      group_id:
+        type: string
+      index:
+        type: integer
+      name:
+        type: string
+      role_id:
+        type: string
     type: object
   model.ColorDto:
     properties:
@@ -273,6 +299,27 @@ definitions:
       user_id:
         type: string
     type: object
+  model.MineGameHistoryDto:
+    properties:
+      bet_amount:
+        type: string
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      final_payout:
+        type: string
+      game_id:
+        type: string
+      multiplier:
+        type: number
+      revealed_count:
+        type: integer
+      risk_level:
+        type: string
+      status:
+        type: string
+    type: object
   model.MineGameStatsDto:
     properties:
       active_current_payout:
@@ -340,6 +387,17 @@ definitions:
         type: string
       title:
         type: string
+    type: object
+  model.StealTokenDto:
+    properties:
+      expires_at:
+        type: string
+      message:
+        type: string
+      token:
+        type: string
+      victim_count:
+        type: integer
     type: object
   model.UpdateMatchRequest:
     properties:
@@ -504,6 +562,31 @@ definitions:
       reason:
         type: string
     type: object
+  stakemine.CashOutResponse:
+    properties:
+      game:
+        $ref: '#/definitions/model.MineGameDto'
+      message:
+        type: string
+    type: object
+  stakemine.HistoryListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/model.MineGameHistoryDto'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+    type: object
+  stakemine.RevealTileResponse:
+    properties:
+      game:
+        $ref: '#/definitions/model.MineGameDto'
+      message:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -589,6 +672,8 @@ paths:
           description: Service Unavailable
           schema:
             $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
       summary: Issue a one-hour external JWT
       tags:
       - Auth
@@ -616,6 +701,8 @@ paths:
           description: Service Unavailable
           schema:
             $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
       summary: Revoke an external JWT
       tags:
       - Auth
@@ -658,6 +745,8 @@ paths:
           description: session store or revocation unavailable
           schema:
             $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
       summary: Log out of browser session
       tags:
       - Auth
@@ -680,6 +769,8 @@ paths:
           description: session or policy unavailable
           schema:
             $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
       summary: Browser profile and CSRF token
       tags:
       - Auth
@@ -730,6 +821,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
       summary: List access policies
       tags:
       - Auth Policy
@@ -744,6 +837,11 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/policy.CreatePolicyRequest'
+      - description: Session-bound CSRF token returned by /auth/me
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -771,6 +869,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
       summary: Create access policy
       tags:
       - Auth Policy
@@ -781,6 +881,11 @@ paths:
       - description: policy ID
         in: path
         name: id
+        required: true
+        type: string
+      - description: Session-bound CSRF token returned by /auth/me
+        in: header
+        name: X-CSRF-Token
         required: true
         type: string
       responses:
@@ -802,6 +907,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
       summary: Disable access policy
       tags:
       - Auth Policy
@@ -822,6 +929,11 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/policy.UpdatePolicyRequest'
+      - description: Session-bound CSRF token returned by /auth/me
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -849,6 +961,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/apierror.Response'
+      security:
+      - CookieSession: []
       summary: Update access policy
       tags:
       - Auth Policy
@@ -864,7 +978,7 @@ paths:
               $ref: '#/definitions/model.BillHeadDto'
             type: array
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get the authenticated user's bills
       tags:
       - Bill
@@ -916,7 +1030,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Place an authoritative bill
       tags:
       - Bill
@@ -948,7 +1062,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get a bill by ID
       tags:
       - Bill
@@ -1000,7 +1114,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Void and refund a pending bill
       tags:
       - Bill
@@ -1016,7 +1130,7 @@ paths:
               $ref: '#/definitions/model.BillHeadDto'
             type: array
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get all bills (admin)
       tags:
       - Bill
@@ -1052,7 +1166,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get group stage table
       tags:
       - Color
@@ -1084,7 +1198,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get all color leaderboards
       tags:
       - Color
@@ -1112,7 +1226,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: List daily reward schedule
       tags:
       - Event
@@ -1124,6 +1238,11 @@ paths:
       - description: Reward date in DD-MM-YYYY format
         in: path
         name: date
+        required: true
+        type: string
+      - description: Session-bound CSRF token returned by /auth/me
+        in: header
+        name: X-CSRF-Token
         required: true
         type: string
       produces:
@@ -1156,7 +1275,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Delete a daily reward override
       tags:
       - Event
@@ -1177,6 +1296,11 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/model.SetDailyRewardRequest'
+      - description: Session-bound CSRF token returned by /auth/me
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -1203,7 +1327,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Set daily reward
       tags:
       - Event
@@ -1238,7 +1362,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Redeem daily reward
       tags:
       - Event
@@ -1251,14 +1375,18 @@ paths:
         name: spendAmount
         required: true
         type: string
+      - description: Session-bound CSRF token returned by /auth/me
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: slot result
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/event.SpinResponse'
         "400":
           description: invalid spend amount or user profile
           schema:
@@ -1280,7 +1408,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Spin the slot machine
       tags:
       - Event
@@ -1296,6 +1424,11 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/model.UseStealTokenRequestDto'
+      - description: Session-bound CSRF token returned by /auth/me
+        in: header
+        name: X-CSRF-Token
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -1332,7 +1465,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Use a steal token
       tags:
       - Event
@@ -1412,7 +1545,7 @@ paths:
       parameters:
       - description: Sport type ID
         in: query
-        name: typeId
+        name: typeID
         type: string
       - description: schedule or result
         in: query
@@ -1440,7 +1573,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: List matches
       tags:
       - Match
@@ -1480,7 +1613,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Create a match
       tags:
       - Match
@@ -1516,7 +1649,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Delete a match
       tags:
       - Match
@@ -1547,7 +1680,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get a match by ID
       tags:
       - Match
@@ -1594,7 +1727,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Update match details
       tags:
       - Match
@@ -1648,7 +1781,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Idempotently set a match result and settle affected bills
       tags:
       - Match
@@ -1696,7 +1829,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Update a match score
       tags:
       - Match
@@ -1712,7 +1845,7 @@ paths:
               type: string
             type: object
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get current server match time
       tags:
       - Match
@@ -1745,7 +1878,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get game details
       tags:
       - StakeMines
@@ -1764,8 +1897,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/stakemine.CashOutResponse'
         "400":
           description: Bad Request
           schema:
@@ -1791,7 +1923,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Cash out from the current game
       tags:
       - StakeMines
@@ -1818,8 +1950,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/stakemine.RevealTileResponse'
         "400":
           description: Bad Request
           schema:
@@ -1845,7 +1976,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Reveal a tile in the game
       tags:
       - StakeMines
@@ -1872,7 +2003,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get active game
       tags:
       - StakeMines
@@ -1925,7 +2056,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Create a new Stake Mines game
       tags:
       - StakeMines
@@ -1949,8 +2080,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/stakemine.HistoryListResponse'
         "400":
           description: Bad Request
           schema:
@@ -1964,7 +2094,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get game history
       tags:
       - StakeMines
@@ -1987,7 +2117,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get user statistics
       tags:
       - StakeMines
@@ -2010,7 +2140,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get all sport types
       tags:
       - SportType
@@ -2031,7 +2161,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get all users
       tags:
       - User
@@ -2056,7 +2186,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Get user by ID
       tags:
       - User
@@ -2100,7 +2230,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Update user
       tags:
       - User
@@ -2150,7 +2280,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
       security:
-      - BearerAuth: []
+      - CookieSession: []
       summary: Admin update user
       tags:
       - User
@@ -2161,5 +2291,12 @@ securityDefinitions:
     description: Type "Bearer" followed by a space and the token
     in: header
     name: Authorization
+    type: apiKey
+  CookieSession:
+    description: Browser cookie session (production uses __Host-session). Mutations
+      also require X-CSRF-Token and an allowed Origin. Swagger 2.0 has no native cookie
+      authentication; use an authenticated browser session.
+    in: header
+    name: Cookie
     type: apiKey
 swagger: "2.0"

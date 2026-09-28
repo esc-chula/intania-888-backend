@@ -9,52 +9,59 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
+
+	"github.com/gofiber/fiber/v2"
+
 	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
-	"github.com/esc-chula/intania-888-backend/utils"
-	"github.com/gofiber/fiber/v2"
 )
 
-type AuthHttpHandler struct {
-	service    AuthService
+// HTTPHandler adapts browser OAuth/session requests and administrator external-token operations.
+type HTTPHandler struct {
+	service    ServicePort
 	cfg        config.Config
-	mid        *middleware.MiddlewareHttpHandler
+	sessions   SessionReader
 	production bool
 }
 
-func NewAuthHttpHandler(service AuthService, cfg config.Config, production bool) *AuthHttpHandler {
-	return &AuthHttpHandler{service: service, cfg: cfg, production: production}
+// NewHTTPHandler binds authentication and session services to the configured browser cookie policy.
+func NewHTTPHandler(service ServicePort, sessions SessionReader, cfg config.Config, production bool) *HTTPHandler {
+	return &HTTPHandler{service: service, sessions: sessions, cfg: cfg, production: production}
 }
 
-func (h *AuthHttpHandler) sessionName() string {
-	return utils.SessionCookieName(h.production)
+func (h *HTTPHandler) sessionName() string {
+	return security.SessionCookieName(h.production)
 }
 
-func (h *AuthHttpHandler) oauthName() string {
-	return utils.OAuthCookieName(h.production)
+func (h *HTTPHandler) oauthName() string {
+	return security.OAuthCookieName(h.production)
 }
 
-func (h *AuthHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	h.mid = mid
+// RegisterRoutes registers login, callback, logout, and authenticated profile routes.
+// External-token administration requires both authentication and administrator middleware.
+func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fiber.Handler) {
 	router = router.Group("/auth")
 	router.Get("/login", h.Login)
 	router.Get("/callback", h.OAuthCallback)
 	router.Post("/logout", h.Logout)
-	router.Get("/me", mid.AuthMiddleware, h.GetMe)
+	router.Get("/me", authenticate, h.GetMe)
 
 	// Deprecated: external-token management remains available only while the
 	// external integration and its consumers are investigated.
-	router.Post("/external-tokens", mid.AuthMiddleware, mid.AdminMiddleware, h.IssueExternalToken)
-	router.Delete("/external-tokens/:id", mid.AuthMiddleware, mid.AdminMiddleware, h.RevokeExternalToken)
+	router.Post("/external-tokens", authenticate, admin, h.IssueExternalToken)
+	router.Delete("/external-tokens/:id", authenticate, admin, h.RevokeExternalToken)
 }
 
+// RegisterExternalRoutes registers the legacy profile route behind external bearer authentication.
+//
 // Deprecated: external API consumers have not been confirmed; keep this route
 // available until the original integration is understood.
-func (h *AuthHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router.Get("/me", mid.ExternalAPIMiddleware, h.GetExternalMe)
+func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, authenticate fiber.Handler) {
+	router.Get("/me", authenticate, h.GetExternalMe)
 }
 
+// Login returns the authorization URL and binds its state to a short-lived HttpOnly cookie.
 // @Summary Start Google OAuth login
 // @Description Retrieves a Google OAuth login URL and binds it to a short-lived browser cookie.
 // @Tags Auth
@@ -63,14 +70,14 @@ func (h *AuthHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middl
 // @Failure 400 {object} apierror.Response "redirect_to is not supported"
 // @Failure 503 {object} apierror.Response "OAuth login unavailable"
 // @Router /auth/login [get]
-func (h *AuthHttpHandler) Login(c *fiber.Ctx) error {
+func (h *HTTPHandler) Login(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
 	if _, ok := c.Queries()["redirect_to"]; ok {
 		return apierror.New(fiber.StatusBadRequest, "INVALID_REQUEST", "redirect_to is not supported")
 	}
 
-	login, err := h.service.StartOAuthLogin()
+	login, err := h.service.StartOAuthLogin(c.UserContext())
 	if err != nil || login == nil || login.URL == "" || login.State == "" {
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "OAuth login is unavailable")
 	}
@@ -90,9 +97,10 @@ func (h *AuthHttpHandler) Login(c *fiber.Ctx) error {
 		SameSite: fiber.CookieSameSiteLaxMode,
 	})
 
-	return c.JSON(fiber.Map{"url": login.URL})
+	return c.JSON(LoginResponse{URL: login.URL})
 }
 
+// OAuthCallback exchanges the browser-bound login request, sets the session cookie, and redirects to the fixed frontend URL.
 // @Summary Complete Google OAuth login
 // @Description Exchanges a state-bound Google authorization code and establishes a cookie session.
 // @Tags Auth
@@ -105,10 +113,11 @@ func (h *AuthHttpHandler) Login(c *fiber.Ctx) error {
 // @Failure 500 {object} apierror.Response "post-login redirect is not configured"
 // @Failure 503 {object} apierror.Response "OAuth login or access policy unavailable"
 // @Router /auth/callback [get]
-func (h *AuthHttpHandler) OAuthCallback(c *fiber.Ctx) error {
+func (h *HTTPHandler) OAuthCallback(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
 	credentials, err := h.service.VerifyOAuthLogin(
+		c.UserContext(),
 		c.Query("code"),
 		c.Query("state"),
 		c.Cookies(h.oauthName()),
@@ -141,6 +150,8 @@ func (h *AuthHttpHandler) OAuthCallback(c *fiber.Ctx) error {
 	return c.Redirect(redirect)
 }
 
+// Logout checks CSRF for an active browser session, revokes it, and clears its cookie.
+// Missing or expired sessions succeed; backend revocation failures remain retryable.
 // @Summary Log out of browser session
 // @Description Revokes the active server-side session and clears its browser cookie. An absent or expired session is already logged out.
 // @Tags Auth
@@ -148,7 +159,8 @@ func (h *AuthHttpHandler) OAuthCallback(c *fiber.Ctx) error {
 // @Failure 403 {object} apierror.Response "invalid CSRF token"
 // @Failure 503 {object} apierror.Response "session store or revocation unavailable"
 // @Router /auth/logout [post]
-func (h *AuthHttpHandler) Logout(c *fiber.Ctx) error {
+// @Security CookieSession
+func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
 	id := c.Cookies(h.sessionName())
@@ -157,11 +169,11 @@ func (h *AuthHttpHandler) Logout(c *fiber.Ctx) error {
 		return c.SendStatus(204)
 	}
 
-	if h.mid == nil {
+	if h.sessions == nil {
 		return apierror.New(fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
 	}
 
-	session, err := h.mid.Session(id)
+	session, err := h.sessions.Session(c.UserContext(), id)
 	if err != nil {
 		if errors.Is(err, middleware.ErrSessionMissing) {
 			h.clearCookie(c, h.sessionName(), true)
@@ -177,7 +189,7 @@ func (h *AuthHttpHandler) Logout(c *fiber.Ctx) error {
 		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Invalid CSRF token")
 	}
 
-	if err := h.service.Logout(id); err != nil {
+	if err := h.service.Logout(c.UserContext(), id); err != nil {
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
 	}
 
@@ -186,11 +198,7 @@ func (h *AuthHttpHandler) Logout(c *fiber.Ctx) error {
 	return c.SendStatus(204)
 }
 
-type MeResponse struct {
-	Profile   *model.UserDto `json:"profile"`
-	CSRFToken string         `json:"csrf_token"`
-}
-
+// GetMe returns the authenticated browser profile and its session-bound CSRF token.
 // @Summary Browser profile and CSRF token
 // @Description Retrieves the profile and CSRF token associated with the browser session cookie.
 // @Tags Auth
@@ -199,22 +207,24 @@ type MeResponse struct {
 // @Failure 401 {object} apierror.Response "unauthorized"
 // @Failure 503 {object} apierror.Response "session or policy unavailable"
 // @Router /auth/me [get]
-func (h *AuthHttpHandler) GetMe(c *fiber.Ctx) error {
+// @Security CookieSession
+func (h *HTTPHandler) GetMe(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
-	profile, _ := c.Locals("user").(*model.UserDto)
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	csrfToken, _ := c.Locals("csrf_token").(string)
+	csrfToken := httpidentity.CSRFToken(c)
 	if csrfToken == "" {
 		return apierror.New(fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
 	}
 
-	return c.JSON(MeResponse{Profile: profile, CSRFToken: csrfToken})
+	return c.JSON(MeResponse{Profile: httpidentity.Response(profile), CSRFToken: csrfToken})
 }
 
+// GetExternalMe returns the bearer-authenticated profile without exposing browser CSRF state.
 // @Summary External client profile
 // @Description Retrieves user profile data through Bearer authentication.
 // @Tags External
@@ -225,33 +235,16 @@ func (h *AuthHttpHandler) GetMe(c *fiber.Ctx) error {
 // @Failure 503 {object} apierror.Response "token, user, or policy status unavailable"
 // @Security BearerAuth
 // @Router /external/me [get]
-func (h *AuthHttpHandler) GetExternalMe(c *fiber.Ctx) error {
-	profile, _ := c.Locals("user").(*model.UserDto)
+func (h *HTTPHandler) GetExternalMe(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
 	if profile == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	return c.JSON(fiber.Map{"profile": profile})
+	return c.JSON(ExternalMeResponse{Profile: httpidentity.Response(profile)})
 }
 
-type ExternalTokenResponse struct {
-	Token     string `json:"token"`
-	ID        string `json:"id"`
-	ExpiresIn int    `json:"expires_in"`
-}
-
-type externalTokenRequest struct {
-	UserID string `json:"user_id" validate:"required"`
-}
-
-func (r externalTokenRequest) ValidateRequest() map[string]string {
-	if strings.TrimSpace(r.UserID) == "" {
-		return map[string]string{"user_id": "is required"}
-	}
-
-	return nil
-}
-
+// IssueExternalToken validates the selected account and returns its one-hour external JWT and revocation ID.
 // @Summary Issue a one-hour external JWT
 // @Tags Auth
 // @Deprecated
@@ -263,7 +256,8 @@ func (r externalTokenRequest) ValidateRequest() map[string]string {
 // @Failure 404 {object} apierror.Response
 // @Failure 503 {object} apierror.Response
 // @Router /auth/external-tokens [post]
-func (h *AuthHttpHandler) IssueExternalToken(c *fiber.Ctx) error {
+// @Security CookieSession
+func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
 	var req externalTokenRequest
@@ -271,12 +265,12 @@ func (h *AuthHttpHandler) IssueExternalToken(c *fiber.Ctx) error {
 		return err
 	}
 
-	issuer := utils.GetUserProfileFromCtx(c)
+	issuer := httpidentity.GetProfile(c)
 	if issuer == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	token, jti, err := h.service.IssueExternalToken(req.UserID)
+	token, jti, err := h.service.IssueExternalToken(c.UserContext(), req.UserID)
 	if err != nil {
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Token service is unavailable")
 	}
@@ -284,6 +278,7 @@ func (h *AuthHttpHandler) IssueExternalToken(c *fiber.Ctx) error {
 	return c.Status(201).JSON(ExternalTokenResponse{Token: token, ID: jti, ExpiresIn: 3600})
 }
 
+// RevokeExternalToken revokes the selected external JWT identifier and returns an empty success response.
 // @Summary Revoke an external JWT
 // @Tags Auth
 // @Deprecated
@@ -293,8 +288,9 @@ func (h *AuthHttpHandler) IssueExternalToken(c *fiber.Ctx) error {
 // @Failure 403 {object} apierror.Response
 // @Failure 503 {object} apierror.Response
 // @Router /auth/external-tokens/{id} [delete]
-func (h *AuthHttpHandler) RevokeExternalToken(c *fiber.Ctx) error {
-	issuer := utils.GetUserProfileFromCtx(c)
+// @Security CookieSession
+func (h *HTTPHandler) RevokeExternalToken(c *fiber.Ctx) error {
+	issuer := httpidentity.GetProfile(c)
 	if issuer == nil {
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
@@ -302,14 +298,14 @@ func (h *AuthHttpHandler) RevokeExternalToken(c *fiber.Ctx) error {
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
-	if err := h.service.RevokeExternalToken(c.Params("id")); err != nil {
+	if err := h.service.RevokeExternalToken(c.UserContext(), c.Params("id")); err != nil {
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Token service is unavailable")
 	}
 
 	return c.SendStatus(204)
 }
 
-func (h *AuthHttpHandler) clearCookie(c *fiber.Ctx, name string, httpOnly bool) {
+func (h *HTTPHandler) clearCookie(c *fiber.Ctx, name string, httpOnly bool) {
 	c.Cookie(&fiber.Cookie{
 		Name:     name,
 		Path:     "/",
@@ -321,7 +317,7 @@ func (h *AuthHttpHandler) clearCookie(c *fiber.Ctx, name string, httpOnly bool) 
 	})
 }
 
-func (h *AuthHttpHandler) postLoginRedirect(isNew bool) (string, error) {
+func (h *HTTPHandler) postLoginRedirect(isNew bool) (string, error) {
 	raw := strings.TrimSpace(h.service.GetPostLoginRedirectURL())
 	parsed, err := url.Parse(raw)
 
@@ -346,17 +342,4 @@ func setNoStoreHeaders(c *fiber.Ctx) {
 	c.Set(fiber.HeaderCacheControl, "no-store")
 	c.Set(fiber.HeaderPragma, "no-cache")
 	c.Set("Referrer-Policy", "no-referrer")
-}
-
-func mapAuthError(err error) error {
-	switch {
-	case errors.Is(err, ErrInvalidOAuthState):
-		return apierror.Wrap(err, fiber.StatusBadRequest, "INVALID_REQUEST", "Invalid or expired OAuth state")
-	case errors.Is(err, ErrUnverifiedEmail), errors.Is(err, ErrEmailNotAllowed):
-		return apierror.Wrap(err, fiber.StatusForbidden, "FORBIDDEN", "Email is not allowed")
-	case errors.Is(err, security.ErrPolicyUnavailable):
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Access policy is unavailable")
-	default:
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "OAuth login is unavailable")
-	}
 }

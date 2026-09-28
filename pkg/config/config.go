@@ -1,36 +1,52 @@
 package config
 
+// Config provides typed application settings to services and infrastructure adapters.
+// Getters return value snapshots; loading and security validation are separate steps.
 type Config interface {
+	// GetServer returns listener, environment, and public API URL settings.
 	GetServer() Server
-	GetDb() Db
+	// GetDB returns PostgreSQL connection settings.
+	GetDB() DB
+	// GetCache returns Redis connection settings.
 	GetCache() Cache
-	GetJwt() Jwt
+	// GetJWT returns the signing secret for external bearer tokens.
+	GetJWT() JWT
+	// GetOAuth returns Google OAuth credentials, redirects, and state lifetime.
 	GetOAuth() OAuth
+	// GetSession returns browser session idle and absolute lifetimes in seconds.
 	GetSession() Session
+	// GetSwagger returns documentation visibility and access settings.
 	GetSwagger() Swagger
-	GetCors() Cors
+	// GetCORS returns the configured browser origin allowlist.
+	GetCORS() CORS
+	// GetDailyReward returns the default daily reward as a decimal money string.
 	GetDailyReward() DailyReward
 }
 
 const (
-	DefaultSessionIdleTTLSeconds     = 7 * 24 * 3600
+	// DefaultSessionIdleTTLSeconds sets the inactivity limit to seven days.
+	DefaultSessionIdleTTLSeconds = 7 * 24 * 3600
+	// DefaultSessionAbsoluteTTLSeconds caps a browser session at thirty days.
 	DefaultSessionAbsoluteTTLSeconds = 30 * 24 * 3600
 )
 
+// Server contains the listener and public application URL configuration.
 type Server struct {
 	Origin string `mapstructure:"server_origin"`
 	Name   string `mapstructure:"server_name"`
 	Env    string `mapstructure:"server_env"`
-	Url    string `mapstructure:"server_url"`
+	URL    string `mapstructure:"server_url"`
 	Host   string `mapstructure:"server_host"`
 	Port   int    `mapstructure:"server_port"`
 }
 
-type Cors struct {
+// CORS contains the comma-separated exact origins allowed for browser requests.
+type CORS struct {
 	AllowOrigins string `mapstructure:"cors_allow_origins"`
 }
 
-type Db struct {
+// DB contains PostgreSQL connection credentials and session settings.
+type DB struct {
 	Host     string `mapstructure:"db_host"`
 	Port     int    `mapstructure:"db_port"`
 	User     string `mapstructure:"db_user"`
@@ -40,33 +56,41 @@ type Db struct {
 	Timezone string `mapstructure:"db_timezone"`
 }
 
+// Cache contains Redis connection credentials.
 type Cache struct {
 	Host     string `mapstructure:"cache_host"`
 	Port     int    `mapstructure:"cache_port"`
 	Password string `mapstructure:"cache_pass"`
 }
 
-type Jwt struct {
+// JWT contains the signing secret used by external bearer authentication.
+type JWT struct {
 	AccessTokenSecret string `mapstructure:"jwt_access_token_secret"`
 }
 
+// OAuth contains Google client credentials and fixed login redirect destinations.
+// StateExpiration is measured in seconds.
 type OAuth struct {
-	ClientId             string `mapstructure:"oauth_client_id"`
+	ClientID             string `mapstructure:"oauth_client_id"`
 	ClientSecret         string `mapstructure:"oauth_client_secret"`
-	RedirectUrl          string `mapstructure:"oauth_redirect_uri"`
-	PostLoginRedirectUrl string `mapstructure:"oauth_post_login_redirect_url"`
+	RedirectURL          string `mapstructure:"oauth_redirect_uri"`
+	PostLoginRedirectURL string `mapstructure:"oauth_post_login_redirect_url"`
 	StateExpiration      int    `mapstructure:"oauth_state_expiration"`
 }
 
+// Session contains browser session lifetimes measured in seconds.
+// Idle activity can extend a session only within its absolute lifetime.
 type Session struct {
 	IdleTTLSeconds     int `mapstructure:"session_idle_ttl_seconds"`
 	AbsoluteTTLSeconds int `mapstructure:"session_absolute_ttl_seconds"`
 }
 
+// DailyReward contains the default daily reward amount as a decimal money string.
 type DailyReward struct {
 	DefaultAmount string `mapstructure:"daily_reward_default_amount"`
 }
 
+// Swagger controls documentation routes and their optional Basic authentication.
 type Swagger struct {
 	Enabled     bool   `mapstructure:"swagger_enabled"`
 	RequireAuth bool   `mapstructure:"swagger_require_auth"`

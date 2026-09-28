@@ -77,6 +77,11 @@ const docTemplate = `{
         },
         "/auth/external-tokens": {
             "post": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
                 "tags": [
                     "Auth"
                 ],
@@ -135,6 +140,11 @@ const docTemplate = `{
         },
         "/auth/external-tokens/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
                 "tags": [
                     "Auth"
                 ],
@@ -211,6 +221,11 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
                 "description": "Revokes the active server-side session and clears its browser cookie. An absent or expired session is already logged out.",
                 "tags": [
                     "Auth"
@@ -237,6 +252,11 @@ const docTemplate = `{
         },
         "/auth/me": {
             "get": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
                 "description": "Retrieves the profile and CSRF token associated with the browser session cookie.",
                 "produces": [
                     "application/json"
@@ -269,6 +289,11 @@ const docTemplate = `{
         },
         "/auth/policies": {
             "get": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
                 "description": "Lists allowlist and blacklist entries for an administrator.",
                 "produces": [
                     "application/json"
@@ -343,6 +368,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
                 "description": "Creates an allowlist or blacklist entry.",
                 "consumes": [
                     "application/json"
@@ -363,6 +393,13 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/policy.CreatePolicyRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -407,6 +444,11 @@ const docTemplate = `{
         },
         "/auth/policies/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
                 "description": "Disables an allowlist or blacklist entry.",
                 "tags": [
                     "Auth Policy"
@@ -418,6 +460,13 @@ const docTemplate = `{
                         "description": "policy ID",
                         "name": "id",
                         "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
                         "required": true
                     }
                 ],
@@ -452,6 +501,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "CookieSession": []
+                    }
+                ],
                 "description": "Updates reason, expiry, or enabled state. Identity and kind are immutable.",
                 "consumes": [
                     "application/json"
@@ -479,6 +533,13 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/policy.UpdatePolicyRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -525,7 +586,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "produces": [
@@ -550,7 +611,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Breaking contract: money is a string and rates are calculated by the server.",
@@ -631,7 +692,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "produces": [
@@ -658,7 +719,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "consumes": [
@@ -739,7 +800,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "produces": [
@@ -790,7 +851,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Get group stage table with group id and sport type",
@@ -847,7 +908,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Get all colors with their leaderboard info",
@@ -898,7 +959,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Returns the configured default daily reward and date-specific overrides (admin only).",
@@ -941,7 +1002,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Creates or replaces the daily reward override for a specific date (admin only). Repeating the same request is safe.",
@@ -971,6 +1032,13 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/model.SetDailyRewardRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -1012,7 +1080,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Deletes the date-specific reward override so the default reward applies again (admin only).",
@@ -1029,6 +1097,13 @@ const docTemplate = `{
                         "description": "Reward date in DD-MM-YYYY format",
                         "name": "date",
                         "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
                         "required": true
                     }
                 ],
@@ -1079,7 +1154,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Redeem daily reward for the logged-in user",
@@ -1134,7 +1209,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Spins the slot machine using the requested coin amount",
@@ -1152,14 +1227,20 @@ const docTemplate = `{
                         "name": "spendAmount",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "slot result",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/event.SpinResponse"
                         }
                     },
                     "400": {
@@ -1199,7 +1280,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Uses a steal token against one of its eligible victims",
@@ -1222,6 +1303,13 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/model.UseStealTokenRequestDto"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Session-bound CSRF token returned by /auth/me",
+                        "name": "X-CSRF-Token",
+                        "in": "header",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -1389,7 +1477,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "produces": [
@@ -1403,7 +1491,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Sport type ID",
-                        "name": "typeId",
+                        "name": "typeID",
                         "in": "query"
                     },
                     {
@@ -1446,7 +1534,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "consumes": [
@@ -1511,7 +1599,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "produces": [
@@ -1538,7 +1626,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "produces": [
@@ -1587,7 +1675,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "consumes": [
@@ -1660,7 +1748,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "tags": [
@@ -1717,7 +1805,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "consumes": [
@@ -1801,7 +1889,7 @@ const docTemplate = `{
             "patch": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "consumes": [
@@ -1876,7 +1964,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Get the current active Stake Mines game for the user",
@@ -1919,7 +2007,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Start a new Stake Mines game with specified bet amount and risk level",
@@ -2000,7 +2088,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Get user's Stake Mines game history with pagination",
@@ -2031,8 +2119,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/stakemine.HistoryListResponse"
                         }
                     },
                     "400": {
@@ -2060,7 +2147,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Get comprehensive statistics for the user's Stake Mines games",
@@ -2097,7 +2184,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Get details of a specific Stake Mines game by ID",
@@ -2149,7 +2236,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Cash out and take winnings from an active Stake Mines game",
@@ -2173,8 +2260,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/stakemine.CashOutResponse"
                         }
                     },
                     "400": {
@@ -2220,7 +2306,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Reveal a specific tile in an active Stake Mines game",
@@ -2256,8 +2342,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/stakemine.RevealTileResponse"
                         }
                     },
                     "400": {
@@ -2303,7 +2388,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Get all sport types available in the system",
@@ -2340,7 +2425,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Retrieves a list of all users",
@@ -2374,7 +2459,7 @@ const docTemplate = `{
             "patch": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Allows admin to update user profile and coins. Role changes use the operator database workflow.",
@@ -2450,7 +2535,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Retrieves a single user by their ID",
@@ -2488,7 +2573,7 @@ const docTemplate = `{
             "patch": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "CookieSession": []
                     }
                 ],
                 "description": "Updates an existing user",
@@ -2612,6 +2697,29 @@ const docTemplate = `{
                 }
             }
         },
+        "event.SpinResponse": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CandidatePreviewDto"
+                    }
+                },
+                "reward": {
+                    "type": "string"
+                },
+                "slots": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "stealToken": {
+                    "$ref": "#/definitions/model.StealTokenDto"
+                }
+            }
+        },
         "model.AdminUpdateUserDto": {
             "type": "object",
             "required": [
@@ -2683,6 +2791,23 @@ const docTemplate = `{
                 },
                 "rate": {
                     "type": "number"
+                }
+            }
+        },
+        "model.CandidatePreviewDto": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role_id": {
+                    "type": "string"
                 }
             }
         },
@@ -2969,6 +3094,38 @@ const docTemplate = `{
                 }
             }
         },
+        "model.MineGameHistoryDto": {
+            "type": "object",
+            "properties": {
+                "bet_amount": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "final_payout": {
+                    "type": "string"
+                },
+                "game_id": {
+                    "type": "string"
+                },
+                "multiplier": {
+                    "type": "number"
+                },
+                "revealed_count": {
+                    "type": "integer"
+                },
+                "risk_level": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "model.MineGameStatsDto": {
             "type": "object",
             "properties": {
@@ -3068,6 +3225,23 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "model.StealTokenDto": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "victim_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -3316,6 +3490,45 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "stakemine.CashOutResponse": {
+            "type": "object",
+            "properties": {
+                "game": {
+                    "$ref": "#/definitions/model.MineGameDto"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "stakemine.HistoryListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MineGameHistoryDto"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                }
+            }
+        },
+        "stakemine.RevealTileResponse": {
+            "type": "object",
+            "properties": {
+                "game": {
+                    "$ref": "#/definitions/model.MineGameDto"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
@@ -3323,6 +3536,12 @@ const docTemplate = `{
             "description": "Type \"Bearer\" followed by a space and the token",
             "type": "apiKey",
             "name": "Authorization",
+            "in": "header"
+        },
+        "CookieSession": {
+            "description": "Browser cookie session (production uses __Host-session). Mutations also require X-CSRF-Token and an allowed Origin. Swagger 2.0 has no native cookie authentication; use an authenticated browser session.",
+            "type": "apiKey",
+            "name": "Cookie",
             "in": "header"
         }
     }

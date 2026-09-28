@@ -1,501 +1,155 @@
 package match
 
 import (
-	"errors"
-	"math/big"
-	"sort"
+	"context"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/internal/domain/billinglock"
-	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"github.com/esc-chula/intania-888-backend/internal/domain/betting"
+
+	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
-var (
-	ErrResultConflict = errors.New("conflicting terminal result")
-	ErrInvalidResult  = errors.New("invalid match result")
-	ErrInvalidMatch   = errors.New("invalid match")
-	ErrInvalidScore   = errors.New("invalid match score")
-)
-
-type matchServiceImpl struct {
-	repo MatchRepository
-	db   *gorm.DB
-	log  *zap.Logger
+// Service coordinates match operations and atomic bill settlement.
+type Service struct {
+	repo         Repository
+	transactions TransactionManager
+	now          func() time.Time
+	newID        func() string
 }
 
-func NewMatchService(repo MatchRepository, db *gorm.DB, log *zap.Logger) MatchService {
-	return &matchServiceImpl{repo: repo, db: db, log: log}
+// NewService constructs match use cases with explicit repository, clock, and ID dependencies.
+func NewService(repo Repository, transactions TransactionManager, now func() time.Time, newID func() string) *Service {
+	return &Service{repo: repo, transactions: transactions, now: now, newID: newID}
 }
 
-func (s *matchServiceImpl) CreateMatch(d *model.MatchDto) error {
-	if d == nil || d.TeamAId == "" || d.TeamBId == "" || d.TypeId == "" || !d.EndTime.After(d.StartTime) {
+// CreateMatch creates a match from validated application details.
+func (s *Service) CreateMatch(ctx context.Context, input *Input) error {
+	if input == nil || input.TeamAID == "" || input.TeamBID == "" || input.TypeID == "" || !input.EndTime.After(input.StartTime) {
 		return ErrInvalidMatch
 	}
-	if d.Id == "" {
-		d.Id = uuid.NewString()
+	if input.ID == "" {
+		input.ID = s.newID()
 	}
 
-	return s.repo.Create(mapMatchDtoToEntity(d))
+	return s.repo.Create(ctx, snapshotFromInput(input))
 }
 
-func rateFor(a, b int64, forA bool) (model.Rate, error) {
-	if a < 0 || b < 0 {
-		return model.Rate{}, model.ErrInvalidRate
+// GetMatch loads a match and computes its authoritative rates.
+func (s *Service) GetMatch(ctx context.Context, id string) (*Result, error) {
+	snapshot, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
 	}
 
-	den := new(big.Int).Add(big.NewInt(a), big.NewInt(1))
+	result := resultFromSnapshot(*snapshot)
 
-	if !forA {
-		den = new(big.Int).Add(big.NewInt(b), big.NewInt(1))
+	if snapshot.TeamAID != nil && snapshot.TeamBID != nil {
+		teamACount, err := s.repo.CountBetsForTeam(ctx, id, *snapshot.TeamAID)
+		if err != nil {
+			return nil, err
+		}
+
+		teamBCount, err := s.repo.CountBetsForTeam(ctx, id, *snapshot.TeamBID)
+		if err != nil {
+			return nil, err
+		}
+		result.TeamARate, err = rateFor(teamACount, teamBCount, true)
+		if err != nil {
+			return nil, err
+		}
+
+		result.TeamBRate, err = rateFor(teamACount, teamBCount, false)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	total := new(big.Int).Add(big.NewInt(a), big.NewInt(b))
-	total.Add(total, big.NewInt(2))
-
-	n := new(big.Int).Mul(total, big.NewInt(1_000_000))
-	q, r := new(big.Int), new(big.Int)
-
-	q.QuoRem(n, den, r)
-
-	if new(big.Int).Lsh(r, 1).Cmp(den) >= 0 {
-		q.Add(q, big.NewInt(1))
-	}
-
-	if !q.IsInt64() {
-		return model.Rate{}, model.ErrOverflow
-	}
-
-	return model.NewRateFromMicro(q.Int64())
+	return result, nil
 }
 
-func uniqueStrings(values []string) []string {
-	if len(values) < 2 {
-		return values
+// GetAllMatches loads matching records without changing the existing query sequence.
+func (s *Service) GetAllMatches(ctx context.Context, filter *Filter) ([]*Result, error) {
+	snapshots, err := s.repo.GetAll(ctx, filter, s.now())
+	if err != nil {
+		return nil, err
 	}
 
-	unique := values[:1]
+	results := make([]*Result, 0, len(snapshots))
 
-	for _, value := range values[1:] {
-		if value == unique[len(unique)-1] {
-			continue
+	for _, snapshot := range snapshots {
+		result, err := s.GetMatch(ctx, snapshot.ID)
+		if err != nil {
+			return nil, err
 		}
 
-		unique = append(unique, value)
+		results = append(results, result)
 	}
 
-	return unique
+	return results, nil
 }
 
-func (s *matchServiceImpl) GetMatch(id string) (*model.MatchDto, error) {
-	m, e := s.repo.GetById(id)
-	if e != nil {
-		return nil, e
-	}
-
-	d := mapMatchEntityToDto(m)
-
-	if m.TeamA_Id != nil && m.TeamB_Id != nil {
-		a, e := s.repo.CountBetsForTeam(id, *m.TeamA_Id)
-		if e != nil {
-			return nil, e
-		}
-
-		b, e := s.repo.CountBetsForTeam(id, *m.TeamB_Id)
-		if e != nil {
-			return nil, e
-		}
-		d.TeamARate, e = rateFor(a, b, true)
-		if e != nil {
-			return nil, e
-		}
-
-		d.TeamBRate, e = rateFor(a, b, false)
-		if e != nil {
-			return nil, e
-		}
-	}
-
-	return d, nil
-}
-
-func (s *matchServiceImpl) GetAllMatches(f *model.MatchFilter) ([]*model.MatchDto, error) {
-	ms, e := s.repo.GetAll(f)
-	if e != nil {
-		return nil, e
-	}
-
-	out := make([]*model.MatchDto, 0, len(ms))
-
-	for _, m := range ms {
-		d, e := s.GetMatch(m.Id)
-		if e != nil {
-			return nil, e
-		}
-
-		out = append(out, d)
-	}
-
-	return out, nil
-}
-
-func (s *matchServiceImpl) UpdateMatchScore(id string, d *model.ScoreDto) error {
-	if d == nil || d.TeamAScore < 0 || d.TeamBScore < 0 {
+// UpdateMatchScore updates scores without setting a terminal outcome.
+func (s *Service) UpdateMatchScore(ctx context.Context, id string, input *ScoreInput) error {
+	if input == nil || input.TeamAScore < 0 || input.TeamBScore < 0 {
 		return ErrInvalidScore
 	}
-	m, e := s.repo.GetById(id)
-	if e != nil {
-		return e
+	snapshot, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
 	}
 
-	m.TeamA_Score = &d.TeamAScore
-	m.TeamB_Score = &d.TeamBScore
+	snapshot.TeamAScore = &input.TeamAScore
+	snapshot.TeamBScore = &input.TeamBScore
 
-	return s.repo.UpdateScore(m)
+	return s.repo.UpdateScore(ctx, snapshot)
 }
 
-func (s *matchServiceImpl) UpdateMatch(id string, d *model.MatchDto) error {
-	if d == nil {
+// UpdateMatch updates match details using existing nonempty-field semantics.
+func (s *Service) UpdateMatch(ctx context.Context, id string, input *Input) error {
+	if input == nil {
 		return ErrInvalidMatch
 	}
-	m, e := s.repo.GetById(id)
-	if e != nil {
-		return e
+	snapshot, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
 	}
 
-	if d.TeamAId != "" {
-		m.TeamA_Id = &d.TeamAId
+	if input.TeamAID != "" {
+		snapshot.TeamAID = &input.TeamAID
 	}
 
-	if d.TeamBId != "" {
-		m.TeamB_Id = &d.TeamBId
+	if input.TeamBID != "" {
+		snapshot.TeamBID = &input.TeamBID
 	}
 
-	if d.TypeId != "" {
-		m.TypeId = d.TypeId
+	if input.TypeID != "" {
+		snapshot.TypeID = input.TypeID
 	}
 
-	if !d.StartTime.IsZero() {
-		m.StartTime = d.StartTime
+	if !input.StartTime.IsZero() {
+		snapshot.StartTime = input.StartTime
 	}
 
-	if !d.EndTime.IsZero() {
-		m.EndTime = d.EndTime
+	if !input.EndTime.IsZero() {
+		snapshot.EndTime = input.EndTime
 	}
-	if !m.EndTime.After(m.StartTime) {
+	if !snapshot.EndTime.After(snapshot.StartTime) {
 		return ErrInvalidMatch
 	}
 
-	return s.repo.UpdateMatch(m)
+	return s.repo.UpdateMatch(ctx, snapshot, s.now())
 }
 
-func (s *matchServiceImpl) DeleteMatch(id string) error {
-	return s.repo.Delete(id)
+// DeleteMatch deletes a match with its existing database constraints.
+func (s *Service) DeleteMatch(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
 }
 
-func (s *matchServiceImpl) GetTime() (string, error) {
-	return time.Now().UTC().Format(time.RFC3339), nil
+// GetTime returns the current server time in UTC.
+func (s *Service) GetTime() (string, error) {
+	return s.now().UTC().Format(time.RFC3339), nil
 }
 
-type settlement struct {
-	bill   *model.BillHead
-	status string
-	payout model.Money
-}
-
-func (s *matchServiceImpl) SetResult(id string, req *model.MatchResultRequest) error {
-	validOutcome := req != nil && (req.Outcome == "winner" || req.Outcome == "draw")
-	hasWinner := req != nil && req.WinnerId != nil && *req.WinnerId != ""
-	winnerResult := req != nil && req.Outcome == "winner"
-	drawResult := req != nil && req.Outcome == "draw"
-
-	if !validOutcome || (winnerResult && !hasWinner) || (drawResult && req.WinnerId != nil) {
-		return ErrInvalidResult
-	}
-
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		if e := billinglock.Acquire(tx); e != nil {
-			return e
-		}
-
-		var candidateBillIDs []string
-
-		if e := tx.
-			Table("bill_heads").
-			Select("DISTINCT bill_heads.id").
-			Joins("JOIN bill_lines ON bill_lines.bill_id=bill_heads.id").
-			Where("bill_lines.match_id=? AND bill_heads.status='PENDING'", id).
-			Order("bill_heads.id").
-			Scan(&candidateBillIDs).
-			Error; e != nil {
-			return e
-		}
-
-		matchIDs := []string{id}
-
-		if len(candidateBillIDs) > 0 {
-			var referencedMatchIDs []string
-
-			if e := tx.
-				Table("bill_lines").
-				Select("DISTINCT match_id").
-				Where("bill_id IN ?", candidateBillIDs).
-				Order("match_id").
-				Scan(&referencedMatchIDs).
-				Error; e != nil {
-				return e
-			}
-
-			matchIDs = append(matchIDs, referencedMatchIDs...)
-		}
-
-		sort.Strings(matchIDs)
-		matchIDs = uniqueStrings(matchIDs)
-
-		var lockedMatches []model.Match
-
-		if e := tx.
-			Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id IN ?", matchIDs).
-			Order("id").
-			Find(&lockedMatches).
-			Error; e != nil {
-			return e
-		}
-
-		if len(lockedMatches) != len(matchIDs) {
-			return gorm.ErrRecordNotFound
-		}
-
-		var m model.Match
-		found := false
-
-		for i := range lockedMatches {
-			if lockedMatches[i].Id != id {
-				continue
-			}
-
-			m = lockedMatches[i]
-			found = true
-			break
-		}
-
-		if !found {
-			return gorm.ErrRecordNotFound
-		}
-
-		if m.TeamA_Id == nil || m.TeamB_Id == nil {
-			return ErrInvalidResult
-		}
-
-		winnerIsKnown := req.Outcome != "winner" || *req.WinnerId == *m.TeamA_Id || *req.WinnerId == *m.TeamB_Id
-
-		if !winnerIsKnown {
-			return ErrInvalidResult
-		}
-
-		if m.IsDraw || m.WinnerId != nil {
-			sameDraw := req.Outcome == "draw" && m.IsDraw
-			sameWinner := req.Outcome == "winner" && m.WinnerId != nil && *m.WinnerId == *req.WinnerId
-			same := sameDraw || sameWinner
-
-			if same {
-				return nil
-			}
-
-			return ErrResultConflict
-		}
-
-		if req.Outcome == "draw" {
-			m.IsDraw = true
-			m.WinnerId = nil
-		} else {
-			m.WinnerId = req.WinnerId
-			m.IsDraw = false
-		}
-
-		matchUpdates := map[string]any{
-			"winner_id":  m.WinnerId,
-			"is_draw":    m.IsDraw,
-			"updated_at": time.Now(),
-		}
-
-		if e := tx.Model(&m).Updates(matchUpdates).Error; e != nil {
-			return e
-		}
-
-		var ids []string
-
-		if e := tx.
-			Table("bill_heads").
-			Select("DISTINCT bill_heads.id").
-			Joins("JOIN bill_lines ON bill_lines.bill_id=bill_heads.id").
-			Where("bill_lines.match_id=? AND bill_heads.status='PENDING'", id).
-			Order("bill_heads.id").
-			Scan(&ids).
-			Error; e != nil {
-			return e
-		}
-
-		if len(ids) == 0 {
-			return nil
-		}
-
-		var bills []*model.BillHead
-
-		if e := tx.
-			Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id IN ?", ids).
-			Order("id").
-			Find(&bills).
-			Error; e != nil {
-			return e
-		}
-
-		var lines []model.BillLine
-
-		if e := tx.
-			Preload("Match").
-			Where("bill_id IN ?", ids).
-			Order("bill_id, match_id").
-			Find(&lines).
-			Error; e != nil {
-			return e
-		}
-
-		byBill := map[string][]model.BillLine{}
-
-		for _, l := range lines {
-			if l.MatchId == id {
-				l.Match = m
-			}
-
-			byBill[l.BillId] = append(byBill[l.BillId], l)
-		}
-
-		sets := make([]settlement, 0)
-		userSet := map[string]bool{}
-
-		for _, b := range bills {
-			if b.Status != "PENDING" {
-				continue
-			}
-
-			all := true
-			lost := false
-			rates := []model.Rate{}
-
-			for _, l := range byBill[b.Id] {
-				lm := l.Match
-
-				if lm.IsDraw {
-					continue
-				}
-
-				if lm.WinnerId == nil {
-					all = false
-					continue
-				}
-
-				if *lm.WinnerId != l.BettingOn {
-					lost = true
-					break
-				}
-
-				rates = append(rates, model.MustRateFromMicro(l.Rate))
-			}
-
-			if lost {
-				sets = append(sets, settlement{
-					bill:   b,
-					status: "LOST",
-					payout: model.MustMoneyFromMinor(0),
-				})
-				userSet[b.UserId] = true
-			} else if all {
-				p, e := model.AccumulatorPayout(model.MustMoneyFromMinor(b.Total), rates)
-				if e != nil {
-					return e
-				}
-
-				sets = append(sets, settlement{
-					bill:   b,
-					status: "WON",
-					payout: p,
-				})
-				userSet[b.UserId] = true
-			}
-		}
-
-		uids := make([]string, 0, len(userSet))
-
-		for u := range userSet {
-			uids = append(uids, u)
-		}
-
-		sort.Strings(uids)
-
-		var users []model.User
-
-		if len(uids) > 0 {
-			if e := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id IN ?", uids).Order("id").Find(&users).Error; e != nil {
-				return e
-			}
-		}
-
-		um := map[string]*model.User{}
-
-		for i := range users {
-			um[users[i].Id] = &users[i]
-		}
-
-		now := time.Now()
-
-		for _, st := range sets {
-			p := st.payout.MinorUnits()
-
-			if st.status == "WON" && !st.payout.IsZero() {
-				u := um[st.bill.UserId]
-				nb, e := model.MustMoneyFromMinor(u.RemainingCoin).Add(st.payout)
-
-				if e != nil {
-					return e
-				}
-
-				if e = tx.Model(u).Update("remaining_coin", nb.MinorUnits()).Error; e != nil {
-					return e
-				}
-
-				u.RemainingCoin = nb.MinorUnits()
-			}
-
-			billUpdates := map[string]any{
-				"status":     st.status,
-				"payout":     p,
-				"settled_at": now,
-				"updated_at": now,
-			}
-
-			if e := tx.Model(st.bill).Updates(billUpdates).Error; e != nil {
-				return e
-			}
-
-			ev := model.BillTerminalEvent{
-				Id:        uuid.NewString(),
-				BillId:    st.bill.Id,
-				Kind:      "SETTLED",
-				Amount:    p,
-				CreatedAt: now,
-			}
-
-			if e := tx.Create(&ev).Error; e != nil {
-				return e
-			}
-		}
-
-		return nil
-	})
+func rateFor(a, b int64, forA bool) (value.Rate, error) {
+	return betting.SeededRate(a, b, forA)
 }

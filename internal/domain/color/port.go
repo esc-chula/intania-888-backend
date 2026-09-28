@@ -1,13 +1,19 @@
 package color
 
-import "github.com/esc-chula/intania-888-backend/internal/model"
+import "context"
 
-type ColorService interface {
-	GetAllLeaderboards(typeId string) ([]*model.ColorDto, error)
-	GetGroupStageTable(typeId, groupId string) ([]*model.ColorDto, error)
+// ServicePort exposes the leaderboard use cases required by HTTP.
+type ServicePort interface {
+	// GetAllLeaderboards returns color standings, optionally restricted to a sport type.
+	GetAllLeaderboards(context.Context, string) ([]*Leaderboard, error)
+	// GetGroupStageTable returns standings with optional sport-type and group-stage filters.
+	GetGroupStageTable(context.Context, string, string) ([]*Leaderboard, error)
 }
 
-type ColorRepository interface {
-	GetAllLeaderboards(typeId string) ([]*model.Color, error)
-	GetGroupStageTable(typeId, groupId string) ([]*model.Color, error)
+// Repository supplies leaderboard aggregate projections.
+type Repository interface {
+	// GetAllLeaderboards returns color standings, optionally restricted to a sport type.
+	GetAllLeaderboards(context.Context, string) ([]*Standing, error)
+	// GetGroupStageTable returns standings with optional sport-type and group-stage filters.
+	GetGroupStageTable(context.Context, string, string) ([]*Standing, error)
 }

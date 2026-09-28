@@ -3,6 +3,7 @@
 package integration_test
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"math"
@@ -12,18 +13,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/esc-chula/intania-888-backend/internal/domain/bill"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
-	"github.com/esc-chula/intania-888-backend/internal/domain/user"
-	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/esc-chula/intania-888-backend/internal/testutil"
-	"go.uber.org/zap"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
 type billingSuite struct {
 	postgres *testutil.Postgres
-	bills    bill.BillService
-	matches  match.MatchService
+	bills    *bill.Service
+	matches  *match.Service
 }
 
 func newBillingSuite(t *testing.T) *billingSuite {
@@ -44,19 +45,12 @@ func newBillingSuite(t *testing.T) *billingSuite {
 		}
 	})
 
+	billRepo := bill.NewGORMRepository(postgres.DB)
+	matchRepo := match.NewGORMRepository(postgres.DB)
 	return &billingSuite{
 		postgres: postgres,
-		bills: bill.NewBillService(
-			bill.NewBillRepository(postgres.DB),
-			user.NewUserRepository(postgres.DB),
-			postgres.DB,
-			zap.NewNop(),
-		),
-		matches: match.NewMatchService(
-			match.NewMatchRepository(postgres.DB),
-			postgres.DB,
-			zap.NewNop(),
-		),
+		bills:    bill.NewService(billRepo, billRepo, time.Now, uuid.NewString),
+		matches:  match.NewService(matchRepo, matchRepo, time.Now, uuid.NewString),
 	}
 }
 
@@ -100,13 +94,13 @@ func (s *billingSuite) reset(t *testing.T) {
 	}
 }
 
-func money(minor int64) model.Money {
-	return model.MustMoneyFromMinor(minor)
+func money(minor int64) value.Money {
+	return value.MustMoneyFromMinor(minor)
 }
 
-func line(matchID, teamID string) model.CreateBillLineRequest {
-	return model.CreateBillLineRequest{
-		MatchId:   matchID,
+func line(matchID, teamID string) bill.Selection {
+	return bill.Selection{
+		MatchID:   matchID,
 		BettingOn: teamID,
 	}
 }
@@ -115,10 +109,10 @@ func winner(id string) *string {
 	return &id
 }
 
-func (s *billingSuite) place(t *testing.T, userID string, stake int64, lines ...model.CreateBillLineRequest) *model.BillHeadDto {
+func (s *billingSuite) place(t *testing.T, userID string, stake int64, lines ...bill.Selection) *bill.Result {
 	t.Helper()
 
-	created, err := s.bills.CreateBill(userID, &model.CreateBillRequest{
+	created, err := s.bills.CreateBill(context.Background(), userID, &bill.CreateInput{
 		Total: money(stake),
 		Lines: lines,
 	})
@@ -209,13 +203,13 @@ func TestBillPlacementRejectsInvalidRequests(t *testing.T) {
 	tests := []struct {
 		name      string
 		prepare   func(*testing.T, *billingSuite)
-		request   model.CreateBillRequest
+		request   bill.CreateInput
 		wantError error
 		wantCash  int64
 	}{
 		{
 			name: "empty lines",
-			request: model.CreateBillRequest{
+			request: bill.CreateInput{
 				Total: money(10_00),
 			},
 			wantError: bill.ErrInvalidBill,
@@ -223,27 +217,27 @@ func TestBillPlacementRejectsInvalidRequests(t *testing.T) {
 		},
 		{
 			name: "duplicate matches",
-			request: model.CreateBillRequest{
+			request: bill.CreateInput{
 				Total: money(10_00),
-				Lines: []model.CreateBillLineRequest{line("M1", "A"), line("M1", "B")},
+				Lines: []bill.Selection{line("M1", "A"), line("M1", "B")},
 			},
 			wantError: bill.ErrInvalidBill,
 			wantCash:  100_00,
 		},
 		{
 			name: "missing match",
-			request: model.CreateBillRequest{
+			request: bill.CreateInput{
 				Total: money(10_00),
-				Lines: []model.CreateBillLineRequest{line("MISSING", "A")},
+				Lines: []bill.Selection{line("MISSING", "A")},
 			},
 			wantError: bill.ErrMatchNotFound,
 			wantCash:  100_00,
 		},
 		{
 			name: "invalid team",
-			request: model.CreateBillRequest{
+			request: bill.CreateInput{
 				Total: money(10_00),
-				Lines: []model.CreateBillLineRequest{line("M1", "C")},
+				Lines: []bill.Selection{line("M1", "C")},
 			},
 			wantError: bill.ErrInvalidBill,
 			wantCash:  100_00,
@@ -257,9 +251,9 @@ func TestBillPlacementRejectsInvalidRequests(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			request: model.CreateBillRequest{
+			request: bill.CreateInput{
 				Total: money(10_00),
-				Lines: []model.CreateBillLineRequest{line("M1", "A")},
+				Lines: []bill.Selection{line("M1", "A")},
 			},
 			wantError: bill.ErrInvalidBill,
 			wantCash:  100_00,
@@ -273,9 +267,9 @@ func TestBillPlacementRejectsInvalidRequests(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			request: model.CreateBillRequest{
+			request: bill.CreateInput{
 				Total: money(10_00),
-				Lines: []model.CreateBillLineRequest{line("M1", "A")},
+				Lines: []bill.Selection{line("M1", "A")},
 			},
 			wantError: bill.ErrInsufficientBalance,
 			wantCash:  1_00,
@@ -291,7 +285,7 @@ func TestBillPlacementRejectsInvalidRequests(t *testing.T) {
 				tc.prepare(t, s)
 			}
 
-			_, err := s.bills.CreateBill("U1", &tc.request)
+			_, err := s.bills.CreateBill(context.Background(), "U1", &tc.request)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("error = %v; want %v", err, tc.wantError)
 			}
@@ -311,9 +305,9 @@ func TestBillPlacementRejectsPayoutOverflow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := s.bills.CreateBill("U1", &model.CreateBillRequest{
+	_, err := s.bills.CreateBill(context.Background(), "U1", &bill.CreateInput{
 		Total: money(math.MaxInt64),
-		Lines: []model.CreateBillLineRequest{line("M1", "A")},
+		Lines: []bill.Selection{line("M1", "A")},
 	})
 	if err == nil {
 		t.Fatal("overflowing payout was accepted")
@@ -348,9 +342,9 @@ func TestBillPlacementRollsBackOnBalanceFailure(t *testing.T) {
 		}
 	}()
 
-	if _, err := s.bills.CreateBill("U1", &model.CreateBillRequest{
+	if _, err := s.bills.CreateBill(context.Background(), "U1", &bill.CreateInput{
 		Total: money(10_00),
-		Lines: []model.CreateBillLineRequest{line("M1", "A")},
+		Lines: []bill.Selection{line("M1", "A")},
 	}); err == nil {
 		t.Fatal("placement succeeded despite injected balance failure")
 	}
@@ -388,9 +382,9 @@ func TestConcurrentBillPlacementSerializesBalance(t *testing.T) {
 			defer group.Done()
 			<-start
 
-			_, err := s.bills.CreateBill("U1", &model.CreateBillRequest{
+			_, err := s.bills.CreateBill(context.Background(), "U1", &bill.CreateInput{
 				Total: money(7_00),
-				Lines: []model.CreateBillLineRequest{line("M1", "A")},
+				Lines: []bill.Selection{line("M1", "A")},
 			})
 			results <- err
 		}()
@@ -426,7 +420,7 @@ func TestConcurrentBillPlacementSerializesOdds(t *testing.T) {
 	s.reset(t)
 
 	start := make(chan struct{})
-	results := make(chan *model.BillHeadDto, 2)
+	results := make(chan *bill.Result, 2)
 	errorsCh := make(chan error, 2)
 	var group sync.WaitGroup
 
@@ -438,9 +432,9 @@ func TestConcurrentBillPlacementSerializesOdds(t *testing.T) {
 			defer group.Done()
 			<-start
 
-			created, err := s.bills.CreateBill(userID, &model.CreateBillRequest{
+			created, err := s.bills.CreateBill(context.Background(), userID, &bill.CreateInput{
 				Total: money(10_00),
-				Lines: []model.CreateBillLineRequest{line("M1", "A")},
+				Lines: []bill.Selection{line("M1", "A")},
 			})
 			if err != nil {
 				errorsCh <- err
@@ -479,11 +473,11 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 
 	created := s.place(t, "U1", 10_00, line("M1", "A"), line("M2", "A"))
 
-	if err := s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
 		t.Fatal(err)
 	}
 
-	status, payout, settledAt, voidedAt := s.billState(t, created.Id)
+	status, payout, settledAt, voidedAt := s.billState(t, created.ID)
 	if status != "PENDING" || payout.Valid || settledAt.Valid || voidedAt.Valid {
 		t.Fatalf("after first leg: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
@@ -492,11 +486,11 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 		t.Fatalf("balance after first leg = %d; want 90_00", got)
 	}
 
-	if err := s.matches.SetResult("M2", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M2", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
 		t.Fatal(err)
 	}
 
-	status, payout, settledAt, voidedAt = s.billState(t, created.Id)
+	status, payout, settledAt, voidedAt = s.billState(t, created.ID)
 	if status != "WON" || !payout.Valid || payout.Int64 != 40_00 || !settledAt.Valid || voidedAt.Valid {
 		t.Fatalf("after settlement: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
@@ -505,11 +499,11 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 		t.Fatalf("balance after settlement = %d; want 130_00", got)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 1 {
+	if got := s.eventCount(t, created.ID); got != 1 {
 		t.Fatalf("event count = %d; want 1", got)
 	}
 
-	if err := s.matches.SetResult("M2", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M2", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -517,11 +511,11 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 		t.Fatalf("balance after retry = %d; want 130_00", got)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 1 {
+	if got := s.eventCount(t, created.ID); got != 1 {
 		t.Fatalf("event count after retry = %d; want 1", got)
 	}
 
-	if err := s.matches.SetResult("M2", &model.MatchResultRequest{Outcome: "draw"}); !errors.Is(err, match.ErrResultConflict) {
+	if err := s.matches.SetResult(context.Background(), "M2", &match.ResultInput{Outcome: "draw"}); !errors.Is(err, match.ErrResultConflict) {
 		t.Fatalf("conflicting result error = %v; want %v", err, match.ErrResultConflict)
 	}
 }
@@ -529,21 +523,21 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 func TestSetResultHandlesDrawAndLoss(t *testing.T) {
 	tests := []struct {
 		name       string
-		result     *model.MatchResultRequest
+		result     *match.ResultInput
 		wantStatus string
 		wantPayout int64
 		wantCash   int64
 	}{
 		{
 			name:       "draw",
-			result:     &model.MatchResultRequest{Outcome: "draw"},
+			result:     &match.ResultInput{Outcome: "draw"},
 			wantStatus: "WON",
 			wantPayout: 10_00,
 			wantCash:   100_00,
 		},
 		{
 			name:       "loss",
-			result:     &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("B")},
+			result:     &match.ResultInput{Outcome: "winner", WinnerID: winner("B")},
 			wantStatus: "LOST",
 			wantPayout: 0,
 			wantCash:   90_00,
@@ -557,11 +551,11 @@ func TestSetResultHandlesDrawAndLoss(t *testing.T) {
 
 			created := s.place(t, "U1", 10_00, line("M1", "A"))
 
-			if err := s.matches.SetResult("M1", tc.result); err != nil {
+			if err := s.matches.SetResult(context.Background(), "M1", tc.result); err != nil {
 				t.Fatal(err)
 			}
 
-			status, payout, _, _ := s.billState(t, created.Id)
+			status, payout, _, _ := s.billState(t, created.ID)
 			if status != tc.wantStatus || !payout.Valid || payout.Int64 != tc.wantPayout {
 				t.Fatalf("status=%s payout=%v; want %s/%d", status, payout, tc.wantStatus, tc.wantPayout)
 			}
@@ -589,9 +583,9 @@ func TestConcurrentSetResultIsIdempotent(t *testing.T) {
 			defer group.Done()
 			<-start
 
-			results <- s.matches.SetResult("M1", &model.MatchResultRequest{
+			results <- s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
 				Outcome:  "winner",
-				WinnerId: winner("A"),
+				WinnerID: winner("A"),
 			})
 		}()
 	}
@@ -606,7 +600,7 @@ func TestConcurrentSetResultIsIdempotent(t *testing.T) {
 		}
 	}
 
-	status, payout, _, _ := s.billState(t, created.Id)
+	status, payout, _, _ := s.billState(t, created.ID)
 	if status != "WON" || !payout.Valid || payout.Int64 != 20_00 {
 		t.Fatalf("status=%s payout=%v; want WON/20_00", status, payout)
 	}
@@ -615,7 +609,7 @@ func TestConcurrentSetResultIsIdempotent(t *testing.T) {
 		t.Fatalf("balance = %d; want 110_00", got)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 1 {
+	if got := s.eventCount(t, created.ID); got != 1 {
 		t.Fatalf("event count = %d; want 1", got)
 	}
 }
@@ -637,9 +631,9 @@ func TestConcurrentAccumulatorResultsSettleOnce(t *testing.T) {
 			defer group.Done()
 			<-start
 
-			results <- s.matches.SetResult(matchID, &model.MatchResultRequest{
+			results <- s.matches.SetResult(context.Background(), matchID, &match.ResultInput{
 				Outcome:  "winner",
-				WinnerId: winner("A"),
+				WinnerID: winner("A"),
 			})
 		}()
 	}
@@ -654,7 +648,7 @@ func TestConcurrentAccumulatorResultsSettleOnce(t *testing.T) {
 		}
 	}
 
-	status, payout, _, _ := s.billState(t, created.Id)
+	status, payout, _, _ := s.billState(t, created.ID)
 	if status != "WON" || !payout.Valid || payout.Int64 != 40_00 {
 		t.Fatalf("status=%s payout=%v; want WON/40_00", status, payout)
 	}
@@ -663,7 +657,7 @@ func TestConcurrentAccumulatorResultsSettleOnce(t *testing.T) {
 		t.Fatalf("balance = %d; want 130_00", got)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 1 {
+	if got := s.eventCount(t, created.ID); got != 1 {
 		t.Fatalf("event count = %d; want 1", got)
 	}
 }
@@ -682,9 +676,9 @@ func TestConcurrentConflictingResultsHaveOneTerminalOutcome(t *testing.T) {
 		defer group.Done()
 		<-start
 
-		results <- s.matches.SetResult("M1", &model.MatchResultRequest{
+		results <- s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
 			Outcome:  "winner",
-			WinnerId: winner("A"),
+			WinnerID: winner("A"),
 		})
 	}()
 
@@ -692,7 +686,7 @@ func TestConcurrentConflictingResultsHaveOneTerminalOutcome(t *testing.T) {
 		defer group.Done()
 		<-start
 
-		results <- s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "draw"})
+		results <- s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "draw"})
 	}()
 
 	close(start)
@@ -716,12 +710,12 @@ func TestConcurrentConflictingResultsHaveOneTerminalOutcome(t *testing.T) {
 		t.Fatalf("successes=%d conflicts=%d; want one of each", successes, conflicts)
 	}
 
-	status, payout, _, _ := s.billState(t, created.Id)
+	status, payout, _, _ := s.billState(t, created.ID)
 	if status != "WON" || !payout.Valid || (payout.Int64 != 10_00 && payout.Int64 != 20_00) {
 		t.Fatalf("status=%s payout=%v; want WON with draw or winner payout", status, payout)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 1 {
+	if got := s.eventCount(t, created.ID); got != 1 {
 		t.Fatalf("event count = %d; want 1", got)
 	}
 }
@@ -742,7 +736,7 @@ func TestSetResultRollsBackOnAuditFailure(t *testing.T) {
 		}
 	}()
 
-	if err := s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err == nil {
+	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err == nil {
 		t.Fatal("settlement succeeded despite injected audit failure")
 	}
 
@@ -756,7 +750,7 @@ func TestSetResultRollsBackOnAuditFailure(t *testing.T) {
 		t.Fatalf("match result persisted after rollback: winner=%v draw=%v", winnerID, isDraw)
 	}
 
-	status, payout, settledAt, voidedAt := s.billState(t, created.Id)
+	status, payout, settledAt, voidedAt := s.billState(t, created.ID)
 	if status != "PENDING" || payout.Valid || settledAt.Valid || voidedAt.Valid {
 		t.Fatalf("bill changed after rollback: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
@@ -765,7 +759,7 @@ func TestSetResultRollsBackOnAuditFailure(t *testing.T) {
 		t.Fatalf("balance after rollback = %d; want 90_00", got)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 0 {
+	if got := s.eventCount(t, created.ID); got != 0 {
 		t.Fatalf("event count after rollback = %d; want 0", got)
 	}
 }
@@ -776,11 +770,11 @@ func TestVoidRefundsPendingBillAndIsIdempotent(t *testing.T) {
 
 	created := s.place(t, "U1", 10_00, line("M1", "A"))
 
-	if _, err := s.bills.VoidBill(created.Id, "ADMIN", "operator correction"); err != nil {
+	if _, err := s.bills.VoidBill(context.Background(), created.ID, "ADMIN", "operator correction"); err != nil {
 		t.Fatal(err)
 	}
 
-	status, payout, settledAt, voidedAt := s.billState(t, created.Id)
+	status, payout, settledAt, voidedAt := s.billState(t, created.ID)
 	if status != "VOIDED" || !payout.Valid || payout.Int64 != 10_00 || settledAt.Valid || !voidedAt.Valid {
 		t.Fatalf("voided bill: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
@@ -789,11 +783,11 @@ func TestVoidRefundsPendingBillAndIsIdempotent(t *testing.T) {
 		t.Fatalf("balance after void = %d; want 100_00", got)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 1 {
+	if got := s.eventCount(t, created.ID); got != 1 {
 		t.Fatalf("event count = %d; want 1", got)
 	}
 
-	if _, err := s.bills.VoidBill(created.Id, "ADMIN", "second request"); err != nil {
+	if _, err := s.bills.VoidBill(context.Background(), created.ID, "ADMIN", "second request"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -801,7 +795,7 @@ func TestVoidRefundsPendingBillAndIsIdempotent(t *testing.T) {
 		t.Fatalf("balance after void retry = %d; want 100_00", got)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 1 {
+	if got := s.eventCount(t, created.ID); got != 1 {
 		t.Fatalf("event count after retry = %d; want 1", got)
 	}
 }
@@ -812,15 +806,15 @@ func TestVoidAllowsPendingAccumulatorAfterResolvedLeg(t *testing.T) {
 
 	created := s.place(t, "U1", 10_00, line("M1", "A"), line("M2", "A"))
 
-	if err := s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := s.bills.VoidBill(created.Id, "ADMIN", "cancel accumulator"); err != nil {
+	if _, err := s.bills.VoidBill(context.Background(), created.ID, "ADMIN", "cancel accumulator"); err != nil {
 		t.Fatal(err)
 	}
 
-	status, payout, _, voidedAt := s.billState(t, created.Id)
+	status, payout, _, voidedAt := s.billState(t, created.ID)
 	if status != "VOIDED" || !payout.Valid || payout.Int64 != 10_00 || !voidedAt.Valid {
 		t.Fatalf("status=%s payout=%v voided=%v", status, payout, voidedAt)
 	}
@@ -836,11 +830,11 @@ func TestVoidRejectsSettledBill(t *testing.T) {
 
 	created := s.place(t, "U1", 10_00, line("M1", "A"))
 
-	if err := s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := s.bills.VoidBill(created.Id, "ADMIN", "too late"); !errors.Is(err, bill.ErrBillConflict) {
+	if _, err := s.bills.VoidBill(context.Background(), created.ID, "ADMIN", "too late"); !errors.Is(err, bill.ErrBillConflict) {
 		t.Fatalf("void error = %v; want %v", err, bill.ErrBillConflict)
 	}
 }
@@ -861,11 +855,11 @@ func TestVoidRollsBackOnAuditFailure(t *testing.T) {
 		}
 	}()
 
-	if _, err := s.bills.VoidBill(created.Id, "ADMIN", "triggered failure"); err == nil {
+	if _, err := s.bills.VoidBill(context.Background(), created.ID, "ADMIN", "triggered failure"); err == nil {
 		t.Fatal("void succeeded despite injected audit failure")
 	}
 
-	status, payout, settledAt, voidedAt := s.billState(t, created.Id)
+	status, payout, settledAt, voidedAt := s.billState(t, created.ID)
 	if status != "PENDING" || payout.Valid || settledAt.Valid || voidedAt.Valid {
 		t.Fatalf("bill changed after rollback: status=%s payout=%v settled=%v voided=%v", status, payout, settledAt, voidedAt)
 	}
@@ -874,7 +868,7 @@ func TestVoidRollsBackOnAuditFailure(t *testing.T) {
 		t.Fatalf("balance after rollback = %d; want 90_00", got)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 0 {
+	if got := s.eventCount(t, created.ID); got != 0 {
 		t.Fatalf("event count after rollback = %d; want 0", got)
 	}
 }
@@ -893,7 +887,7 @@ func TestVoidAndResultRaceHasOneTerminalTransition(t *testing.T) {
 		defer group.Done()
 		<-start
 
-		_, err := s.bills.VoidBill(created.Id, "ADMIN", "race void")
+		_, err := s.bills.VoidBill(context.Background(), created.ID, "ADMIN", "race void")
 		results <- err
 	}()
 
@@ -901,9 +895,9 @@ func TestVoidAndResultRaceHasOneTerminalTransition(t *testing.T) {
 		defer group.Done()
 		<-start
 
-		results <- s.matches.SetResult("M1", &model.MatchResultRequest{
+		results <- s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
 			Outcome:  "winner",
-			WinnerId: winner("A"),
+			WinnerID: winner("A"),
 		})
 	}()
 
@@ -914,7 +908,7 @@ func TestVoidAndResultRaceHasOneTerminalTransition(t *testing.T) {
 	for range results {
 	}
 
-	status, payout, settledAt, voidedAt := s.billState(t, created.Id)
+	status, payout, settledAt, voidedAt := s.billState(t, created.ID)
 	if status != "WON" && status != "VOIDED" {
 		t.Fatalf("status = %s; want WON or VOIDED", status)
 	}
@@ -927,7 +921,7 @@ func TestVoidAndResultRaceHasOneTerminalTransition(t *testing.T) {
 		t.Fatalf("invalid voided state: payout=%v settled=%v voided=%v", payout, settledAt, voidedAt)
 	}
 
-	if got := s.eventCount(t, created.Id); got != 1 {
+	if got := s.eventCount(t, created.ID); got != 1 {
 		t.Fatalf("event count = %d; want 1", got)
 	}
 
@@ -941,9 +935,9 @@ func TestSetResultRejectsWinnerOutsideMatch(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
 
-	err := s.matches.SetResult("M1", &model.MatchResultRequest{
+	err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
 		Outcome:  "winner",
-		WinnerId: winner("C"),
+		WinnerID: winner("C"),
 	})
 	if !errors.Is(err, match.ErrInvalidResult) {
 		t.Fatalf("error = %v; want %v", err, match.ErrInvalidResult)
@@ -960,7 +954,7 @@ func TestConcurrentResultRequestsFinishWithinTimeout(t *testing.T) {
 
 	go func() {
 		<-start
-		_ = s.matches.SetResult("M1", &model.MatchResultRequest{Outcome: "winner", WinnerId: winner("A")})
+		_ = s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")})
 		close(finished)
 	}()
 
@@ -970,5 +964,72 @@ func TestConcurrentResultRequestsFinishWithinTimeout(t *testing.T) {
 	case <-finished:
 	case <-time.After(5 * time.Second):
 		t.Fatal("settlement did not finish within timeout")
+	}
+}
+
+func TestBillTransactionCallbackRollsBackBalanceOnError(t *testing.T) {
+	suite := newBillingSuite(t)
+	suite.reset(t)
+	repository := bill.NewGORMRepository(suite.postgres.DB)
+	cause := errors.New("reject callback")
+	err := repository.WithinTransaction(context.Background(), func(tx bill.TransactionRepository) error {
+		if _, err := tx.LockBalance(context.Background(), "U1"); err != nil {
+			return err
+		}
+		if err := tx.UpdateBalance(context.Background(), "U1", money(1_00)); err != nil {
+			return err
+		}
+		return cause
+	})
+	if !errors.Is(err, cause) {
+		t.Fatalf("transaction error = %v; want callback cause", err)
+	}
+	var balance int64
+	if err := suite.postgres.SQL.QueryRow("SELECT remaining_coin FROM users WHERE id = 'U1'").Scan(&balance); err != nil {
+		t.Fatal(err)
+	}
+	if balance != 100_00 {
+		t.Fatalf("balance = %d; transaction failed to roll back", balance)
+	}
+}
+
+func TestMatchTransactionCallbackRollsBackResultAndBalanceOnError(t *testing.T) {
+	suite := newBillingSuite(t)
+	suite.reset(t)
+	repository := match.NewGORMRepository(suite.postgres.DB)
+	cause := errors.New("reject callback")
+	err := repository.WithinTransaction(context.Background(), func(tx match.TransactionRepository) error {
+		if err := tx.AcquireLifecycleLock(context.Background()); err != nil {
+			return err
+		}
+		matches, err := tx.LockMatches(context.Background(), []string{"M1"})
+		if err != nil {
+			return err
+		}
+		matches[0].IsDraw = true
+		if err := tx.UpdateResult(context.Background(), &matches[0], time.Now()); err != nil {
+			return err
+		}
+		if _, err := tx.LockUsers(context.Background(), []string{"U1"}); err != nil {
+			return err
+		}
+		if err := tx.UpdateBalance(context.Background(), "U1", money(1_00)); err != nil {
+			return err
+		}
+		return cause
+	})
+	if !errors.Is(err, cause) {
+		t.Fatalf("transaction error = %v; want callback cause", err)
+	}
+	var draw bool
+	if err := suite.postgres.SQL.QueryRow("SELECT is_draw FROM matches WHERE id = 'M1'").Scan(&draw); err != nil {
+		t.Fatal(err)
+	}
+	var balance int64
+	if err := suite.postgres.SQL.QueryRow("SELECT remaining_coin FROM users WHERE id = 'U1'").Scan(&balance); err != nil {
+		t.Fatal(err)
+	}
+	if draw || balance != 100_00 {
+		t.Fatalf("draw/balance = %v/%d; transaction failed to roll back", draw, balance)
 	}
 }

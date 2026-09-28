@@ -2,6 +2,10 @@ package main
 
 import (
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/esc-chula/intania-888-backend/cmd/server"
 	"github.com/esc-chula/intania-888-backend/internal/domain/auth"
@@ -14,13 +18,12 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/pkg/database"
 	"github.com/esc-chula/intania-888-backend/pkg/logger"
 	"github.com/esc-chula/intania-888-backend/pkg/oauth"
-	"go.uber.org/zap"
 )
 
 // @title Intania888 Backend - API
@@ -36,101 +39,104 @@ import (
 // @in header
 // @name Authorization
 // @description Type "Bearer" followed by a space and the token
+//
+// @securityDefinitions.apikey CookieSession
+// @in header
+// @name Cookie
+// @description Browser cookie session (production uses __Host-session). Mutations also require X-CSRF-Token and an allowed Origin. Swagger 2.0 has no native cookie authentication; use an authenticated browser session.
 func main() {
 	// config setup
 	cfg := config.GetConfig()
 	if err := config.ValidateSecurity(cfg); err != nil {
 		panic("invalid security configuration: " + err.Error())
 	}
-	defaultDailyReward, err := model.ParseMoney(cfg.GetDailyReward().DefaultAmount)
+	defaultDailyReward, err := value.ParseMoney(cfg.GetDailyReward().DefaultAmount)
 	if err != nil {
 		panic("invalid DAILY_REWARD_DEFAULT_AMOUNT: " + err.Error())
 	}
 
 	isProduction := strings.EqualFold(strings.TrimSpace(cfg.GetServer().Env), "production")
-	db := database.NewGormDatabase(cfg)
+	db := database.NewGORMDatabase(cfg)
 	cache := cache.NewRedisClient(cfg)
 	logger := logger.NewLogger(cfg)
 	oauthConfig := oauth.LoadOAuthConfig(cfg)
 
 	// init all layers
-	userRepo := user.NewUserRepository(db)
-	userSvc := user.NewUserService(userRepo, db, logger.Named("UserSvc"))
-	userHttp := user.NewUserHttpHandler(userSvc)
-	policyRepo := policy.NewRepository(db)
-	policySvc := policy.NewService(policyRepo, cache, logger.Named("PolicySvc"))
-	policyHttp := policy.NewHttpHandler(policySvc)
+	userRepo := user.NewGORMRepository(db)
+	userSvc := user.NewService(userRepo, logger.Named("UserSvc"))
+	userHTTP := user.NewHTTPHandler(userSvc)
+	policyRepo := policy.NewGORMRepository(db)
+	policySvc := policy.NewService(policyRepo, policy.NewRedisSnapshotCache(cache), logger.Named("PolicySvc"))
+	policyHTTP := policy.NewHTTPHandler(policySvc)
 
-	authRepo := auth.NewAuthRepository(*cache)
-	authSvc := auth.NewAuthService(
+	authRepo := auth.NewRedisRepository(cache)
+	authSvc := auth.NewService(
 		authRepo,
 		userRepo,
 		cfg,
-		logger.Named("AuthSvc"),
 		oauth.NewGoogleOAuthClient(oauthConfig, logger),
 		policySvc,
 	)
-	authHttp := auth.NewAuthHttpHandler(authSvc, cfg, isProduction)
 
-	midRepo := middleware.NewMiddlewareRepository(db)
-	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger.Named("MiddlewareSvc"), cfg, policySvc)
-	midHttp := middleware.NewMiddlewareHttpHandler(
+	midRepo := middleware.NewGORMRepository(db)
+	midSvc := middleware.NewService(midRepo, middleware.NewRedisSessionStore(cache), cfg, policySvc)
+	midHTTP := middleware.NewHTTPHandler(
 		midSvc,
-		logger,
 		isProduction,
 		cfg.GetSession().IdleTTLSeconds,
 	)
+	authHTTP := auth.NewHTTPHandler(authSvc, midHTTP, cfg, isProduction)
 
-	billRepo := bill.NewBillRepository(db)
-	billSvc := bill.NewBillService(billRepo, userRepo, db, logger.Named("BillSvc"))
-	billHttp := bill.NewBillHttpHandler(billSvc)
+	billRepo := bill.NewGORMRepository(db)
+	billSvc := bill.NewService(billRepo, billRepo, time.Now, uuid.NewString)
+	billHTTP := bill.NewHTTPHandler(billSvc)
 
-	matchRepo := match.NewMatchRepository(db)
-	matchSvc := match.NewMatchService(matchRepo, db, logger.Named("MatchSvc"))
-	matchHttp := match.NewMatchHttpHandler(matchSvc)
+	matchRepo := match.NewGORMRepository(db)
+	matchSvc := match.NewService(matchRepo, matchRepo, time.Now, uuid.NewString)
+	matchHTTP := match.NewHTTPHandler(matchSvc)
 
-	colorRepo := color.NewColorRepository(db)
-	colorSvc := color.NewColorService(colorRepo, logger.Named("ColorSvc"))
-	colorHttp := color.NewColorHttpHandler(colorSvc)
+	colorRepo := color.NewGORMRepository(db)
+	colorSvc := color.NewService(colorRepo, logger.Named("ColorSvc"))
+	colorHTTP := color.NewHTTPHandler(colorSvc)
 
-	eventRepo := event.NewEventRepository(db, *cache)
-	eventSvc := event.NewEventService(eventRepo, userRepo, defaultDailyReward, logger)
-	eventHttp := event.NewEventHttpHandler(eventSvc)
+	eventRepo := event.NewGORMRepository(db)
+	eventSvc := event.NewService(eventRepo, defaultDailyReward, logger)
+	eventHTTP := event.NewHTTPHandler(eventSvc)
 
-	stakeMineRepo := stakemine.NewStakeMineRepository(db)
-	stakeMineSvc := stakemine.NewStakeMineService(stakeMineRepo, db, logger.Named("StakeMineSvc"))
-	stakeMineHttp := stakemine.NewStakeMineHttpHandler(stakeMineSvc)
+	stakeMineRepo := stakemine.NewGORMRepository(db)
+	stakeMineSvc := stakemine.NewService(stakeMineRepo, logger.Named("StakeMineSvc"))
+	stakeMineHTTP := stakemine.NewHTTPHandler(stakeMineSvc)
 
-	sportTypeRepo := sporttype.NewSportTypeRepository(db)
-	sportTypeSvc := sporttype.NewSportTypeService(sportTypeRepo, logger.Named("SportTypeSvc"))
-	sportTypeHttp := sporttype.NewSportTypeHttpHandler(sportTypeSvc)
+	sportTypeRepo := sporttype.NewGORMRepository(db)
+	sportTypeSvc := sporttype.NewService(sportTypeRepo, logger.Named("SportTypeSvc"))
+	sportTypeHTTP := sporttype.NewHTTPHandler(sportTypeSvc)
 
 	// init router
-	httpServer, err := server.NewFiberHttpServer(cfg, logger)
+	httpServer, err := server.NewFiberHTTPServer(cfg, logger)
 	if err != nil {
 		logger.Fatal("invalid Swagger configuration", zap.Error(err))
 	}
 
-	router := httpServer.InitHttpServer()
+	router := httpServer.InitHTTPServer()
 
 	// register routes
-	userHttp.RegisterRoutes(router, midHttp)
-	authHttp.RegisterRoutes(router, midHttp)
-	policyHttp.RegisterRoutes(router, midHttp.AuthMiddleware, midHttp.AdminMiddleware)
-	billHttp.RegisterRoutes(router, midHttp)
-	matchHttp.RegisterRoutes(router, midHttp)
-	colorHttp.RegisterRoutes(router, midHttp)
-	eventHttp.RegisterRoutes(router, midHttp)
-	stakeMineHttp.RegisterRoutes(router, midHttp)
-	sportTypeHttp.RegisterRoutes(router, midHttp)
+	userHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	authHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	policyHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	billHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	matchHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	colorHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
+	eventHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	stakeMineHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
+	sportTypeHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
 
 	// Register external API routes. Deprecated: retain them while their original purpose and
 	// consumers are investigated. Do not add new integrations to these routes.
 	externalRouter := router.Group("/external")
 	//nolint:staticcheck // Keep the deprecated route available while its consumers are investigated.
-	userHttp.RegisterExternalRoutes(externalRouter, midHttp)
+	userHTTP.RegisterExternalRoutes(externalRouter, midHTTP.ExternalAPIMiddleware)
 	//nolint:staticcheck // Keep the deprecated route available while its consumers are investigated.
-	authHttp.RegisterExternalRoutes(externalRouter, midHttp)
+	authHTTP.RegisterExternalRoutes(externalRouter, midHTTP.ExternalAPIMiddleware)
 
 	// start server
 	httpServer.Start()

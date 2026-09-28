@@ -6,14 +6,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
+// RedisClient stores JSON values and coordinates atomic browser session operations.
+// Operations preserve caller cancellation and add a five-second timeout.
 type RedisClient struct {
 	client *redis.Client
 }
 
+// NewRedisClient configures a Redis connection without probing the server.
+// Connection failures are reported by subsequent operations.
 func NewRedisClient(cfg config.Config) *RedisClient {
 	addr := fmt.Sprintf("%s:%d", cfg.GetCache().Host, cfg.GetCache().Port)
 
@@ -29,8 +34,10 @@ func NewRedisClient(cfg config.Config) *RedisClient {
 	return &RedisClient{client: cache}
 }
 
-func (r *RedisClient) SetValue(key string, value interface{}, ttl int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// SetValue JSON-encodes value and stores it under key. The TTL is measured in seconds.
+// Encoding errors are returned before any Redis write occurs.
+func (r *RedisClient) SetValue(ctx context.Context, key string, value interface{}, ttl int) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	v, err := json.Marshal(value)
@@ -41,8 +48,10 @@ func (r *RedisClient) SetValue(key string, value interface{}, ttl int) error {
 	return r.client.Set(ctx, key, v, time.Duration(ttl)*time.Second).Err()
 }
 
-func (r *RedisClient) GetValue(key string, value interface{}) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// GetValue decodes the stored JSON into value, which must be a writable destination.
+// A missing key returns redis.Nil; decoding errors leave the Redis entry unchanged.
+func (r *RedisClient) GetValue(ctx context.Context, key string, value interface{}) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	v, err := r.client.Get(ctx, key).Result()
@@ -55,8 +64,10 @@ func (r *RedisClient) GetValue(key string, value interface{}) error {
 
 // ConsumeValue atomically reads and deletes a JSON value. It is used for
 // one-time OAuth state and other single-use cache entries.
-func (r *RedisClient) ConsumeValue(key string, value interface{}) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// The key is deleted before decoding, including when decoding fails.
+// A missing key returns redis.Nil.
+func (r *RedisClient) ConsumeValue(ctx context.Context, key string, value interface{}) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	v, err := r.client.GetDel(ctx, key).Result()
@@ -67,17 +78,18 @@ func (r *RedisClient) ConsumeValue(key string, value interface{}) error {
 	return json.Unmarshal([]byte(v), value)
 }
 
-func (r *RedisClient) DeleteValue(key string) error {
-	return r.DeleteValues(key)
+// DeleteValue removes one key and succeeds when it is already absent.
+func (r *RedisClient) DeleteValue(ctx context.Context, key string) error {
+	return r.DeleteValues(ctx, key)
 }
 
 // DeleteValues removes related session records in one Redis command.
-// DeleteValues removes related session records in one Redis command.
-func (r *RedisClient) DeleteValues(keys ...string) error {
+// An empty key list succeeds without contacting Redis.
+func (r *RedisClient) DeleteValues(ctx context.Context, keys ...string) error {
 	if len(keys) == 0 {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	return r.client.Del(ctx, keys...).Err()
@@ -85,7 +97,9 @@ func (r *RedisClient) DeleteValues(keys ...string) error {
 
 // RotateSession commits the new browser session and revokes the prior one in
 // one Redis operation. The per-user pointer never contains a raw session ID.
+// The session record uses idleTTLSeconds and the user pointer uses absoluteTTLSeconds.
 func (r *RedisClient) RotateSession(
+	ctx context.Context,
 	userKey, sessionKey, previousKey string,
 	value interface{},
 	idleTTLSeconds, absoluteTTLSeconds int,
@@ -95,7 +109,7 @@ func (r *RedisClient) RotateSession(
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	return r.client.Eval(
@@ -115,8 +129,10 @@ func (r *RedisClient) RotateSession(
 
 // ReadAndRenewSession returns the stored record only if it still exists. TTL
 // renewal is atomic with the read, so a concurrent logout cannot resurrect it.
-func (r *RedisClient) ReadAndRenewSession(key string, now int64, idleSeconds int, value interface{}) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// The stored expires_at and now are Unix seconds; idleSeconds is capped by the
+// remaining absolute lifetime. Missing or expired records return redis.Nil.
+func (r *RedisClient) ReadAndRenewSession(ctx context.Context, key string, now int64, idleSeconds int, value interface{}) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	raw, err := r.client.Eval(
@@ -140,12 +156,13 @@ func (r *RedisClient) ReadAndRenewSession(key string, now int64, idleSeconds int
 }
 
 // DeleteSession is idempotent and reports Redis failures to the caller.
-func (r *RedisClient) DeleteSession(key string) error {
-	return r.DeleteValues(key)
+func (r *RedisClient) DeleteSession(ctx context.Context, key string) error {
+	return r.DeleteValues(ctx, key)
 }
 
-func (r *RedisClient) HasKey(key string) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// HasKey reports whether key currently exists without reading or renewing its value.
+func (r *RedisClient) HasKey(ctx context.Context, key string) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	n, err := r.client.Exists(ctx, key).Result()
 	return n > 0, err

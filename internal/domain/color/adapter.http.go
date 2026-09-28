@@ -4,50 +4,55 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
-	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+
 	"github.com/gofiber/fiber/v2"
 )
 
-type ColorHttpHandler struct {
-	service ColorService
+// HTTPHandler exposes authenticated color and group-stage leaderboard queries.
+type HTTPHandler struct {
+	service ServicePort
 }
 
-func NewColorHttpHandler(service ColorService) *ColorHttpHandler {
-	return &ColorHttpHandler{service: service}
+// NewHTTPHandler constructs the leaderboard HTTP adapter.
+func NewHTTPHandler(service ServicePort) *HTTPHandler {
+	return &HTTPHandler{service: service}
 }
 
-func (h *ColorHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/colors", mid.AuthMiddleware)
+// RegisterRoutes registers authenticated leaderboard and group-stage read routes.
+func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Handler) {
+	router = router.Group("/colors", authenticate)
 
 	router.Get("/leaderboards", h.GetAllLeaderboards)
 	router.Get("/group-stage", h.GetGroupStageTable)
 }
 
+// GetAllLeaderboards validates the optional sport identifier and returns the color standings.
 // @Summary Get all color leaderboards
 // @Description Get all colors with their leaderboard info
 // @Tags Color
 // @Accept json
 // @Produce json
 // @Param type_id query string false "Type ID to filter"
-// @Success 200 {array} model.ColorDto
+// @Success 200 {array} Response
 // @Failure 400 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /colors/leaderboards [get]
-// @Security BearerAuth
-func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
-	typeId := c.Query("type_id", "")
-	if err := validateOptionalID("type_id", typeId); err != nil {
+// @Security CookieSession
+func (h *HTTPHandler) GetAllLeaderboards(c *fiber.Ctx) error {
+	typeID := c.Query("type_id", "")
+	if err := validateOptionalID("type_id", typeID); err != nil {
 		return err
 	}
 
-	colors, err := h.service.GetAllLeaderboards(typeId)
+	colors, err := h.service.GetAllLeaderboards(c.UserContext(), typeID)
 	if err != nil {
 		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to get leaderboards")
 	}
 
-	return c.Status(fiber.StatusOK).JSON(colors)
+	return c.Status(fiber.StatusOK).JSON(responses(colors))
 }
 
+// GetGroupStageTable validates optional sport and group identifiers and returns group-stage standings.
 // @Summary Get group stage table
 // @Description Get group stage table with group id and sport type
 // @Tags Color
@@ -55,27 +60,27 @@ func (h *ColorHttpHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 // @Produce json
 // @Param type_id query string false "Type ID to filter"
 // @Param group_id query string false "Group ID to filter"
-// @Success 200 {array} model.ColorDto
+// @Success 200 {array} Response
 // @Failure 400 {object} apierror.Response
 // @Failure 500 {object} apierror.Response
 // @Router /colors/group-stage [get]
-// @Security BearerAuth
-func (h *ColorHttpHandler) GetGroupStageTable(c *fiber.Ctx) error {
-	typeId := c.Query("type_id", "")
-	groupId := c.Query("group_id", "")
-	if err := validateOptionalID("type_id", typeId); err != nil {
+// @Security CookieSession
+func (h *HTTPHandler) GetGroupStageTable(c *fiber.Ctx) error {
+	typeID := c.Query("type_id", "")
+	groupID := c.Query("group_id", "")
+	if err := validateOptionalID("type_id", typeID); err != nil {
 		return err
 	}
-	if err := validateOptionalID("group_id", groupId); err != nil {
+	if err := validateOptionalID("group_id", groupID); err != nil {
 		return err
 	}
 
-	colors, err := h.service.GetGroupStageTable(typeId, groupId)
+	colors, err := h.service.GetGroupStageTable(c.UserContext(), typeID, groupID)
 	if err != nil {
 		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to get group stage table")
 	}
 
-	return c.Status(fiber.StatusOK).JSON(colors)
+	return c.Status(fiber.StatusOK).JSON(responses(colors))
 }
 
 func validateOptionalID(field, value string) error {

@@ -7,44 +7,45 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
+
 	"github.com/esc-chula/intania-888-backend/docs"
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
-	"github.com/gofiber/fiber/v2"
-	"go.uber.org/zap"
 )
 
 type swaggerTestConfig struct {
 	server  config.Server
 	swagger config.Swagger
-	cors    config.Cors
+	cors    config.CORS
 }
 
 func (c swaggerTestConfig) GetServer() config.Server   { return c.server }
 func (c swaggerTestConfig) GetSwagger() config.Swagger { return c.swagger }
-func (c swaggerTestConfig) GetCors() config.Cors       { return c.cors }
-func (c swaggerTestConfig) GetDb() config.Db           { return config.Db{} }
+func (c swaggerTestConfig) GetCORS() config.CORS       { return c.cors }
+func (c swaggerTestConfig) GetDB() config.DB           { return config.DB{} }
 func (c swaggerTestConfig) GetCache() config.Cache     { return config.Cache{} }
-func (c swaggerTestConfig) GetJwt() config.Jwt         { return config.Jwt{} }
+func (c swaggerTestConfig) GetJWT() config.JWT         { return config.JWT{} }
 func (c swaggerTestConfig) GetOAuth() config.OAuth     { return config.OAuth{} }
 func (c swaggerTestConfig) GetSession() config.Session { return config.Session{} }
 func (c swaggerTestConfig) GetDailyReward() config.DailyReward {
 	return config.DailyReward{}
 }
 
-func newSwaggerTestServer(t *testing.T, swaggerConfig config.Swagger) *FiberHttpServer {
+func newSwaggerTestServer(t *testing.T, swaggerConfig config.Swagger) *FiberHTTPServer {
 	t.Helper()
 
-	httpServer, err := NewFiberHttpServer(swaggerTestConfig{
-		server:  config.Server{Url: "http://localhost:8080/api/v1"},
+	httpServer, err := NewFiberHTTPServer(swaggerTestConfig{
+		server:  config.Server{URL: "http://localhost:8080/api/v1"},
 		swagger: swaggerConfig,
-		cors:    config.Cors{AllowOrigins: "http://localhost:3000"},
+		cors:    config.CORS{AllowOrigins: "http://localhost:3000"},
 	}, zap.NewNop())
 	if err != nil {
-		t.Fatalf("NewFiberHttpServer() error = %v", err)
+		t.Fatalf("NewFiberHTTPServer() error = %v", err)
 	}
 
-	httpServer.InitHttpServer()
+	httpServer.InitHTTPServer()
 	return httpServer
 }
 
@@ -117,15 +118,15 @@ func TestSwaggerIsNotServedUnderAPIPrefix(t *testing.T) {
 }
 
 func TestSwaggerCanBeDisabled(t *testing.T) {
-	httpServer, err := NewFiberHttpServer(swaggerTestConfig{
+	httpServer, err := NewFiberHTTPServer(swaggerTestConfig{
 		server:  config.Server{},
 		swagger: config.Swagger{Enabled: false},
-		cors:    config.Cors{AllowOrigins: "http://localhost:3000"},
+		cors:    config.CORS{AllowOrigins: "http://localhost:3000"},
 	}, zap.NewNop())
 	if err != nil {
-		t.Fatalf("NewFiberHttpServer() error = %v", err)
+		t.Fatalf("NewFiberHTTPServer() error = %v", err)
 	}
-	httpServer.InitHttpServer()
+	httpServer.InitHTTPServer()
 
 	response, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil))
 	if err != nil {
@@ -137,12 +138,12 @@ func TestSwaggerCanBeDisabled(t *testing.T) {
 }
 
 func TestSwaggerUsesConfiguredServerURL(t *testing.T) {
-	_, err := NewFiberHttpServer(swaggerTestConfig{
-		server:  config.Server{Url: "https://api.example.test/api/v1"},
+	_, err := NewFiberHTTPServer(swaggerTestConfig{
+		server:  config.Server{URL: "https://api.example.test/api/v1"},
 		swagger: config.Swagger{Enabled: true},
 	}, zap.NewNop())
 	if err != nil {
-		t.Fatalf("NewFiberHttpServer() error = %v", err)
+		t.Fatalf("NewFiberHTTPServer() error = %v", err)
 	}
 
 	if docs.SwaggerInfo.Host != "api.example.test" {
@@ -157,36 +158,36 @@ func TestSwaggerUsesConfiguredServerURL(t *testing.T) {
 }
 
 func TestSwaggerConfigurationRequiresURLAndCredentialsWhenEnabled(t *testing.T) {
-	_, err := NewFiberHttpServer(swaggerTestConfig{
+	_, err := NewFiberHTTPServer(swaggerTestConfig{
 		swagger: config.Swagger{Enabled: true},
 	}, zap.NewNop())
 	if err == nil {
-		t.Fatal("NewFiberHttpServer() error = nil, want missing SERVER_URL error")
+		t.Fatal("NewFiberHTTPServer() error = nil, want missing SERVER_URL error")
 	}
 
-	_, err = NewFiberHttpServer(swaggerTestConfig{
-		server: config.Server{Url: "http://localhost:8080/api/v1"},
+	_, err = NewFiberHTTPServer(swaggerTestConfig{
+		server: config.Server{URL: "http://localhost:8080/api/v1"},
 		swagger: config.Swagger{
 			Enabled:     true,
 			RequireAuth: true,
 		},
 	}, zap.NewNop())
 	if err == nil {
-		t.Fatal("NewFiberHttpServer() error = nil, want missing credential error")
+		t.Fatal("NewFiberHTTPServer() error = nil, want missing credential error")
 	}
 }
 
-func newOriginGuardTestServer(t *testing.T) (*FiberHttpServer, fiber.Router) {
+func newOriginGuardTestServer(t *testing.T) (*FiberHTTPServer, fiber.Router) {
 	t.Helper()
 
-	httpServer, err := NewFiberHttpServer(swaggerTestConfig{
+	httpServer, err := NewFiberHTTPServer(swaggerTestConfig{
 		server: config.Server{Env: "development"},
-		cors:   config.Cors{AllowOrigins: "https://frontend.example.test:8443,http://localhost:3000"},
+		cors:   config.CORS{AllowOrigins: "https://frontend.example.test:8443,http://localhost:3000"},
 	}, zap.NewNop())
 	if err != nil {
-		t.Fatalf("NewFiberHttpServer() error = %v", err)
+		t.Fatalf("NewFiberHTTPServer() error = %v", err)
 	}
-	return httpServer, httpServer.InitHttpServer()
+	return httpServer, httpServer.InitHTTPServer()
 }
 
 func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t *testing.T) {
@@ -252,7 +253,11 @@ func TestUnmatchedAPIPathUsesSharedErrorContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	}()
 	if response.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusNotFound)
 	}
@@ -288,8 +293,8 @@ func TestExternalAndOAuthCallbackPathsAreOriginAndCSRFExempt(t *testing.T) {
 }
 
 func TestWildcardCredentialOriginsAreRejected(t *testing.T) {
-	_, err := NewFiberHttpServer(swaggerTestConfig{
-		cors: config.Cors{AllowOrigins: "*"},
+	_, err := NewFiberHTTPServer(swaggerTestConfig{
+		cors: config.CORS{AllowOrigins: "*"},
 	}, zap.NewNop())
 	if err == nil {
 		t.Fatal("wildcard CORS origin was accepted with credentials enabled")

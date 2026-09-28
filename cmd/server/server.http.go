@@ -26,15 +26,18 @@ import (
 	swagger "github.com/arsmn/fiber-swagger/v2"
 )
 
-type FiberHttpServer struct {
+// FiberHTTPServer owns the HTTP application, shared middleware, and route composition.
+type FiberHTTPServer struct {
 	app            *fiber.App
 	cfg            config.Config
 	logger         *zap.Logger
 	allowedOrigins map[string]struct{}
 }
 
-func NewFiberHttpServer(cfg config.Config, logger *zap.Logger) (*FiberHttpServer, error) {
-	allowedOrigins, err := parseAllowedOrigins(cfg.GetCors().AllowOrigins)
+// NewFiberHTTPServer constructs the HTTP application after validating origins and Swagger settings.
+// It also sets the generated Swagger document's public URL metadata; it does not listen.
+func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger) (*FiberHTTPServer, error) {
+	allowedOrigins, err := parseAllowedOrigins(cfg.GetCORS().AllowOrigins)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +51,7 @@ func NewFiberHttpServer(cfg config.Config, logger *zap.Logger) (*FiberHttpServer
 		return nil, fmt.Errorf("swagger Basic Auth requires both SWAGGER_USERNAME and SWAGGER_PASSWORD")
 	}
 
-	return &FiberHttpServer{
+	return &FiberHTTPServer{
 		app: fiber.New(fiber.Config{
 			ErrorHandler: apierror.ErrorHandler(logger),
 		}),
@@ -63,7 +66,7 @@ func configureSwaggerInfo(cfg config.Config) error {
 		return nil
 	}
 
-	rawURL := strings.TrimSpace(cfg.GetServer().Url)
+	rawURL := strings.TrimSpace(cfg.GetServer().URL)
 	if rawURL == "" {
 		return fmt.Errorf("SERVER_URL is required when Swagger is enabled")
 	}
@@ -90,7 +93,9 @@ func configureSwaggerInfo(cfg config.Config) error {
 	return nil
 }
 
-func (s *FiberHttpServer) Start() {
+// Start listens on the configured address and blocks until an interrupt or termination signal.
+// Listener and shutdown failures preserve the existing fatal process-exit behavior.
+func (s *FiberHTTPServer) Start() {
 	url := fmt.Sprintf("%v:%d", s.cfg.GetServer().Host, s.cfg.GetServer().Port)
 
 	// init modules
@@ -123,7 +128,9 @@ func (s *FiberHttpServer) Start() {
 	s.logger.Sugar().Info("Server shutdown complete.")
 }
 
-func (s *FiberHttpServer) InitHttpServer() fiber.Router {
+// InitHTTPServer installs request IDs, documentation routes, and shared API middleware.
+// It returns the /api/v1 router for feature registration and should be called once at startup.
+func (s *FiberHTTPServer) InitHTTPServer() fiber.Router {
 	s.app.Use(apierror.RequestID())
 	s.registerSwagger()
 
@@ -135,7 +142,7 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 
 	// enable cors
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     s.cfg.GetCors().AllowOrigins,
+		AllowOrigins:     s.cfg.GetCORS().AllowOrigins,
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
 		AllowHeaders:     "Origin,X-PINGOTHER,Accept,Authorization,Content-Type,X-CSRF-Token",
 		ExposeHeaders:    "Link,X-Request-ID",
@@ -169,7 +176,7 @@ func (s *FiberHttpServer) InitHttpServer() fiber.Router {
 	return router
 }
 
-func (s *FiberHttpServer) registerSwagger() {
+func (s *FiberHTTPServer) registerSwagger() {
 	swaggerConfig := s.cfg.GetSwagger()
 	if !swaggerConfig.Enabled {
 		return
@@ -190,7 +197,9 @@ func (s *FiberHttpServer) registerSwagger() {
 	s.app.Get("/swagger/*", swagger.HandlerDefault)
 }
 
-func (s *FiberHttpServer) OriginGuard() fiber.Handler {
+// OriginGuard enforces exact configured browser origins and permits safe reads without Origin.
+// External routes and the OAuth callback are exempt from this browser origin policy.
+func (s *FiberHTTPServer) OriginGuard() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if isExternalPath(c.Path()) || c.Path() == "/api/v1/auth/callback" {
 			return c.Next()
@@ -208,7 +217,7 @@ func (s *FiberHttpServer) OriginGuard() fiber.Handler {
 	}
 }
 
-func (s *FiberHttpServer) isAllowedOrigin(origin string) bool {
+func (s *FiberHTTPServer) isAllowedOrigin(origin string) bool {
 	canonical, err := canonicalOrigin(origin)
 	if err != nil {
 		return false

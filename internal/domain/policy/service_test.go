@@ -1,16 +1,16 @@
 package policy
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/internal/security"
-	"github.com/esc-chula/intania-888-backend/utils"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
+
+	"github.com/esc-chula/intania-888-backend/internal/security"
 )
 
 type fakeRepository struct {
@@ -29,14 +29,14 @@ func newFakeRepository(policies ...*AccessPolicy) *fakeRepository {
 	return &fakeRepository{active: policies, items: items}
 }
 
-func (r *fakeRepository) ListActive(time.Time) ([]*AccessPolicy, error) {
+func (r *fakeRepository) ListActive(_ context.Context, _ time.Time) ([]*AccessPolicy, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.listCall++
 	return append([]*AccessPolicy(nil), r.active...), nil
 }
 
-func (r *fakeRepository) List(filter ListFilter) (ListResult, error) {
+func (r *fakeRepository) List(_ context.Context, filter ListFilter) (ListResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	items := make([]*AccessPolicy, 0, len(r.items))
@@ -52,17 +52,17 @@ func (r *fakeRepository) List(filter ListFilter) (ListResult, error) {
 	return ListResult{Items: items}, nil
 }
 
-func (r *fakeRepository) FindByID(id string) (*AccessPolicy, error) {
+func (r *fakeRepository) FindByID(_ context.Context, id string) (*AccessPolicy, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	policy, ok := r.items[id]
 	if !ok {
-		return nil, gorm.ErrRecordNotFound
+		return nil, ErrPolicyNotFound
 	}
 	return policy, nil
 }
 
-func (r *fakeRepository) FindByIdentity(kind, principalType, principal string) (*AccessPolicy, error) {
+func (r *fakeRepository) FindByIdentity(_ context.Context, kind, principalType, principal string) (*AccessPolicy, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, policy := range r.items {
@@ -70,10 +70,10 @@ func (r *fakeRepository) FindByIdentity(kind, principalType, principal string) (
 			return policy, nil
 		}
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, ErrPolicyNotFound
 }
 
-func (r *fakeRepository) Create(policy *AccessPolicy) error {
+func (r *fakeRepository) Create(_ context.Context, policy *AccessPolicy) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.create++
@@ -82,7 +82,7 @@ func (r *fakeRepository) Create(policy *AccessPolicy) error {
 	return nil
 }
 
-func (r *fakeRepository) Update(policy *AccessPolicy) error {
+func (r *fakeRepository) Update(_ context.Context, policy *AccessPolicy) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[policy.ID] = policy
@@ -104,7 +104,7 @@ type fakeCache struct {
 
 func newFakeCache() *fakeCache { return &fakeCache{values: make(map[string][]byte)} }
 
-func (c *fakeCache) SetValue(key string, value interface{}, _ int) error {
+func (c *fakeCache) SetValue(_ context.Context, key string, value interface{}, _ int) error {
 	if c.setErr != nil {
 		return c.setErr
 	}
@@ -119,7 +119,7 @@ func (c *fakeCache) SetValue(key string, value interface{}, _ int) error {
 	return nil
 }
 
-func (c *fakeCache) GetValue(key string, value interface{}) error {
+func (c *fakeCache) GetValue(_ context.Context, key string, value interface{}) error {
 	if c.getErr != nil {
 		return c.getErr
 	}
@@ -132,7 +132,7 @@ func (c *fakeCache) GetValue(key string, value interface{}) error {
 	return json.Unmarshal(encoded, value)
 }
 
-func (c *fakeCache) DeleteValue(key string) error {
+func (c *fakeCache) DeleteValue(_ context.Context, key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.values, key)
@@ -143,9 +143,9 @@ func TestEvaluateLoginUsesAllowlistAndAdminImplicitAllow(t *testing.T) {
 	repo := newFakeRepository(
 		&AccessPolicy{ID: "allow", Kind: KindAllowlist, PrincipalType: PrincipalEmail, Principal: "partner@example.com", Enabled: true},
 	)
-	service := NewService(repo, newFakeCache(), zap.NewNop())
+	service := NewService(repo, NewRedisSnapshotCache(newFakeCache()), zap.NewNop())
 
-	decision, err := service.EvaluateLogin(" PARTNER@EXAMPLE.COM ", "subject", security.RoleUser)
+	decision, err := service.EvaluateLogin(context.Background(), " PARTNER@EXAMPLE.COM ", "subject", security.RoleUser)
 	if err != nil {
 		t.Fatalf("allowlisted login error = %v", err)
 	}
@@ -153,7 +153,7 @@ func TestEvaluateLoginUsesAllowlistAndAdminImplicitAllow(t *testing.T) {
 		t.Fatalf("allowlisted decision = %+v, want allowed", decision)
 	}
 
-	decision, err = service.EvaluateLogin("admin@example.com", "admin-subject", security.RoleAdmin)
+	decision, err = service.EvaluateLogin(context.Background(), "admin@example.com", "admin-subject", security.RoleAdmin)
 	if err != nil {
 		t.Fatalf("admin login error = %v", err)
 	}
@@ -167,9 +167,9 @@ func TestBlacklistOverridesAllowlistAndAdmin(t *testing.T) {
 		&AccessPolicy{ID: "allow", Kind: KindAllowlist, PrincipalType: PrincipalEmail, Principal: "admin@example.com", Enabled: true},
 		&AccessPolicy{ID: "deny", Kind: KindBlacklist, PrincipalType: PrincipalEmail, Principal: "admin@example.com", Enabled: true},
 	)
-	service := NewService(repo, newFakeCache(), zap.NewNop())
+	service := NewService(repo, NewRedisSnapshotCache(newFakeCache()), zap.NewNop())
 
-	decision, err := service.EvaluateLogin("admin@example.com", "subject", security.RoleAdmin)
+	decision, err := service.EvaluateLogin(context.Background(), "admin@example.com", "subject", security.RoleAdmin)
 	if err != nil {
 		t.Fatalf("blacklisted admin error = %v", err)
 	}
@@ -182,13 +182,13 @@ func TestGoogleSubjectBlacklistAndStudentDomain(t *testing.T) {
 	repo := newFakeRepository(
 		&AccessPolicy{ID: "deny", Kind: KindBlacklist, PrincipalType: PrincipalGoogleSubject, Principal: "google-subject", Enabled: true},
 	)
-	service := NewService(repo, newFakeCache(), zap.NewNop())
+	service := NewService(repo, NewRedisSnapshotCache(newFakeCache()), zap.NewNop())
 
-	decision, err := service.EvaluateLogin("student@student.chula.ac.th", "other-subject", security.RoleUser)
+	decision, err := service.EvaluateLogin(context.Background(), "student@student.chula.ac.th", "other-subject", security.RoleUser)
 	if err != nil || !decision.Allowed {
 		t.Fatalf("student decision = %+v, error = %v; want allowed", decision, err)
 	}
-	decision, err = service.EvaluateLogin("student@student.chula.ac.th", "google-subject", security.RoleUser)
+	decision, err = service.EvaluateLogin(context.Background(), "student@student.chula.ac.th", "google-subject", security.RoleUser)
 	if err != nil {
 		t.Fatalf("subject blacklist error = %v", err)
 	}
@@ -202,15 +202,15 @@ func TestPolicyCacheMissFallsBackToRepositoryAndWarmsCache(t *testing.T) {
 		&AccessPolicy{ID: "deny", Kind: KindBlacklist, PrincipalType: PrincipalEmail, Principal: "blocked@example.com", Enabled: true},
 	)
 	cache := newFakeCache()
-	service := NewService(repo, cache, zap.NewNop())
+	service := NewService(repo, NewRedisSnapshotCache(cache), zap.NewNop())
 
-	if _, err := service.EvaluateLogin("blocked@example.com", "subject", security.RoleUser); err != nil {
+	if _, err := service.EvaluateLogin(context.Background(), "blocked@example.com", "subject", security.RoleUser); err != nil {
 		t.Fatalf("first policy evaluation error = %v", err)
 	}
 	if repo.listCall != 1 || cache.sets != 1 {
 		t.Fatalf("repository calls = %d, cache sets = %d; want one each", repo.listCall, cache.sets)
 	}
-	if _, err := service.EvaluateLogin("blocked@example.com", "subject", security.RoleUser); err != nil {
+	if _, err := service.EvaluateLogin(context.Background(), "blocked@example.com", "subject", security.RoleUser); err != nil {
 		t.Fatalf("cached policy evaluation error = %v", err)
 	}
 	if repo.listCall != 1 {
@@ -219,8 +219,8 @@ func TestPolicyCacheMissFallsBackToRepositoryAndWarmsCache(t *testing.T) {
 }
 
 func TestPolicyFailsClosedWhenRepositoryUnavailable(t *testing.T) {
-	service := NewService(&failingRepository{}, newFakeCache(), zap.NewNop())
-	_, err := service.EvaluateLogin("partner@example.com", "subject", security.RoleUser)
+	service := NewService(&failingRepository{}, NewRedisSnapshotCache(newFakeCache()), zap.NewNop())
+	_, err := service.EvaluateLogin(context.Background(), "partner@example.com", "subject", security.RoleUser)
 	if !errors.Is(err, security.ErrPolicyUnavailable) {
 		t.Fatalf("policy error = %v, want ErrPolicyUnavailable", err)
 	}
@@ -229,9 +229,9 @@ func TestPolicyFailsClosedWhenRepositoryUnavailable(t *testing.T) {
 func TestCreateRefreshesPolicyCache(t *testing.T) {
 	repo := newFakeRepository()
 	cache := newFakeCache()
-	service := NewService(repo, cache, zap.NewNop())
+	service := NewService(repo, NewRedisSnapshotCache(cache), zap.NewNop())
 
-	created, err := service.Create(CreateInput{
+	created, err := service.Create(context.Background(), CreateInput{
 		Kind:          KindAllowlist,
 		PrincipalType: PrincipalEmail,
 		Principal:     "new@example.com",
@@ -243,8 +243,8 @@ func TestCreateRefreshesPolicyCache(t *testing.T) {
 	if created.Principal != "new@example.com" || cache.sets != 1 {
 		t.Fatalf("created policy = %+v, cache sets = %d", created, cache.sets)
 	}
-	var cached []*AccessPolicy
-	if err := cache.GetValue(utils.ToPolicySnapshotCacheKey(), &cached); err != nil {
+	cached, err := NewRedisSnapshotCache(cache).Load(context.Background())
+	if err != nil {
 		t.Fatalf("read refreshed cache: %v", err)
 	}
 	if len(cached) != 1 || cached[0].ID != created.ID {
@@ -257,9 +257,9 @@ func TestPolicyMutationsSucceedWhenCacheRefreshFails(t *testing.T) {
 		repo := newFakeRepository()
 		cache := newFakeCache()
 		cache.setErr = errors.New("redis unavailable")
-		service := NewService(repo, cache, zap.NewNop())
+		service := NewService(repo, NewRedisSnapshotCache(cache), zap.NewNop())
 
-		created, err := service.Create(CreateInput{
+		created, err := service.Create(context.Background(), CreateInput{
 			Kind:          KindAllowlist,
 			PrincipalType: PrincipalEmail,
 			Principal:     "new@example.com",
@@ -268,7 +268,7 @@ func TestPolicyMutationsSucceedWhenCacheRefreshFails(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create policy error = %v; database write should remain successful", err)
 		}
-		if _, err := repo.FindByID(created.ID); err != nil {
+		if _, err := repo.FindByID(context.Background(), created.ID); err != nil {
 			t.Fatalf("persisted policy lookup error = %v", err)
 		}
 	})
@@ -284,9 +284,9 @@ func TestPolicyMutationsSucceedWhenCacheRefreshFails(t *testing.T) {
 		})
 		cache := newFakeCache()
 		cache.setErr = errors.New("redis unavailable")
-		service := NewService(repo, cache, zap.NewNop())
+		service := NewService(repo, NewRedisSnapshotCache(cache), zap.NewNop())
 
-		updated, err := service.Update("policy-id", UpdateInput{Reason: "new reason", ReasonSet: true})
+		updated, err := service.Update(context.Background(), "policy-id", UpdateInput{Reason: "new reason", ReasonSet: true})
 		if err != nil {
 			t.Fatalf("update policy error = %v; database write should remain successful", err)
 		}
@@ -306,9 +306,9 @@ func TestPolicyMutationsSucceedWhenCacheRefreshFails(t *testing.T) {
 		})
 		cache := newFakeCache()
 		cache.setErr = errors.New("redis unavailable")
-		service := NewService(repo, cache, zap.NewNop())
+		service := NewService(repo, NewRedisSnapshotCache(cache), zap.NewNop())
 
-		disabled, err := service.Disable("policy-id")
+		disabled, err := service.Disable(context.Background(), "policy-id")
 		if err != nil {
 			t.Fatalf("disable policy error = %v; database write should remain successful", err)
 		}
@@ -334,21 +334,21 @@ func TestValidateCreateInputRejectsInvalidPolicyCombinations(t *testing.T) {
 
 type failingRepository struct{}
 
-func (*failingRepository) ListActive(time.Time) ([]*AccessPolicy, error) {
+func (*failingRepository) ListActive(context.Context, time.Time) ([]*AccessPolicy, error) {
 	return nil, errors.New("database unavailable")
 }
-func (*failingRepository) List(ListFilter) (ListResult, error) {
+func (*failingRepository) List(context.Context, ListFilter) (ListResult, error) {
 	return ListResult{}, errors.New("database unavailable")
 }
-func (*failingRepository) FindByID(string) (*AccessPolicy, error) {
+func (*failingRepository) FindByID(context.Context, string) (*AccessPolicy, error) {
 	return nil, errors.New("database unavailable")
 }
-func (*failingRepository) FindByIdentity(string, string, string) (*AccessPolicy, error) {
+func (*failingRepository) FindByIdentity(context.Context, string, string, string) (*AccessPolicy, error) {
 	return nil, errors.New("database unavailable")
 }
-func (*failingRepository) Create(*AccessPolicy) error {
+func (*failingRepository) Create(context.Context, *AccessPolicy) error {
 	return errors.New("database unavailable")
 }
-func (*failingRepository) Update(*AccessPolicy) error {
+func (*failingRepository) Update(context.Context, *AccessPolicy) error {
 	return errors.New("database unavailable")
 }

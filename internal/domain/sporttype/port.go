@@ -1,11 +1,15 @@
 package sporttype
 
-import "github.com/esc-chula/intania-888-backend/internal/model"
+import "context"
 
-type SportTypeService interface {
-	GetAllSportTypes() ([]*model.SportTypeDto, error)
+// ServicePort exposes the catalogue use case required by HTTP.
+type ServicePort interface {
+	// GetAllSportTypes returns the complete sport catalogue without transport or ORM metadata.
+	GetAllSportTypes(context.Context) ([]*SportType, error)
 }
 
-type SportTypeRepository interface {
-	GetAllSportTypes() ([]*model.SportType, error)
+// Repository loads the sport catalogue.
+type Repository interface {
+	// GetAllSportTypes returns the complete sport catalogue without transport or ORM metadata.
+	GetAllSportTypes(context.Context) ([]*SportType, error)
 }

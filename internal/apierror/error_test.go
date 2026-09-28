@@ -1,4 +1,4 @@
-package apierror
+package apierror_test
 
 import (
 	"encoding/json"
@@ -7,9 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/domain/match"
+	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 )
 
 func TestErrorHandlerMapsWrappedAndUnknownErrors(t *testing.T) {
@@ -23,7 +26,7 @@ func TestErrorHandlerMapsWrappedAndUnknownErrors(t *testing.T) {
 	}{
 		{
 			name:   "wrapped typed conflict",
-			err:    fmtError(Wrap(errors.New("database detail"), 409, "DAILY_REWARD_ALREADY_CLAIMED", "Daily reward already claimed")),
+			err:    fmtError(apierror.Wrap(errors.New("database detail"), 409, "DAILY_REWARD_ALREADY_CLAIMED", "Daily reward already claimed")),
 			status: 409, code: "DAILY_REWARD_ALREADY_CLAIMED", message: "Daily reward already claimed", mustHide: "database detail",
 		},
 		{
@@ -35,28 +38,35 @@ func TestErrorHandlerMapsWrappedAndUnknownErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			app := fiber.New(fiber.Config{ErrorHandler: ErrorHandler(zap.NewNop())})
-			app.Use(RequestID())
+			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
+			app.Use(apierror.RequestID())
 			app.Get("/api/v1/test", func(c *fiber.Ctx) error { return test.err })
 			response, err := app.Test(httptest.NewRequest("GET", "/api/v1/test", nil))
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer response.Body.Close()
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
 			if response.StatusCode != test.status {
 				t.Fatalf("status = %d, want %d", response.StatusCode, test.status)
 			}
-			var body Response
+			var body apierror.Response
 			if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}
 			if body.Code != test.code || body.Message != test.message {
 				t.Fatalf("body = %#v", body)
 			}
-			if body.RequestID == "" || response.Header.Get(RequestIDHeader) != body.RequestID {
-				t.Fatalf("request ID body/header mismatch: %#v, %q", body, response.Header.Get(RequestIDHeader))
+			if body.RequestID == "" || response.Header.Get(apierror.RequestIDHeader) != body.RequestID {
+				t.Fatalf("request ID body/header mismatch: %#v, %q", body, response.Header.Get(apierror.RequestIDHeader))
 			}
-			encoded, _ := json.Marshal(body)
+			encoded, err := json.Marshal(body)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if strings.Contains(string(encoded), test.mustHide) {
 				t.Fatalf("response exposed internal error: %s", encoded)
 			}
@@ -90,16 +100,20 @@ func TestBindJSONRejectsUnknownAndTrailingValuesAndAcceptsZero(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			app := fiber.New(fiber.Config{ErrorHandler: ErrorHandler(zap.NewNop())})
+			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 			app.Post("/", func(c *fiber.Ctx) error {
 				var request validRequest
-				return BindJSON(c, &request)
+				return apierror.BindJSON(c, &request)
 			})
 			response, err := app.Test(httptest.NewRequest("POST", "/", strings.NewReader(test.body)))
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer response.Body.Close()
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
 			if test.ok && response.StatusCode != fiber.StatusOK {
 				t.Fatalf("status = %d, want 200", response.StatusCode)
 			}
@@ -127,18 +141,18 @@ func TestRegisteredNumericRequestsDistinguishZeroFromMissing(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			app := fiber.New(fiber.Config{ErrorHandler: ErrorHandler(zap.NewNop())})
-			app.Use(RequestID())
+			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
+			app.Use(apierror.RequestID())
 			app.Post("/score", func(c *fiber.Ctx) error {
-				var request model.ScoreDto
-				if err := BindJSON(c, &request); err != nil {
+				var request match.ScoreDTO
+				if err := apierror.BindJSON(c, &request); err != nil {
 					return err
 				}
 				return c.SendStatus(fiber.StatusNoContent)
 			})
 			app.Post("/tile", func(c *fiber.Ctx) error {
-				var request model.RevealMineTileRequest
-				if err := BindJSON(c, &request); err != nil {
+				var request stakemine.RevealTileRequest
+				if err := apierror.BindJSON(c, &request); err != nil {
 					return err
 				}
 				return c.SendStatus(fiber.StatusNoContent)
@@ -148,14 +162,18 @@ func TestRegisteredNumericRequestsDistinguishZeroFromMissing(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer response.Body.Close()
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
 			if response.StatusCode != test.wantStatus {
 				t.Fatalf("status = %d, want %d", response.StatusCode, test.wantStatus)
 			}
 			if test.wantField == "" {
 				return
 			}
-			var body Response
+			var body apierror.Response
 			if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 				t.Fatal(err)
 			}

@@ -1,50 +1,55 @@
 package auth
 
 import (
-	"errors"
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"context"
+
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+	"github.com/esc-chula/intania-888-backend/internal/security"
 )
 
-var (
-	ErrInvalidOAuthState = errors.New("invalid OAuth state")
-	ErrUnverifiedEmail   = errors.New("google email is not verified")
-	ErrEmailNotAllowed   = errors.New("email is not allowed")
-	ErrInvalidSession    = errors.New("invalid session")
-)
-
-type OAuthLogin struct{ URL, State string }
-type SessionCredentials struct {
-	SessionID string
-	IsNewUser bool
-}
-
-type AuthService interface {
-	StartOAuthLogin() (*OAuthLogin, error)
-	VerifyOAuthLogin(code, state, cookieState, previousSessionID string) (*SessionCredentials, error)
-	Logout(sessionID string) error
+// ServicePort describes the authentication use cases required by HTTP handlers.
+type ServicePort interface {
+	// StartOAuthLogin creates one-use OAuth state and returns its browser authorization URL.
+	StartOAuthLogin(context.Context) (*OAuthLogin, error)
+	// VerifyOAuthLogin consumes bound OAuth state, checks access policy, and rotates a browser session.
+	VerifyOAuthLogin(context.Context, string, string, string, string) (*SessionCredentials, error)
+	// Logout revokes the session identified by its opaque ID; absent sessions already count as logged out.
+	Logout(context.Context, string) error
+	// GetPostLoginRedirectURL returns the configured fixed frontend destination.
 	GetPostLoginRedirectURL() string
-	IssueExternalToken(subjectID string) (string, string, error)
-	RevokeExternalToken(jti string) error
+	// IssueExternalToken returns a one-hour JWT and its revocation identifier for an existing subject.
+	IssueExternalToken(context.Context, string) (string, string, error)
+	// RevokeExternalToken removes the active subject binding for a token identifier.
+	RevokeExternalToken(context.Context, string) error
 }
 
-type AuthRepository interface {
-	SetCacheValue(key string, value interface{}, ttl int) error
-	ConsumeCacheValue(key string, value interface{}) error
-	RotateSession(
-		userKey, sessionKey, previousKey string,
-		value interface{},
-		idleTTLSeconds, absoluteTTLSeconds int,
-	) error
-	DeleteSession(key string) error
-	GetCacheValue(key string, value interface{}) error
+// Repository stores authentication protocol state without exposing cache encoding.
+type Repository interface {
+	// StoreOAuthState persists the PKCE verifier under an opaque-state cache key; ttl is in seconds.
+	StoreOAuthState(context.Context, string, OAuthState, int) error
+	// ConsumeOAuthState atomically reads and deletes state, returning ErrInvalidOAuthState when absent.
+	ConsumeOAuthState(context.Context, string) (OAuthState, error)
+	// RotateSession atomically stores the new session and revokes its predecessor.
+	// The idle and absolute lifetimes are measured in seconds.
+	RotateSession(context.Context, string, string, string, security.Session, int, int) error
+	// DeleteSession idempotently removes the record identified by its cache key.
+	DeleteSession(context.Context, string) error
+	// StoreExternalToken records the subject authorized by a JWT identifier; ttl is in seconds.
+	StoreExternalToken(context.Context, string, string, int) error
 }
 
-type BrowserSessionStore interface {
-	ReadAndRenewSession(key string, now int64, idleSeconds int, value interface{}) error
+// Users is the account persistence boundary required during authentication.
+type Users interface {
+	// GetByID loads an account snapshot or returns identity.ErrUserNotFound.
+	GetByID(context.Context, string) (*identity.User, error)
+	// GetByEmail loads an account by its normalized email or returns identity.ErrUserNotFound.
+	GetByEmail(context.Context, string) (*identity.User, error)
+	// Create persists the newly admitted account.
+	Create(context.Context, *identity.User) error
 }
 
-type ExternalTokenRecord struct {
-	SubjectID string `json:"subject_id"`
+// SessionReader reads the browser session needed to authorize logout.
+type SessionReader interface {
+	// Session loads the browser session needed for logout and preserves missing-session errors.
+	Session(context.Context, string) (*security.Session, error)
 }
-
-var _ = model.SessionRecord{}

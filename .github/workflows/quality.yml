@@ -1,0 +1,43 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - development
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install pinned linter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(cat .golangci-version)
+          gh release download "v${version}" --repo golangci/golangci-lint --pattern "golangci-lint-${version}-linux-amd64.tar.gz" --pattern 'golangci-lint-*-checksums.txt' --dir "$RUNNER_TEMP/linter"
+          cd "$RUNNER_TEMP/linter"
+          sha256sum --check --ignore-missing "golangci-lint-${version}-checksums.txt"
+          tar -xzf "golangci-lint-${version}-linux-amd64.tar.gz"
+          install "golangci-lint-${version}-linux-amd64/golangci-lint" "$RUNNER_TEMP/golangci-lint"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - run: make ci
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make test-integration
