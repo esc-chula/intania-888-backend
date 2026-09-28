@@ -1,9 +1,27 @@
 # Swagger documentation
 
-> **Breaking backend release:** Money values are fixed two-decimal JSON strings, bill rates are server-owned, bill/match lifecycle routes changed, and browser authentication now uses an opaque session cookie. The frontend must migrate with this backend release.
+> **Breaking backend release:** Money values are two-decimal JSON strings, and odds/payout multipliers are six-decimal JSON strings. Bill rates are server-owned, bill/match lifecycle routes changed, and browser authentication uses an opaque session cookie. The frontend must migrate with this backend release.
 
 The API documentation is generated from Go annotations with `swag` and served
 by Fiber's Swagger UI middleware.
+
+## Exact decimal values
+
+`Money` and `SignedMoney` are JSON strings with two fractional digits; `Rate`
+values are nonnegative JSON strings with six fractional digits. This applies to
+bill-line `rate`, match `team_a_rate`/`team_b_rate` (including nested matches),
+and Stake Mines game/history `multiplier`. For example, a rate of 1.75 is
+`"1.750000"`. The API uses `/api/v1` with no temporary numeric/string dual format.
+
+Rate decoding accepts quoted decimals with zero through six fractional digits
+and normalizes output. Numeric tokens, null, negative values, exponents,
+whitespace inside values, excess precision, and overflow are rejected.
+
+Scores, counts, indexes, and approximate statistics remain JSON numbers.
+Stake Mines `win_rate` is an approximate percentage, not an exact multiplier.
+Use the [frontend handoff](frontend-exact-decimals.md) for exact parsing,
+formatting, accumulator previews, and client acceptance checks. Rate storage and
+arithmetic are unchanged; this serialization change needs no database migration.
 
 ## Access
 
@@ -191,7 +209,21 @@ A 401 on a browser route means the session is missing or expired; clear frontend
 
 Development on `http://localhost:3000` and `http://localhost:8080` uses HttpOnly `session` and `oauth` cookies with `SameSite=Lax`. Production on same-site HTTPS subdomains uses `__Host-session` and temporary `__Host-oauth`, with `Secure`, `HttpOnly`, `Path=/`, and `SameSite=Lax`; neither cookie has a `Domain` attribute. The API clears legacy `access_token`, `refresh_token`, `csrf_token`, and `oauth_state` cookies during login and callback.
 
-**Deprecated:** The `/external/*` routes and their external-token management routes remain available while their original purpose and consumers are investigated. Do not build new integrations against them.
+## External minigame backend
+
+The `/api/v1/external/*` API is used by a separate backend that runs other
+minigames, such as the war game, and reports game outcomes to this backend.
+The integration purpose is now confirmed. Current Swagger annotations still
+mark the external routes and their token-management routes deprecated.
+
+The implemented routes are `GET /api/v1/external/me`, which returns the
+JWT-bound user's profile, and `POST /api/v1/external/deduct-coin`, which deducts
+coins from that user's balance using a money-string `amount`. External requests
+use Bearer authentication independently of browser cookies, Origin checks,
+and CSRF. The token identifies a user rather than the minigame service itself.
+
+There is currently no external endpoint for submitting game results or crediting
+winnings. That part of the intended integration still needs a defined contract.
 
 External clients use a separate, revocable one-hour JWT. An authenticated administrator can issue one for an existing user with `POST /api/v1/auth/external-tokens` and body `{"user_id":"..."}`; the response contains `token`, `id`, and `expires_in`. The administrator can revoke it with `DELETE /api/v1/auth/external-tokens/{id}`. Both administrative mutations require the browser session, allowed Origin, and CSRF header. The regular frontend should not request these tokens. Existing external JWTs must be reissued through this API at cutover.
 
@@ -245,4 +277,4 @@ Browser routes use the `CookieSession` documentation scheme. Swagger 2.0 does
 not support a native cookie security scheme; its `Cookie` header representation
 is descriptive. Browser cookies are supplied by an authenticated browser session,
 and protected mutations also require `X-CSRF-Token` and an allowed Origin.
-`BearerAuth` applies only to the deprecated external integration endpoints.
+`BearerAuth` applies only to the external minigame integration endpoints.

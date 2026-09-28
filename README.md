@@ -4,9 +4,11 @@ Go and Fiber API for Intania 888. PostgreSQL stores application data, Redis
 stores browser sessions and cache state, and Goose applies versioned SQL
 migrations.
 
-> **Breaking API contract:** this backend uses fixed two-decimal strings for
-> money and cookie-based browser sessions with CSRF protection. Coordinate it
-> with a compatible frontend. See the [API migration guide](docs/api-migration-from-main.md).
+> **Breaking API contract:** exact decimals are JSON strings: two fractional
+> digits for money and six for odds/payout multipliers. Browser sessions use
+> HttpOnly cookies with CSRF protection. Deploy with a compatible frontend; see
+> the [API migration guide](docs/api-migration-from-main.md) and
+> [exact-decimal frontend handoff](docs/frontend-exact-decimals.md).
 
 ## Requirements
 
