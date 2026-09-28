@@ -51,8 +51,13 @@ func (s *stakeMineServiceImpl) CreateGame(userId string, req *model.CreateMineGa
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", userId).
 			First(&user).Error; err != nil {
-			s.log.Named("CreateGame").Error("User not found", zap.Error(err))
-			return errors.Join(ErrUserNotFound, err)
+			lookupErr := mapUserLookupError(err)
+			if errors.Is(lookupErr, ErrUserNotFound) {
+				s.log.Named("CreateGame").Warn("User not found", zap.String("user_id", userId))
+			} else {
+				s.log.Named("CreateGame").Error("Failed to load user", zap.Error(err))
+			}
+			return lookupErr
 		}
 
 		var activeGameCount int64
@@ -460,4 +465,12 @@ func (s *stakeMineServiceImpl) gameToDto(game *model.MineGame, hideUnrevealed bo
 		CreatedAt:     game.CreatedAt,
 		CompletedAt:   game.CompletedAt,
 	}, nil
+}
+
+func mapUserLookupError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return errors.Join(ErrUserNotFound, err)
+	}
+
+	return err
 }

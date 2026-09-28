@@ -138,8 +138,13 @@ func (s *userServiceImpl) DeductCoin(userId string, amount model.Money) (model.M
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ?", userId).
 			First(&user).Error; err != nil {
-			s.log.Named("DeductCoin").Error("User not found", zap.Error(err))
-			return errors.Join(ErrUserNotFound, err)
+			lookupErr := mapUserLookupError(err)
+			if errors.Is(lookupErr, ErrUserNotFound) {
+				s.log.Named("DeductCoin").Warn("User not found", zap.String("user_id", userId))
+			} else {
+				s.log.Named("DeductCoin").Error("Failed to load user", zap.Error(err))
+			}
+			return lookupErr
 		}
 
 		// 2. Validate balance (allow exactly 0, reject negative)
@@ -177,4 +182,12 @@ func (s *userServiceImpl) DeductCoin(userId string, amount model.Money) (model.M
 
 	// Return the balance computed while the locked row was updated.
 	return remainingBalance, nil
+}
+
+func mapUserLookupError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return errors.Join(ErrUserNotFound, err)
+	}
+
+	return err
 }

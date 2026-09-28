@@ -8,7 +8,6 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/model"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -105,11 +104,6 @@ func (h *MatchHttpHandler) GetMatch(c *fiber.Ctx) error {
 // @Security BearerAuth
 func (h *MatchHttpHandler) GetAllMatches(c *fiber.Ctx) error {
 	f := &model.MatchFilter{TypeId: c.Query("typeId")}
-	if f.TypeId != "" {
-		if _, err := uuid.Parse(f.TypeId); err != nil {
-			return apierror.Invalid(map[string]string{"typeId": "must be a valid ID"})
-		}
-	}
 	switch c.Query("schedule") {
 	case "schedule":
 		f.Schedule = model.Schedule
