@@ -72,7 +72,7 @@ func run() (runErr error) {
 		return fmt.Errorf("SERVER_ENV must be development or production")
 	}
 	defer func() {
-		_ = logger.Sync()
+		_ = logger.Sync() //nolint:errcheck // Zap's standard stream sink may report EINVAL when syncing a pipe.
 	}()
 
 	db := database.NewGORMDatabase(cfg)

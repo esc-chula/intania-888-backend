@@ -1,6 +1,6 @@
 module github.com/esc-chula/intania-888-backend
 
-go 1.22.5
+go 1.27.1
 
 require (
 	github.com/arsmn/fiber-swagger/v2 v2.31.1

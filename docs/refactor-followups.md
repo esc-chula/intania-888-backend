@@ -23,5 +23,4 @@ The old profile update DTO, input, service method, and repository method have
 been removed.
 Runtime verification of the new endpoint and legacy authorization is pending.
 
-The Go module and Docker compiler remain at their existing declarations. A
-supported toolchain upgrade should update those declarations together with CI.
+The Go module, CI checks, linter, and Docker builder target Go 1.27.1.

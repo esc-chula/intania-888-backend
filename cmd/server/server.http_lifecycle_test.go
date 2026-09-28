@@ -55,9 +55,11 @@ func requestHTTP(client *http.Client, url string) <-chan httpRequestResult {
 			result <- httpRequestResult{err: err}
 			return
 		}
-		defer response.Body.Close()
-
 		body, err := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		if err == nil {
+			err = closeErr
+		}
 		result <- httpRequestResult{status: response.StatusCode, body: string(body), err: err}
 	}()
 	return result
