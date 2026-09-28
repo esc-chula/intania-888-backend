@@ -15,12 +15,13 @@ import (
 
 type fakeAccountRepository struct {
 	Repository
-	user        *identity.User
-	seenContext context.Context
-	saved       *identity.User
-	calls       []string
-	deductError error
-	lookupError error
+	user         *identity.User
+	seenContext  context.Context
+	saved        *identity.User
+	savedProfile *UpdateInput
+	calls        []string
+	deductError  error
+	lookupError  error
 }
 
 func (r *fakeAccountRepository) GetByID(ctx context.Context, _ string) (*identity.User, error) {
@@ -36,6 +37,12 @@ func (r *fakeAccountRepository) Update(ctx context.Context, user *identity.User)
 	r.seenContext = ctx
 	copy := *user
 	r.saved = &copy
+	return nil
+}
+
+func (r *fakeAccountRepository) UpdateProfile(ctx context.Context, input UpdateInput) error {
+	r.seenContext = ctx
+	r.savedProfile = &input
 	return nil
 }
 
@@ -117,8 +124,11 @@ func TestUpdateUserPreservesObservedBalanceAndResponseTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.RemainingCoin.MinorUnits() != 12345 || repo.saved.RemainingCoin != 12345 {
-		t.Fatalf("profile update changed the observed balance: result=%v saved=%+v", result, repo.saved)
+	if result.RemainingCoin.MinorUnits() != 12345 {
+		t.Fatalf("profile response changed the observed balance: result=%v", result)
+	}
+	if repo.savedProfile == nil || repo.savedProfile.ID != "actor" || repo.savedProfile.Name != "Updated" {
+		t.Fatalf("profile update was not saved: %+v", repo.savedProfile)
 	}
 	if !result.CreatedAt.IsZero() {
 		t.Fatalf("single-user response timestamp changed: %v", result.CreatedAt)

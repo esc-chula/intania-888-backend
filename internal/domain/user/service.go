@@ -68,8 +68,8 @@ func (s *Service) GetAllUsers(ctx context.Context) ([]*identity.Profile, error) 
 	return profiles, nil
 }
 
-// UpdateUser updates profile fields with the account's currently observed balance.
-// The existing non-transactional profile update behavior is preserved.
+// UpdateUser updates profile fields without writing the account balance.
+// The returned profile includes the balance observed before the profile write.
 func (s *Service) UpdateUser(ctx context.Context, input UpdateInput) (*identity.Profile, error) {
 	existed, err := s.repo.GetByID(ctx, input.ID)
 	if err != nil {
@@ -85,7 +85,7 @@ func (s *Service) UpdateUser(ctx context.Context, input UpdateInput) (*identity.
 		GroupID:       input.GroupID,
 		RemainingCoin: existed.RemainingCoin,
 	}
-	if err := s.repo.Update(ctx, user); err != nil {
+	if err := s.repo.UpdateProfile(ctx, input); err != nil {
 		return nil, err
 	}
 

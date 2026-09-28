@@ -18,6 +18,9 @@ type Repository interface {
 	GetByEmail(context.Context, string) (*identity.User, error)
 	// GetAll retrieves all account snapshots.
 	GetAll(context.Context) ([]*identity.User, error)
+	// UpdateProfile writes nonzero profile fields without changing the account balance.
+	// Nil nickname and group pointers leave their stored values unchanged.
+	UpdateProfile(context.Context, UpdateInput) error
 	// Update preserves the existing nonzero-field update behavior.
 	Update(context.Context, *identity.User) error
 	// WithinTransaction commits the callback's writes together or rolls them back.

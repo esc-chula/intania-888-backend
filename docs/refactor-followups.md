@@ -6,7 +6,7 @@ normalization can be reviewed as a structural change.
 
 | ID | Retained behavior | Follow-up acceptance |
 | --- | --- | --- |
-| NORM-001 | Profile updates include a balance observed before the write, potentially overwriting a concurrent coin change. The user repository retains the same full update values. | Replace profile writes with explicit permitted columns and prove concurrent balance changes survive. |
+| NORM-001 | During normalization, profile updates included a balance observed before the write, potentially overwriting a concurrent coin change. | Profile writes now use an explicit column set excluding balance. Concurrent balance preservation still needs regression verification. |
 | NORM-002 | Slot weights and map iteration determine outcomes, with the existing gold fallback. Ordering or normalizing the weights would change gameplay. | Agree the probability model and verify each balance tier and fallback distribution. |
 | NORM-003 | Slot reward multiplication historically discards a checked arithmetic error. Its handling remains a documented, local lint exception. | Decide overflow response/rollback behavior and add a business regression test before changing it. |
 | NORM-004 | Server shutdown creates a timeout but does not apply it to Fiber shutdown. | Specify bounded shutdown and verify outstanding requests and resources finish correctly. |

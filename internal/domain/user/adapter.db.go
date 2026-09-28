@@ -61,7 +61,35 @@ func (r *gormRepository) GetAll(ctx context.Context) ([]*identity.User, error) {
 	return users, nil
 }
 
-// Update applies the existing nonzero struct update semantics.
+// UpdateProfile writes only the permitted profile columns and leaves the balance untouched.
+// Empty strings and nil pointers retain the existing field omission behavior.
+func (r *gormRepository) UpdateProfile(ctx context.Context, input UpdateInput) error {
+	updates := make(map[string]any, 5)
+
+	if input.Email != "" {
+		updates["email"] = input.Email
+	}
+	if input.Name != "" {
+		updates["name"] = input.Name
+	}
+	if input.NickName != nil {
+		updates["nick_name"] = *input.NickName
+	}
+	if input.RoleID != "" {
+		updates["role_id"] = input.RoleID
+	}
+	if input.GroupID != nil {
+		updates["group_id"] = *input.GroupID
+	}
+
+	if err := r.db.WithContext(ctx).Model(&persistence.User{}).
+		Where("id = ?", input.ID).Updates(updates).Error; err != nil {
+		return fmt.Errorf("update user profile: %w", err)
+	}
+	return nil
+}
+
+// Update applies the existing nonzero struct update semantics for administrator updates.
 func (r *gormRepository) Update(ctx context.Context, user *identity.User) error {
 	row := userRow(user)
 	// Keep GORM's existing nonzero struct update semantics for normalization.
