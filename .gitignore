@@ -3,10 +3,11 @@
 *.env
 tmp
 *.md
+!README.md
 !docs/README.md
 .env.local
 .env.prod
 /requirements
 
 !docs/coding-standard.md
-!docs/refactor-followups.md
+!docs/api-migration-from-main.md
