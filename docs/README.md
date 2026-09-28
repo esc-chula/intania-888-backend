@@ -202,3 +202,16 @@ Frontend migration steps:
   log entry.
 
 The frontend migration is outside this backend branch.
+
+## Coding standard
+
+The required layout, documentation and dependency rules are documented in
+[coding-standard.md](coding-standard.md). Run `make fmt` before `make ci`.
+Behavior intentionally retained during normalization is recorded in
+[refactor-followups.md](refactor-followups.md).
+
+Browser routes use the `CookieSession` documentation scheme. Swagger 2.0 does
+not support a native cookie security scheme; its `Cookie` header representation
+is descriptive. Browser cookies are supplied by an authenticated browser session,
+and protected mutations also require `X-CSRF-Token` and an allowed Origin.
+`BearerAuth` applies only to the deprecated external integration endpoints.
