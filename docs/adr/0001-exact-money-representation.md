@@ -189,7 +189,8 @@ Frontend rules:
 - Replace rate `.toFixed()` and truthiness fallback checks with explicit formatting and zero/null handling.
 - The backend remains authoritative for bill totals, rates applied to a wager, rewards, and payouts.
 
-See [the frontend handoff](../frontend-exact-decimals.md) for the client migration.
+See the [exact-decimal frontend migration](../api-migration-from-main.md#exact-decimal-frontend-migration)
+for affected frontend consumers, exact rate arithmetic, and acceptance checks.
 
 ## Archive-and-reset rollout
 

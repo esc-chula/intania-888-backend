@@ -1,9 +1,10 @@
 # Swagger documentation
 
-> **Breaking backend release:** Money values are two-decimal JSON strings, and odds/payout multipliers are six-decimal JSON strings. Bill rates are server-owned, bill/match lifecycle routes changed, and browser authentication uses an opaque session cookie. The frontend must migrate with this backend release.
+> **Breaking backend release:** Money values are two-decimal JSON strings, and odds/payout multipliers are six-decimal JSON strings. Bill rates are server-owned, bill/match lifecycle routes changed, and protected browser operations use an opaque session cookie. Shared catalogue, fixture, and standings reads are public. The frontend must migrate with this backend release.
 
-The API documentation is generated from Go annotations with `swag` and served
-by Fiber's Swagger UI middleware.
+The API contract is maintained in [`openapi.yaml`](openapi.yaml) and served by
+Fiber's Swagger UI middleware. Keep route comments in Go concise; put request,
+response, security, and schema details in the OpenAPI file.
 
 ## Exact decimal values
 
@@ -19,19 +20,108 @@ whitespace inside values, excess precision, and overflow are rejected.
 
 Scores, counts, indexes, and approximate statistics remain JSON numbers.
 Stake Mines `win_rate` is an approximate percentage, not an exact multiplier.
-Use the [frontend handoff](frontend-exact-decimals.md) for exact parsing,
-formatting, accumulator previews, and client acceptance checks. Rate storage and
-arithmetic are unchanged; this serialization change needs no database migration.
+Use the [exact-decimal frontend migration](api-migration-from-main.md#exact-decimal-frontend-migration)
+for exact parsing, formatting, accumulator previews, affected consumers, and
+client acceptance checks. Rate storage and arithmetic are unchanged; this
+serialization change needs no database migration.
 
-## Sport type administration
+## Public shared reads
 
-Authenticated catalogue reads retain the `{ "id": "...", "title": "..." }`
-shape. Sport management uses dedicated admin routes under `/api/v1`:
+All routes below are relative to `/api/v1`. These shared reads do not require a
+browser session or run account allowlist/blacklist checks:
+
+| Data | Public routes | Result |
+| --- | --- | --- |
+| Locations | `GET /locations`, `GET /locations/{id}` | Location catalogue or one `{ id, title }` resource |
+| Fixtures and server time | `GET /matches`, `GET /matches/{id}`, `GET /matches/current/time` | Grouped fixtures, one fixture, or current UTC time |
+| Sports | `GET /sport-types`, `GET /sport-types/{id}` | Sport catalogue or one `{ id, title }` resource |
+| Standings | `GET /colors/leaderboards`, `GET /colors/group-stage` | Color leaderboards or group-stage standings |
+
+The API-wide limit still allows 200 requests per client IP per minute. Browser
+requests with an `Origin` must use an exact configured origin; safe GET requests
+without an `Origin` are accepted. CORS still grants access only to configured
+origins. An unconfigured `Origin` returns `403 FORBIDDEN`, and an exceeded rate
+limit returns `429 TOO_MANY_REQUESTS`.
+
+This public access applies only to these shared reads. Account-specific,
+game/history, billing, and administrative routes keep their documented access
+requirements.
+
+## Location catalogue and match venues
+
+A location is a reusable venue with a stable ID and a mutable display title:
+
+```json
+{
+  "id": "CIVIL_COURT",
+  "title": "สนามโยธา"
+}
+```
+
+All five location operations are documented in the OpenAPI specification. The
+read routes are public; location changes are administrator-only:
 
 | Route | Access | Success |
 | --- | --- | --- |
-| `GET /sport-types` | Authenticated user | `200` list; empty catalogue is `[]` |
-| `GET /sport-types/{id}` | Authenticated user | `200` resource |
+| `GET /locations` | Public | `200` array, ordered by ID; `[]` when empty |
+| `GET /locations/{id}` | Public | `200` resource |
+| `POST /locations/admin` | Admin | `201` resource |
+| `PATCH /locations/admin/{id}` | Admin | `200` renamed resource |
+| `DELETE /locations/admin/{id}` | Admin | `204`, empty body, if unused |
+
+Location mutations require a browser session, admin permission, allowed Origin,
+and `X-CSRF-Token`. IDs are immutable and contain 1–100 ASCII letters, digits,
+underscores, or hyphens. Titles are trimmed and must contain 1–100 Unicode
+characters. Duplicate titles are allowed. Create and rename requests are:
+
+```json
+{ "id": "COURT_A", "title": "Court A" }
+```
+
+```json
+{ "title": "North Court" }
+```
+
+The first body is for `POST /locations/admin`; the second is the only accepted
+field for `PATCH /locations/admin/{id}`. Invalid IDs or titles return
+`400 INVALID_REQUEST`; duplicate IDs return `409 CONFLICT`; missing IDs return
+`404 RESOURCE_NOT_FOUND`. Deleting a location assigned to a match returns
+`409 LOCATION_IN_USE`. Reassign or remove those matches first.
+
+Match creation requires `location_id` from the public catalogue. Match updates
+may supply it to move the match and leave it out to keep the current location.
+For example, a match request uses the stable ID:
+
+```json
+{
+  "team_a": "TEAM_A",
+  "team_b": "TEAM_B",
+  "type": "BADMINTON_ALL",
+  "location_id": "COURT_A",
+  "start_time": "2026-10-01T09:00:00Z",
+  "end_time": "2026-10-01T10:00:00Z"
+}
+```
+
+Match responses include `location: { "id": "COURT_A", "title": "Court A" }`;
+bill-line responses include the same location inside their nested match. Renaming
+a location preserves its ID and updates the title returned for existing matches.
+The database foreign key rejects unknown location IDs, and `ON DELETE RESTRICT`
+protects every assigned location even when writes race with deletion.
+
+`make seed` inserts the default location catalogue after migrations. It adds
+missing entries without overwriting edited titles; explicitly rerunning it can
+restore a deleted default. Migration `00004_match_locations.sql` makes
+`matches.location_id` required and enforces the location reference in the
+database.
+
+## Sport type administration
+
+Sport resources retain the `{ "id": "...", "title": "..." }` shape. The GET
+catalogue routes above are public. Management writes use dedicated admin routes:
+
+| Route | Access | Success |
+| --- | --- | --- |
 | `POST /sport-types/admin` | Admin | `201` resource |
 | `PATCH /sport-types/admin/{id}` | Admin | `200` resource |
 | `DELETE /sport-types/admin/{id}` | Admin | `204`, empty body |
@@ -61,8 +151,10 @@ Constraints enforce this during concurrent writes. Archiving is outside this API
 Catalogue seeding inserts missing defaults without overwriting edited titles.
 Explicitly rerunning `make seed` can restore deleted default entries.
 
-Use the [frontend handoff](frontend-sport-types.md) for admin controls and dynamic
-selectors. Keep sport IDs as keys; display titles are mutable and may be duplicated.
+Use the [sport-type frontend migration](api-migration-from-main.md#sport-type-frontend-migration)
+for admin controls, dynamic selectors, catalogue state, error handling, and
+client acceptance checks. Keep sport IDs as keys; display titles are mutable
+and may be duplicated.
 
 ## Access
 
@@ -84,8 +176,9 @@ Basic Auth using `SWAGGER_USERNAME` and `SWAGGER_PASSWORD`.
 The manually maintained Swagger 2.0 document is available at
 `/swagger/openapi.yaml`. The former `/swagger/doc.json` URL redirects there.
 
-Browser routes use the session cookie and CSRF header. The separate backend
-integration's Bearer flow is described under
+Protected browser routes use the session cookie; their mutations also require
+the CSRF header and an allowed Origin. Public shared reads do not require a
+session. The separate backend integration's Bearer flow is described under
 [External minigame backend](#external-minigame-backend).
 
 ## Maintain the specification
@@ -234,7 +327,9 @@ clears. The old identity, email, and role request fields are rejected.
 `GET /users/:id` remains available.
 
 Administrators continue to use `PATCH /api/v1/users/admin/:id` for edits to other
-accounts through the existing administrator-only route.
+accounts through the administrator-only route. It requires a nonempty `name`;
+include the intended `remaining_coin` because an omitted value is written as
+`0.00`. An omitted `nick_name` clears it, and `role_id` remains outside the API.
 
 # Browser authentication contract
 

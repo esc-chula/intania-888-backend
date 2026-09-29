@@ -5,10 +5,11 @@ stores browser sessions and cache state, and Goose applies versioned SQL
 migrations.
 
 > **Breaking API contract:** exact decimals are JSON strings: two fractional
-> digits for money and six for odds/payout multipliers. Browser sessions use
-> HttpOnly cookies with CSRF protection. Deploy with a compatible frontend; see
+> digits for money and six for odds/payout multipliers. Protected browser
+> operations use HttpOnly cookies with CSRF protection; shared catalogue,
+> fixture, and standings reads are public. Deploy with a compatible frontend; see
 > the [API migration guide](docs/api-migration-from-main.md) and
-> [exact-decimal frontend handoff](docs/frontend-exact-decimals.md).
+> [exact-decimal frontend migration](docs/api-migration-from-main.md#exact-decimal-frontend-migration).
 
 ## Requirements
 
@@ -44,16 +45,17 @@ migrations.
    make dev
    ```
 
-   `make dev` starts PostgreSQL and Redis with Compose, regenerates Swagger from
-   source annotations, applies pending Goose migrations, then runs the API
-   through Air. The API listens on
+   `make dev` starts PostgreSQL and Redis with Compose, applies pending Goose
+   migrations, then runs the API through Air. The manually maintained API
+   contract is in `docs/openapi.yaml`; validate it with `make openapi-check`.
+   The API listens on
    `http://localhost:8080`. The Compose file starts only PostgreSQL and Redis;
    the Go process runs on the host. Accordingly, `.env.example` uses
    `DB_HOST=localhost`. If you run the API inside the same Compose network, use
    `DB_HOST=postgres` and `CACHE_HOST=redis` instead.
 
-4. For a fresh database, add the default sports, groups, and colors from a second
-   terminal:
+4. For a fresh database, add the default sports, locations, groups, and colors
+   from a second terminal:
 
    ```sh
    make seed
@@ -79,7 +81,7 @@ The example Compose setup publishes PostgreSQL on port `5432` and Redis on
 | `make deps` | Start PostgreSQL and Redis |
 | `make migrate-status` | Show the Goose migration status |
 | `make migrate-up` | Apply pending migrations |
-| `make seed` | Add the stable sports, group, and color catalogue rows |
+| `make seed` | Add the stable sport, location, group, and color catalogue rows |
 | `make test` | Run Go unit and package tests |
 | `make test-race` | Run tests with Go's race detector |
 | `make test-integration` | Run integration tests with disposable PostgreSQL and Redis containers |
@@ -91,7 +93,7 @@ Catalogue seeding inserts missing defaults without overwriting edited titles.
 Explicitly rerunning `make seed` restores deleted default sport entries. Admins
 manage sports through `/api/v1/sport-types/admin`; see the
 [API reference](docs/README.md#sport-type-administration) and
-[frontend handoff](docs/frontend-sport-types.md).
+[frontend migration guide](docs/api-migration-from-main.md#sport-type-frontend-migration).
 
 Integration tests use ports `55432` and `56379` by default. Override
 `TEST_POSTGRES_PORT`, `TEST_REDIS_PORT`, or `TEST_COMPOSE_PROJECT` if those
@@ -115,6 +117,10 @@ Browser mutations use the session cookie and `X-CSRF-Token` returned by
 `GET /api/v1/auth/me`. Configure the exact frontend origin in
 `CORS_ALLOW_ORIGINS`. The `/external/*` API uses Bearer authentication. See
 [Swagger and API usage](docs/README.md) for the current contract.
+
+Location, sport, match, and color-standings reads are public and do not evaluate
+account allowlist/blacklist rules. Configured-Origin checks and the API-wide
+per-IP rate limit still apply; see [public shared reads](docs/README.md#public-shared-reads).
 
 ## Repository structure
 

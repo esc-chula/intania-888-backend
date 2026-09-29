@@ -78,7 +78,7 @@ definitions:
       remaining_coin:
         example: '888.88'
         type: string
-        description: Optional new account balance as a decimal JSON string; numeric JSON tokens are rejected.
+        description: New account balance as a decimal JSON string; the handler writes 0.00 when this field is omitted. Include the intended balance on every update. Numeric JSON tokens are rejected.
     required:
     - name
     type: object
@@ -318,7 +318,7 @@ definitions:
     required:
     - location
     type: object
-    description: MatchDto representation used by this API.
+    description: Match resource included in match responses and nested bill lines, with the assigned location.
   model.MatchResultRequest:
     properties:
       outcome:
@@ -2297,7 +2297,7 @@ paths:
       - application/json
       description: Returns standings for the selected group and optional sport type, calculated from completed
         match results. Omit either UUID filter to include all groups or sport types for that dimension.
-        No session is required. Browser requests with an Origin must use one configured on the server.
+        No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
       parameters:
       - description: Optional sport-type UUID used to filter standings.
         in: query
@@ -2377,7 +2377,7 @@ paths:
       - application/json
       description: Returns color standings calculated from completed matches. An optional sport-type ID
         limits the results to one sport.
-        No session is required. Browser requests with an Origin must use one configured on the server.
+        No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
       parameters:
       - description: Optional sport-type UUID used to filter standings.
         in: query
@@ -3145,7 +3145,7 @@ paths:
   /locations:
     get:
       summary: List locations
-      description: Returns the configured venue catalogue. Each item contains the stable location ID and its current display title. No session is required.
+      description: Returns the configured venue catalogue. Each item contains the stable location ID and its current display title. No session is required. Account allowlist and blacklist checks do not apply.
         Browser requests with an Origin must use one configured on the server.
       tags:
       - Location
@@ -3182,7 +3182,7 @@ paths:
     get:
       summary: Get a location
       description: Returns one configured venue by its stable ID.
-        No session is required. Browser requests with an Origin must use one configured on the server.
+        No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
       tags:
       - Location
       produces:
@@ -3274,13 +3274,13 @@ paths:
           headers:
             X-Request-ID: *id001
         '403':
-          description: Administrator permission is required for this operation. The body uses apierror.Response.
+          description: Administrator permission is required, or configured Origin/CSRF validation failed. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
             X-Request-ID: *id001
         '409':
-          description: The ID already exists, or the location is assigned to a match. Assigned locations cannot be deleted; the response code is LOCATION_IN_USE.
+          description: The location ID already exists. The body uses apierror.Response with code CONFLICT.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
@@ -3352,7 +3352,7 @@ paths:
           headers:
             X-Request-ID: *id001
         '403':
-          description: Administrator permission is required for this operation. The body uses apierror.Response.
+          description: Administrator permission is required, or configured Origin/CSRF validation failed. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
@@ -3404,6 +3404,12 @@ paths:
           description: Location deleted; no response body.
           headers:
             X-Request-ID: *id001
+        '400':
+          description: Invalid location ID. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
         '401':
           description: Authentication is required. The body uses apierror.Response.
           schema:
@@ -3411,7 +3417,7 @@ paths:
           headers:
             X-Request-ID: *id001
         '403':
-          description: Administrator permission is required for this operation. The body uses apierror.Response.
+          description: Administrator permission is required, or configured Origin/CSRF validation failed. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
@@ -3423,7 +3429,7 @@ paths:
           headers:
             X-Request-ID: *id001
         '409':
-          description: The ID already exists, or the location is assigned to a match. Assigned locations cannot be deleted; the response code is LOCATION_IN_USE.
+          description: The location is assigned to one or more matches. The body uses apierror.Response with code LOCATION_IN_USE.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
@@ -3524,7 +3530,7 @@ paths:
       - Match
       description: Lists fixtures grouped by start date and sport type. Every match includes its assigned
         location object ({id, title}). Optionally filter by sport-type ID and choose schedule or result grouping.
-        No session is required. Browser requests with an Origin must use one configured on the server.
+        No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
     post:
       consumes:
       - application/json
@@ -3821,7 +3827,7 @@ paths:
       - Match
       description: Returns one fixture with its schedule, scores, outcome, current server-calculated rates,
         and its assigned location object ({id, title}).
-        No session is required. Browser requests with an Origin must use one configured on the server.
+        No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
     put:
       consumes:
       - application/json
@@ -4250,7 +4256,7 @@ paths:
       - Match
       description: Returns the backend’s current UTC time for clients that need to compare or display
         match schedules.
-        No session is required. Browser requests with an Origin must use one configured on the server.
+        No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
   /mines/{id}:
     get:
       description: Returns the selected Stake Mines game only when it belongs to the authenticated account,
@@ -5001,7 +5007,7 @@ paths:
       - application/json
       description: Returns the sport-type catalogue. IDs are stable keys; titles are mutable and may be
         duplicated.
-        No session is required. Browser requests with an Origin must use one configured on the server.
+        No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
       produces:
       - application/json
       responses:
@@ -5128,7 +5134,7 @@ paths:
       tags:
       - SportType
       description: Returns one sport type by its stable ID.
-        No session is required. Browser requests with an Origin must use one configured on the server.
+        No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
   /sport-types/admin:
     post:
       consumes:
@@ -6046,14 +6052,16 @@ tags:
 - name: Bill
   description: Browser bill placement, lookup, and administrator void/refund actions.
 - name: Color
-  description: Color standings and group-stage results derived from completed matches.
+  description: Public color standings and group-stage results derived from completed matches.
 - name: Event
   description: Daily rewards, slot-machine spins, and steal-token actions.
+- name: Location
+  description: Public location catalogue reads and administrator-managed venue changes.
 - name: Match
-  description: Fixture schedules, administrator match updates, outcomes, and settlement.
+  description: Public fixture schedules and server time, plus administrator match updates, outcomes, and settlement.
 - name: StakeMines
   description: Stake Mines game lifecycle, history, and player statistics.
 - name: SportType
-  description: Authenticated sport catalogue reads and administrator catalogue changes.
+  description: Public sport catalogue reads and administrator catalogue changes.
 - name: User
   description: Authenticated profile reads and self-service or administrator profile updates.
