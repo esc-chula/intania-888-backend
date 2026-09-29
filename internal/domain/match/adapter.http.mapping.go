@@ -3,6 +3,8 @@ package match
 import (
 	"sort"
 	"time"
+
+	"github.com/esc-chula/intania-888-backend/internal/domain/location"
 )
 
 // ResponseFromSnapshot maps a match embedded in another HTTP resource.
@@ -15,6 +17,7 @@ func matchResultDTO(result *Result) *Response {
 	if result == nil {
 		return nil
 	}
+
 	return &Response{
 		ID:         result.ID,
 		TeamAID:    result.TeamAID,
@@ -25,6 +28,7 @@ func matchResultDTO(result *Result) *Response {
 		TeamBRate:  result.TeamBRate,
 		WinnerID:   result.WinnerID,
 		TypeID:     result.TypeID,
+		Location:   location.Response{ID: result.LocationID, Title: result.LocationTitle},
 		IsDraw:     result.IsDraw,
 		StartTime:  result.StartTime,
 		EndTime:    result.EndTime,
@@ -36,6 +40,7 @@ func matchResultsDTO(results []*Result) []*Response {
 	for i := range results {
 		output[i] = matchResultDTO(results[i])
 	}
+
 	return output
 }
 

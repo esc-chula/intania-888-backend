@@ -46,14 +46,14 @@ func execSportSQL(t *testing.T, p *testutil.Postgres, statements ...string) {
 }
 
 var sportReferences = []struct{ name, table, insert string }{
-	{"match", "matches", `INSERT INTO matches(id,type_id,start_time,end_time) VALUES($1,$1,now(),now())`},
+	{"match", "matches", `INSERT INTO matches(id,type_id,location_id,start_time,end_time) VALUES($1,$1,'TEST_LOCATION',now(),now())`},
 	{"tournament group", "group_heads", `INSERT INTO group_heads(id,type_id,title) VALUES($1,$1,'Group')`},
 	{"stage", "group_stages", `INSERT INTO group_stages(id,type_id,color_id) VALUES($1,$1,'A')`},
 }
 
 func TestSportTypePostgresCRUDAndSafeDeletion(t *testing.T) {
 	p := sportTypePostgres(t)
-	execSportSQL(t, p, `INSERT INTO colors(id,title) VALUES('A','A')`)
+	execSportSQL(t, p, `INSERT INTO colors(id,title) VALUES('A','A')`, `INSERT INTO locations(id,title) VALUES('TEST_LOCATION','Test location')`)
 	service := NewService(NewGORMRepository(p.DB), nil)
 	ctx := context.Background()
 
@@ -149,7 +149,10 @@ func waitSportTypeBlock(t *testing.T, p *testutil.Postgres, blocker, waiter int)
 
 func TestSportTypeConcurrentReferenceAndDeletion(t *testing.T) {
 	p := sportTypePostgres(t)
-	execSportSQL(t, p, `INSERT INTO colors(id,title) VALUES('A','A')`)
+	execSportSQL(t, p,
+		`INSERT INTO colors(id,title) VALUES('A','A')`,
+		`INSERT INTO locations(id,title) VALUES('TEST_LOCATION','Test location')`,
+	)
 	for _, reference := range sportReferences {
 		for _, referenceFirst := range []bool{true, false} {
 			name := reference.name + "/delete first"

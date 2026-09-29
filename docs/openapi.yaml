@@ -196,24 +196,31 @@ definitions:
       end_time:
         type: string
         description: RFC 3339 timestamp; must be later than start_time.
+      location_id:
+        type: string
+        example: CIVIL_COURT
+        description: ID of an existing location returned by GET /locations.
       start_time:
         type: string
         description: RFC 3339 timestamp; must be earlier than end_time.
       team_a:
         type: string
+        description: ID of the first team.
       team_b:
         type: string
+        description: ID of the second team; it must differ from team_a.
       type:
         type: string
-        description: Stable sport-type ID for this fixture.
+        description: Stable sport-type ID returned by GET /sport-types.
     required:
     - end_time
+    - location_id
     - start_time
     - team_a
     - team_b
     - type
     type: object
-    description: CreateMatchRequest representation used by this API.
+    description: Required fields for creating a scheduled match.
   model.CreateMineGameRequest:
     properties:
       bet_amount:
@@ -278,6 +285,9 @@ definitions:
       id:
         type: string
         description: Unique match identifier.
+      location:
+        $ref: '#/definitions/model.LocationDto'
+        description: Assigned venue, including its stable ID and current display title.
       is_draw:
         type: boolean
         description: True when the terminal result is a draw.
@@ -305,6 +315,8 @@ definitions:
       winner:
         type: string
         description: Winning team ID, or empty when no winner is set.
+    required:
+    - location
     type: object
     description: MatchDto representation used by this API.
   model.MatchResultRequest:
@@ -480,6 +492,53 @@ definitions:
     required:
     - amount
     type: object
+  model.LocationDto:
+    properties:
+      id:
+        type: string
+        example: CIVIL_COURT
+        description: Stable identifier referenced by matches. IDs use 1–100 ASCII letters, digits, underscores, or hyphens.
+      title:
+        type: string
+        example: สนามโยธา
+        description: Current display name. Titles are trimmed to 1–100 characters and are not required to be unique.
+    required:
+    - id
+    - title
+    type: object
+    description: A configured venue available for match scheduling.
+  model.CreateLocationRequest:
+    properties:
+      id:
+        type: string
+        example: NEW_COURT
+        minLength: 1
+        maxLength: 100
+        pattern: ^[A-Za-z0-9_-]+$
+        description: Stable identifier; use 1–100 ASCII letters, digits, underscores, or hyphens.
+      title:
+        type: string
+        example: New Court
+        minLength: 1
+        maxLength: 100
+        description: Display name, trimmed to 1–100 characters. Duplicate titles are allowed.
+    required:
+    - id
+    - title
+    type: object
+    description: Fields required to add a location to the catalogue.
+  model.UpdateLocationRequest:
+    properties:
+      title:
+        type: string
+        example: Updated Court Name
+        minLength: 1
+        maxLength: 100
+        description: New display name, trimmed to 1–100 characters. The location ID cannot be changed.
+    required:
+    - title
+    type: object
+    description: Rename an existing location without changing its stable ID.
   model.SportTypeDto:
     properties:
       id:
@@ -508,18 +567,24 @@ definitions:
       end_time:
         type: string
         description: Optional RFC 3339 timestamp.
+      location_id:
+        type: string
+        example: INDOOR_STADIUM_1
+        description: Optional ID of an existing location. Omit the field to keep the current venue; an empty value is rejected.
       start_time:
         type: string
         description: Optional RFC 3339 timestamp.
       team_a:
         type: string
+        description: Optional ID of the first team.
       team_b:
         type: string
+        description: Optional ID of the second team.
       type:
         type: string
         description: Optional stable sport-type ID.
     type: object
-    description: UpdateMatchRequest representation used by this API.
+    description: Partial match update; include at least one supported field.
   model.UpdateSportTypeRequest:
     properties:
       title:
@@ -3117,6 +3182,324 @@ paths:
       summary: Use a steal token
       tags:
       - Event
+  /locations:
+    get:
+      summary: List locations
+      description: Returns the configured venue catalogue. Each item contains the stable location ID and its current display title. Authentication is required.
+      tags:
+      - Location
+      security:
+      - CookieSession: []
+      produces:
+      - application/json
+      responses:
+        '200':
+          description: Location catalogue.
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/model.LocationDto'
+          headers:
+            X-Request-ID: *id001
+        '401':
+          description: Authentication is required. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '429':
+          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '500':
+          description: Unexpected server failure. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '503':
+          description: Session or access-policy state could not be checked because a required dependency is unavailable.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+  /locations/{id}:
+    get:
+      summary: Get a location
+      description: Returns one configured venue by its stable ID.
+      tags:
+      - Location
+      security:
+      - CookieSession: []
+      produces:
+      - application/json
+      parameters:
+      - name: id
+        in: path
+        description: Stable location identifier.
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Location details.
+          schema:
+            $ref: '#/definitions/model.LocationDto'
+          headers:
+            X-Request-ID: *id001
+        '400':
+          description: Invalid ID or title. The body uses apierror.Response; details identifies fields that failed validation.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '401':
+          description: Authentication is required. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '404':
+          description: No location exists with this ID. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '429':
+          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '500':
+          description: Unexpected server failure. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '503':
+          description: Session or access-policy state could not be checked because a required dependency is unavailable.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+  /locations/admin:
+    post:
+      summary: Create a location
+      description: Administrator-only. Adds a location with an immutable ID and a trimmed display title. Duplicate IDs return 409; duplicate titles are allowed.
+      tags:
+      - Location
+      security:
+      - CookieSession: []
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - name: location
+        in: body
+        description: Location ID and display title.
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreateLocationRequest'
+      - name: X-CSRF-Token
+        in: header
+        description: Session-bound token returned by GET /auth/me; required for browser mutations.
+        required: true
+        type: string
+      responses:
+        '201':
+          description: Location created.
+          schema:
+            $ref: '#/definitions/model.LocationDto'
+          headers:
+            X-Request-ID: *id001
+        '400':
+          description: Invalid ID or title. The body uses apierror.Response; details identifies fields that failed validation.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '401':
+          description: Authentication is required. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '403':
+          description: Administrator permission is required for this operation. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '409':
+          description: The ID already exists, or the location is assigned to a match. Assigned locations cannot be deleted; the response code is LOCATION_IN_USE.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '429':
+          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '500':
+          description: Unexpected server failure. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '503':
+          description: Session or access-policy state could not be checked because a required dependency is unavailable.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+  /locations/admin/{id}:
+    patch:
+      summary: Rename a location
+      description: Administrator-only. Changes the display title while keeping the location ID stable. Existing matches continue to reference the renamed location.
+      tags:
+      - Location
+      security:
+      - CookieSession: []
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - name: id
+        in: path
+        description: Stable location identifier.
+        required: true
+        type: string
+      - name: location
+        in: body
+        description: New display title.
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateLocationRequest'
+      - name: X-CSRF-Token
+        in: header
+        description: Session-bound token returned by GET /auth/me; required for browser mutations.
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Location renamed.
+          schema:
+            $ref: '#/definitions/model.LocationDto'
+          headers:
+            X-Request-ID: *id001
+        '400':
+          description: Invalid ID or title. The body uses apierror.Response; details identifies fields that failed validation.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '401':
+          description: Authentication is required. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '403':
+          description: Administrator permission is required for this operation. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '404':
+          description: No location exists with this ID. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '429':
+          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '500':
+          description: Unexpected server failure. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '503':
+          description: Session or access-policy state could not be checked because a required dependency is unavailable.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+    delete:
+      summary: Delete a location
+      description: Administrator-only. Deletes an unused location. A location referenced by any match cannot be deleted; reassign or remove those matches first.
+      tags:
+      - Location
+      security:
+      - CookieSession: []
+      parameters:
+      - name: id
+        in: path
+        description: Stable location identifier.
+        required: true
+        type: string
+      - name: X-CSRF-Token
+        in: header
+        description: Session-bound token returned by GET /auth/me; required for browser mutations.
+        required: true
+        type: string
+      responses:
+        '204':
+          description: Location deleted; no response body.
+          headers:
+            X-Request-ID: *id001
+        '401':
+          description: Authentication is required. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '403':
+          description: Administrator permission is required for this operation. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '404':
+          description: No location exists with this ID. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '409':
+          description: The ID already exists, or the location is assigned to a match. Assigned locations cannot be deleted; the response code is LOCATION_IN_USE.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '429':
+          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '500':
+          description: Unexpected server failure. The body uses apierror.Response.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
+        '503':
+          description: Session or access-policy state could not be checked because a required dependency is unavailable.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
   /matches:
     get:
       parameters:
@@ -3215,8 +3598,8 @@ paths:
       summary: List matches
       tags:
       - Match
-      description: Lists fixtures grouped by start date and sport type. Optionally filter by sport-type
-        ID and choose schedule or result grouping.
+      description: Lists fixtures grouped by start date and sport type. Every match includes its assigned
+        location object ({id, title}). Optionally filter by sport-type ID and choose schedule or result grouping.
     post:
       consumes:
       - application/json
@@ -3329,8 +3712,8 @@ paths:
       summary: Create a match
       tags:
       - Match
-      description: Administrator-only. Creates a fixture with two team IDs, a sport-type ID, and start/end
-        timestamps. The end time must be later than the start time.
+      description: Administrator-only. Creates a fixture with two team IDs, a sport-type ID, a required
+        location_id from GET /locations, and start/end timestamps. The end time must be later than the start time.
   /matches/{id}:
     delete:
       parameters:
@@ -3460,6 +3843,9 @@ paths:
               team_a: team-a-id
               team_b: team-b-id
               type: BADMINTON_ALL
+              location:
+                id: CIVIL_COURT
+                title: สนามโยธา
               start_time: '2026-10-01T09:00:00Z'
               end_time: '2026-10-01T10:00:00Z'
               team_a_rate: '1.750000'
@@ -3530,8 +3916,8 @@ paths:
       summary: Get a match by ID
       tags:
       - Match
-      description: Returns one fixture with its schedule, scores, outcome, and current server-calculated
-        rates for both teams.
+      description: Returns one fixture with its schedule, scores, outcome, current server-calculated rates,
+        and its assigned location object ({id, title}).
     put:
       consumes:
       - application/json

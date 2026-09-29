@@ -3,41 +3,45 @@ package match
 import (
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/location"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
 // Response is the match HTTP response.
 type Response struct {
-	ID         string     `json:"id"`
-	TeamAID    string     `json:"team_a"`
-	TeamBID    string     `json:"team_b"`
-	TeamAScore *int       `json:"team_a_score"`
-	TeamBScore *int       `json:"team_b_score"`
-	TeamARate  value.Rate `json:"team_a_rate"`
-	TeamBRate  value.Rate `json:"team_b_rate"`
-	WinnerID   string     `json:"winner"`
-	TypeID     string     `json:"type"`
-	IsDraw     bool       `json:"is_draw"`
-	StartTime  time.Time  `json:"start_time"`
-	EndTime    time.Time  `json:"end_time"`
+	ID         string            `json:"id"`
+	TeamAID    string            `json:"team_a"`
+	TeamBID    string            `json:"team_b"`
+	TeamAScore *int              `json:"team_a_score"`
+	TeamBScore *int              `json:"team_b_score"`
+	TeamARate  value.Rate        `json:"team_a_rate"`
+	TeamBRate  value.Rate        `json:"team_b_rate"`
+	WinnerID   string            `json:"winner"`
+	TypeID     string            `json:"type"`
+	Location   location.Response `json:"location"`
+	IsDraw     bool              `json:"is_draw"`
+	StartTime  time.Time         `json:"start_time"`
+	EndTime    time.Time         `json:"end_time"`
 }
 
 // CreateMatchRequest is the match HTTP request.
 type CreateMatchRequest struct {
-	TeamAID   string    `json:"team_a" validate:"required"`
-	TeamBID   string    `json:"team_b" validate:"required"`
-	TypeID    string    `json:"type" validate:"required"`
-	StartTime time.Time `json:"start_time" validate:"required"`
-	EndTime   time.Time `json:"end_time" validate:"required"`
+	TeamAID    string    `json:"team_a" validate:"required"`
+	TeamBID    string    `json:"team_b" validate:"required"`
+	TypeID     string    `json:"type" validate:"required"`
+	LocationID string    `json:"location_id" validate:"required"`
+	StartTime  time.Time `json:"start_time" validate:"required"`
+	EndTime    time.Time `json:"end_time" validate:"required"`
 }
 
 // UpdateMatchRequest is the match HTTP request.
 type UpdateMatchRequest struct {
-	TeamAID   *string    `json:"team_a"`
-	TeamBID   *string    `json:"team_b"`
-	TypeID    *string    `json:"type"`
-	StartTime *time.Time `json:"start_time"`
-	EndTime   *time.Time `json:"end_time"`
+	TeamAID    *string    `json:"team_a"`
+	TeamBID    *string    `json:"team_b"`
+	TypeID     *string    `json:"type"`
+	LocationID *string    `json:"location_id"`
+	StartTime  *time.Time `json:"start_time"`
+	EndTime    *time.Time `json:"end_time"`
 }
 
 // MatchesByType is the match HTTP response.

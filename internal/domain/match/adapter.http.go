@@ -41,11 +41,12 @@ func (h *HTTPHandler) CreateMatch(c *fiber.Ctx) error {
 		return e
 	}
 	v := Input{
-		TeamAID:   request.TeamAID,
-		TeamBID:   request.TeamBID,
-		TypeID:    request.TypeID,
-		StartTime: request.StartTime,
-		EndTime:   request.EndTime,
+		TeamAID:    request.TeamAID,
+		TeamBID:    request.TeamBID,
+		TypeID:     request.TypeID,
+		LocationID: request.LocationID,
+		StartTime:  request.StartTime,
+		EndTime:    request.EndTime,
 	}
 
 	if e := h.matchService.CreateMatch(c.UserContext(), &v); e != nil {
@@ -130,6 +131,9 @@ func (h *HTTPHandler) UpdateMatch(c *fiber.Ctx) error {
 	}
 	if request.TypeID != nil {
 		v.TypeID = *request.TypeID
+	}
+	if request.LocationID != nil {
+		v.LocationID = *request.LocationID
 	}
 	if request.StartTime != nil {
 		v.StartTime = *request.StartTime

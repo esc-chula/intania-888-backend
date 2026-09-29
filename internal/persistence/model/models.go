@@ -70,16 +70,18 @@ type Match struct {
 	TeamAScore *int    `gorm:"column:teama_score;type:int;"`
 	TeamBScore *int    `gorm:"column:teamb_score;type:int;"`
 
-	WinnerID  *string   `gorm:"column:winner_id;type:varchar(100);"`
-	TypeID    string    `gorm:"column:type_id;type:varchar(100);not null"`
-	IsDraw    bool      `gorm:"column:is_draw;type:boolean;default:false"`
-	StartTime time.Time `gorm:"column:start_time"`
-	EndTime   time.Time `gorm:"column:end_time"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at"`
+	WinnerID   *string   `gorm:"column:winner_id;type:varchar(100);"`
+	TypeID     string    `gorm:"column:type_id;type:varchar(100);not null"`
+	LocationID string    `gorm:"column:location_id;type:varchar(100);not null"`
+	IsDraw     bool      `gorm:"column:is_draw;type:boolean;default:false"`
+	StartTime  time.Time `gorm:"column:start_time"`
+	EndTime    time.Time `gorm:"column:end_time"`
+	CreatedAt  time.Time `gorm:"column:created_at"`
+	UpdatedAt  time.Time `gorm:"column:updated_at"`
 
 	BillLines []BillLine `gorm:"foreignKey:MatchID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	SportType SportType  `gorm:"foreignKey:TypeID"`
+	Location  Location   `gorm:"foreignKey:LocationID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 	TeamA     Color      `gorm:"foreignKey:TeamAID"`
 	TeamB     Color      `gorm:"foreignKey:TeamBID"`
 	Winner    Color      `gorm:"foreignKey:WinnerID"`
@@ -162,6 +164,16 @@ type SportType struct {
 
 	Matches         []Match     `gorm:"foreignKey:TypeID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 	TournamentGroup []GroupHead `gorm:"foreignKey:TypeID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+}
+
+// Location maps a venue and its optional loaded match references.
+type Location struct {
+	ID        string    `gorm:"primaryKey;type:varchar(100)"`
+	Title     string    `gorm:"type:varchar(100);not null"`
+	CreatedAt time.Time `
+	UpdatedAt time.Time `
+
+	Matches []Match `gorm:"foreignKey:LocationID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 }
 
 // DailyReward maps a date-specific daily reward override. Reward uses

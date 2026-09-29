@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -25,6 +26,7 @@ func matchLookupError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
+
 	return err
 }
 
@@ -38,27 +40,33 @@ func (r *gormRepository) WithinTransaction(ctx context.Context, fn func(Transact
 // Create stores the new match record.
 func (r *gormRepository) Create(ctx context.Context, item *Snapshot) error {
 	row := snapshotToRow(item)
-	return r.db.WithContext(ctx).Create(&row).Error
+
+	return matchWriteError(r.db.WithContext(ctx).Create(&row).Error)
 }
 
 // GetByID loads a match and translates missing rows to the feature error.
 func (r *gormRepository) GetByID(ctx context.Context, id string) (*Snapshot, error) {
 	var row persistence.Match
-	if err := r.db.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+
+	if err := r.db.WithContext(ctx).Preload("Location").First(&row, "id = ?", id).Error; err != nil {
 		return nil, matchLookupError(err)
 	}
+
 	result := snapshotFromRow(row)
+
 	return &result, nil
 }
 
 // GetAll applies the existing schedule filters and start-time ordering.
 func (r *gormRepository) GetAll(ctx context.Context, filter *Filter, now time.Time) ([]*Snapshot, error) {
 	var rows []*persistence.Match
-	query := r.db.WithContext(ctx)
+	query := r.db.WithContext(ctx).Preload("Location")
+
 	if filter != nil {
 		if filter.TypeID != "" {
 			query = query.Where("type_id = ?", filter.TypeID)
 		}
+
 		switch filter.Schedule {
 		case Schedule:
 			query = query.Where("end_time > ?", now)
@@ -66,14 +74,17 @@ func (r *gormRepository) GetAll(ctx context.Context, filter *Filter, now time.Ti
 			query = query.Where("end_time <= ?", now)
 		}
 	}
+
 	if err := query.Order("start_time").Find(&rows).Error; err != nil {
 		return nil, err
 	}
+
 	results := make([]*Snapshot, len(rows))
 	for i, row := range rows {
 		snapshot := snapshotFromRow(*row)
 		results[i] = &snapshot
 	}
+
 	return results, nil
 }
 
@@ -83,26 +94,39 @@ func (r *gormRepository) CountBetsForTeam(ctx context.Context, matchID, teamID s
 	err := r.db.WithContext(ctx).Table("bill_lines").
 		Joins("JOIN bill_heads ON bill_heads.id = bill_lines.bill_id").
 		Where("bill_lines.match_id = ? AND bill_lines.betting_on = ? AND bill_heads.status = 'PENDING'", matchID, teamID).Count(&count).Error
+
 	return count, err
 }
 
 // UpdateScore writes only the score columns.
 func (r *gormRepository) UpdateScore(ctx context.Context, item *Snapshot) error {
 	updates := map[string]any{"teama_score": item.TeamAScore, "teamb_score": item.TeamBScore}
+
 	return r.db.WithContext(ctx).Model(&persistence.Match{ID: item.ID}).Updates(updates).Error
 }
 
 // UpdateMatch writes editable columns with the supplied update timestamp.
 func (r *gormRepository) UpdateMatch(ctx context.Context, item *Snapshot, now time.Time) error {
 	updates := map[string]any{
-		"teama_id":   item.TeamAID,
-		"teamb_id":   item.TeamBID,
-		"type_id":    item.TypeID,
-		"start_time": item.StartTime,
-		"end_time":   item.EndTime,
-		"updated_at": now,
+		"teama_id":    item.TeamAID,
+		"teamb_id":    item.TeamBID,
+		"type_id":     item.TypeID,
+		"location_id": item.LocationID,
+		"start_time":  item.StartTime,
+		"end_time":    item.EndTime,
+		"updated_at":  now,
 	}
-	return r.db.WithContext(ctx).Model(&persistence.Match{ID: item.ID}).Updates(updates).Error
+
+	return matchWriteError(r.db.WithContext(ctx).Model(&persistence.Match{ID: item.ID}).Updates(updates).Error)
+}
+
+func matchWriteError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" && pgErr.ConstraintName == "matches_location_id_fkey" {
+		return ErrInvalidLocation
+	}
+
+	return err
 }
 
 // Delete preserves the existing affected-row not-found contract.
@@ -114,6 +138,7 @@ func (r *gormRepository) Delete(ctx context.Context, id string) error {
 	if result.RowsAffected == 0 {
 		return matchLookupError(gorm.ErrRecordNotFound)
 	}
+
 	return nil
 }
 
@@ -131,6 +156,7 @@ func (r *gormRepository) FindPendingBillIDs(ctx context.Context, matchID string)
 		Where("bill_lines.match_id=? AND bill_heads.status='PENDING'", matchID).
 		Order("bill_heads.id").
 		Scan(&ids).Error
+
 	return ids, err
 }
 
@@ -142,12 +168,14 @@ func (r *gormRepository) FindReferencedMatchIDs(ctx context.Context, billIDs []s
 		Where("bill_id IN ?", billIDs).
 		Order("match_id").
 		Scan(&ids).Error
+
 	return ids, err
 }
 
 // LockMatches acquires match write locks in sorted ID order.
 func (r *gormRepository) LockMatches(ctx context.Context, ids []string) ([]Snapshot, error) {
 	var rows []persistence.Match
+
 	if err := r.db.WithContext(ctx).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id IN ?", ids).
@@ -155,22 +183,26 @@ func (r *gormRepository) LockMatches(ctx context.Context, ids []string) ([]Snaps
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+
 	result := make([]Snapshot, len(rows))
 	for i := range rows {
 		result[i] = snapshotFromRow(rows[i])
 	}
+
 	return result, nil
 }
 
 // UpdateResult writes only the terminal match result and timestamp.
 func (r *gormRepository) UpdateResult(ctx context.Context, item *Snapshot, now time.Time) error {
 	updates := map[string]any{"winner_id": item.WinnerID, "is_draw": item.IsDraw, "updated_at": now}
+
 	return r.db.WithContext(ctx).Model(&persistence.Match{ID: item.ID}).Updates(updates).Error
 }
 
 // LockBills acquires bill head locks in sorted ID order.
 func (r *gormRepository) LockBills(ctx context.Context, ids []string) ([]*BillSnapshot, error) {
 	var rows []*persistence.BillHead
+
 	if err := r.db.WithContext(ctx).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id IN ?", ids).
@@ -178,6 +210,7 @@ func (r *gormRepository) LockBills(ctx context.Context, ids []string) ([]*BillSn
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+
 	results := make([]*BillSnapshot, len(rows))
 	for i, row := range rows {
 		results[i] = &BillSnapshot{
@@ -187,19 +220,23 @@ func (r *gormRepository) LockBills(ctx context.Context, ids []string) ([]*BillSn
 			Status: row.Status,
 		}
 	}
+
 	return results, nil
 }
 
 // FindBillLines loads selections and match states in the existing order.
 func (r *gormRepository) FindBillLines(ctx context.Context, ids []string) ([]BillLineSnapshot, error) {
 	var rows []persistence.BillLine
+
 	if err := r.db.WithContext(ctx).
 		Preload("Match").
+		Preload("Match.Location").
 		Where("bill_id IN ?", ids).
 		Order("bill_id, match_id").
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+
 	results := make([]BillLineSnapshot, len(rows))
 	for i, row := range rows {
 		results[i] = BillLineSnapshot{
@@ -210,12 +247,14 @@ func (r *gormRepository) FindBillLines(ctx context.Context, ids []string) ([]Bil
 			Match:     snapshotFromRow(row.Match),
 		}
 	}
+
 	return results, nil
 }
 
 // LockUsers acquires account write locks in ID order.
 func (r *gormRepository) LockUsers(ctx context.Context, ids []string) ([]UserBalance, error) {
 	var rows []persistence.User
+
 	if err := r.db.WithContext(ctx).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id IN ?", ids).
@@ -223,10 +262,12 @@ func (r *gormRepository) LockUsers(ctx context.Context, ids []string) ([]UserBal
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+
 	results := make([]UserBalance, len(rows))
 	for i, row := range rows {
 		results[i] = UserBalance{ID: row.ID, Balance: value.MustMoneyFromMinor(row.RemainingCoin)}
 	}
+
 	return results, nil
 }
 
@@ -245,6 +286,7 @@ func (r *gormRepository) SettleBill(ctx context.Context, item BillSettlement) er
 		"settled_at": item.SettledAt,
 		"updated_at": item.SettledAt,
 	}
+
 	return r.db.WithContext(ctx).Model(&persistence.BillHead{ID: item.BillID}).Updates(updates).Error
 }
 
@@ -257,5 +299,6 @@ func (r *gormRepository) CreateTerminalEvent(ctx context.Context, event Terminal
 		Amount:    event.Amount.MinorUnits(),
 		CreatedAt: event.CreatedAt,
 	}
+
 	return r.db.WithContext(ctx).Create(&row).Error
 }

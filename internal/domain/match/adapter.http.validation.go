@@ -18,6 +18,9 @@ func (r CreateMatchRequest) ValidateRequest() map[string]string {
 	if strings.TrimSpace(r.TypeID) == "" {
 		details["type"] = "is required"
 	}
+	if strings.TrimSpace(r.LocationID) == "" {
+		details["location_id"] = "is required"
+	}
 	if r.StartTime.IsZero() {
 		details["start_time"] = "is required"
 	}
@@ -30,7 +33,7 @@ func (r CreateMatchRequest) ValidateRequest() map[string]string {
 // ValidateRequest validates the HTTP request fields.
 func (r UpdateMatchRequest) ValidateRequest() map[string]string {
 	details := make(map[string]string)
-	if r.TeamAID == nil && r.TeamBID == nil && r.TypeID == nil && r.StartTime == nil && r.EndTime == nil {
+	if r.TeamAID == nil && r.TeamBID == nil && r.TypeID == nil && r.LocationID == nil && r.StartTime == nil && r.EndTime == nil {
 		details["body"] = "must include at least one match field"
 		return details
 	}
@@ -42,6 +45,9 @@ func (r UpdateMatchRequest) ValidateRequest() map[string]string {
 	}
 	if r.TypeID != nil && strings.TrimSpace(*r.TypeID) == "" {
 		details["type"] = "must not be empty"
+	}
+	if r.LocationID != nil && strings.TrimSpace(*r.LocationID) == "" {
+		details["location_id"] = "must not be empty"
 	}
 	if r.StartTime != nil && r.StartTime.IsZero() {
 		details["start_time"] = "must be a valid timestamp"

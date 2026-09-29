@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/location"
 	"github.com/esc-chula/intania-888-backend/internal/domain/policy"
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	persistence "github.com/esc-chula/intania-888-backend/internal/persistence/model"
@@ -107,8 +108,19 @@ func seedCatalogue(db *gorm.DB) error {
 			{ID: sporttype.TugOfWarChakYor, Title: "ชักเย่อ"},
 			{ID: sporttype.RunningPiaw, Title: "วิ่งเปี้ยว"},
 		}
+		locations := []persistence.Location{
+			{ID: location.CivilCourt, Title: "สนามโยธา"},
+			{ID: location.TwoReignsStatuePlaza, Title: "ลานพระบรมรูปสองรัชกาล"},
+			{ID: location.CentennialBuildingFloor, Title: "ตึก 100 ปี ชั้น 12"},
+			{ID: location.GearLawn, Title: "ลานเกียร์"},
+			{ID: location.IndoorStadiumOne, Title: "สนามกีฬาในร่ม 1"},
+			{ID: location.JubStadium, Title: "สนามจุ๊บ"},
+		}
 
-		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&sports).Error
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&sports).Error; err != nil {
+			return err
+		}
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&locations).Error
 	})
 }
 

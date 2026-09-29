@@ -121,7 +121,7 @@ WHERE table_schema = 'public'
 
 	var catalogueCount int
 	if err := p.SQL.QueryRow(`
-SELECT (SELECT count(*) FROM colors) + (SELECT count(*) FROM matches) + (SELECT count(*) FROM sport_types)`).Scan(&catalogueCount); err != nil {
+SELECT (SELECT count(*) FROM colors) + (SELECT count(*) FROM matches) + (SELECT count(*) FROM sport_types) + (SELECT count(*) FROM locations)`).Scan(&catalogueCount); err != nil {
 		t.Fatal(err)
 	}
 
@@ -132,8 +132,9 @@ SELECT (SELECT count(*) FROM colors) + (SELECT count(*) FROM matches) + (SELECT 
 	setup := []string{
 		`INSERT INTO colors(id,title) VALUES('A','A'),('B','B')`,
 		`INSERT INTO sport_types(id,title) VALUES('S','S')`,
+		`INSERT INTO locations(id,title) VALUES('L','Location')`,
 		`INSERT INTO users(id,email,name,role_id) VALUES('U','u@example.test','u','USER')`,
-		`INSERT INTO matches(id,teama_id,teamb_id,type_id,start_time,end_time) VALUES('M','A','B','S',now(),now())`,
+		`INSERT INTO matches(id,teama_id,teamb_id,type_id,location_id,start_time,end_time) VALUES('M','A','B','S','L',now(),now())`,
 	}
 
 	for _, statement := range setup {
@@ -209,7 +210,7 @@ SELECT (SELECT count(*) FROM colors) + (SELECT count(*) FROM matches) + (SELECT 
 		t.Fatal("active-game partial unique index did not reject second game")
 	}
 
-	if _, err := p.SQL.Exec(`INSERT INTO matches(id,teama_id,teamb_id,winner_id,type_id,start_time,end_time) VALUES('invalid-winner','A','B','missing','S',now(),now())`); err == nil {
+	if _, err := p.SQL.Exec(`INSERT INTO matches(id,teama_id,teamb_id,winner_id,type_id,location_id,start_time,end_time) VALUES('invalid-winner','A','B','missing','S','L',now(),now())`); err == nil {
 		t.Fatal("winner membership constraint did not reject row")
 	}
 }

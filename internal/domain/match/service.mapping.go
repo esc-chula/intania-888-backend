@@ -6,6 +6,7 @@ func snapshotFromInput(input *Input) *Snapshot {
 		TeamAScore: input.TeamAScore,
 		TeamBScore: input.TeamBScore,
 		TypeID:     input.TypeID,
+		LocationID: input.LocationID,
 		IsDraw:     input.IsDraw,
 		StartTime:  input.StartTime,
 		EndTime:    input.EndTime,
@@ -24,13 +25,15 @@ func snapshotFromInput(input *Input) *Snapshot {
 
 func resultFromSnapshot(item Snapshot) *Result {
 	result := &Result{
-		ID:         item.ID,
-		TeamAScore: item.TeamAScore,
-		TeamBScore: item.TeamBScore,
-		TypeID:     item.TypeID,
-		IsDraw:     item.IsDraw,
-		StartTime:  item.StartTime,
-		EndTime:    item.EndTime,
+		ID:            item.ID,
+		TeamAScore:    item.TeamAScore,
+		TeamBScore:    item.TeamBScore,
+		TypeID:        item.TypeID,
+		LocationID:    item.LocationID,
+		LocationTitle: item.LocationTitle,
+		IsDraw:        item.IsDraw,
+		StartTime:     item.StartTime,
+		EndTime:       item.EndTime,
 	}
 	if item.TeamAID != nil {
 		result.TeamAID = *item.TeamAID

@@ -12,6 +12,8 @@ func mapMatchError(err error) error {
 	switch {
 	case errors.Is(err, ErrInvalidMatch), errors.Is(err, ErrInvalidScore):
 		return apierror.Wrap(err, fiber.StatusBadRequest, "INVALID_REQUEST", "Invalid match request")
+	case errors.Is(err, ErrInvalidLocation):
+		return apierror.Invalid(map[string]string{"location_id": "must reference an existing location"})
 	case errors.Is(err, ErrInvalidResult):
 		return apierror.Wrap(err, fiber.StatusBadRequest, "INVALID_REQUEST", "Invalid match result")
 	case errors.Is(err, ErrResultConflict):

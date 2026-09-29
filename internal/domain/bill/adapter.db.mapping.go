@@ -8,16 +8,18 @@ import (
 
 func matchSnapshot(row persistence.Match) match.Snapshot {
 	return match.Snapshot{
-		ID:         row.ID,
-		TeamAID:    row.TeamAID,
-		TeamBID:    row.TeamBID,
-		TeamAScore: row.TeamAScore,
-		TeamBScore: row.TeamBScore,
-		WinnerID:   row.WinnerID,
-		TypeID:     row.TypeID,
-		IsDraw:     row.IsDraw,
-		StartTime:  row.StartTime,
-		EndTime:    row.EndTime,
+		ID:            row.ID,
+		TeamAID:       row.TeamAID,
+		TeamBID:       row.TeamBID,
+		TeamAScore:    row.TeamAScore,
+		TeamBScore:    row.TeamBScore,
+		WinnerID:      row.WinnerID,
+		TypeID:        row.TypeID,
+		LocationID:    row.LocationID,
+		LocationTitle: row.Location.Title,
+		IsDraw:        row.IsDraw,
+		StartTime:     row.StartTime,
+		EndTime:       row.EndTime,
 	}
 }
 

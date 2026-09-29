@@ -24,7 +24,7 @@ func NewService(repo Repository, transactions TransactionManager, now func() tim
 
 // CreateMatch creates a match from validated application details.
 func (s *Service) CreateMatch(ctx context.Context, input *Input) error {
-	if input == nil || input.TeamAID == "" || input.TeamBID == "" || input.TypeID == "" || !input.EndTime.After(input.StartTime) {
+	if input == nil || input.TeamAID == "" || input.TeamBID == "" || input.TypeID == "" || input.LocationID == "" || !input.EndTime.After(input.StartTime) {
 		return ErrInvalidMatch
 	}
 	if input.ID == "" {
@@ -124,6 +124,10 @@ func (s *Service) UpdateMatch(ctx context.Context, id string, input *Input) erro
 
 	if input.TypeID != "" {
 		snapshot.TypeID = input.TypeID
+	}
+
+	if input.LocationID != "" {
+		snapshot.LocationID = input.LocationID
 	}
 
 	if !input.StartTime.IsZero() {

@@ -36,7 +36,9 @@ func billLookupError(err error) error {
 	return err
 }
 
-func preload(db *gorm.DB) *gorm.DB { return db.Preload("Lines").Preload("Lines.Match") }
+func preload(db *gorm.DB) *gorm.DB {
+	return db.Preload("Lines").Preload("Lines.Match").Preload("Lines.Match.Location")
+}
 
 // GetByID loads a bill, optionally restricting its owner.
 func (r *gormRepository) GetByID(ctx context.Context, id, userID string) (*Result, error) {

@@ -64,6 +64,7 @@ func (s *billingSuite) reset(t *testing.T) {
 	statements := []string{
 		`INSERT INTO colors(id,title) VALUES('A','A'),('B','B'),('C','C')`,
 		`INSERT INTO sport_types(id,title) VALUES('S','Test sport')`,
+		`INSERT INTO locations(id,title) VALUES('TEST_LOCATION','Test location')`,
 	}
 
 	for _, statement := range statements {
@@ -85,10 +86,10 @@ func (s *billingSuite) reset(t *testing.T) {
 	}
 
 	if _, err := s.postgres.SQL.Exec(
-		`INSERT INTO matches(id,teama_id,teamb_id,type_id,start_time,end_time) VALUES
-			('M1','A','B','S',now() + interval '1 hour',now() + interval '2 hours'),
-			('M2','A','B','S',now() + interval '3 hours',now() + interval '4 hours'),
-			('M3','A','B','S',now() + interval '5 hours',now() + interval '6 hours')`,
+		`INSERT INTO matches(id,teama_id,teamb_id,type_id,location_id,start_time,end_time) VALUES
+			('M1','A','B','S','TEST_LOCATION',now() + interval '1 hour',now() + interval '2 hours'),
+			('M2','A','B','S','TEST_LOCATION',now() + interval '3 hours',now() + interval '4 hours'),
+			('M3','A','B','S','TEST_LOCATION',now() + interval '5 hours',now() + interval '6 hours')`,
 	); err != nil {
 		t.Fatal(err)
 	}

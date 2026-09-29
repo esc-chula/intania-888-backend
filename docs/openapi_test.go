@@ -52,6 +52,11 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 		"GET /events/redeem/daily",
 		"POST /events/spin/slot",
 		"POST /events/use-steal-token",
+		"GET /locations",
+		"POST /locations/admin",
+		"GET /locations/{id}",
+		"PATCH /locations/admin/{id}",
+		"DELETE /locations/admin/{id}",
 		"GET /matches",
 		"POST /matches",
 		"DELETE /matches/{id}",
@@ -153,8 +158,8 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 			t.Errorf("unexpected operation %q", operation)
 		}
 	}
-	if len(gotOperations) != 48 {
-		t.Errorf("documented operation count = %d, want 48", len(gotOperations))
+	if len(gotOperations) != 53 {
+		t.Errorf("documented operation count = %d, want 53", len(gotOperations))
 	}
 
 	definitions, ok := document["definitions"].(map[string]any)
@@ -163,6 +168,25 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 	}
 	if err := checkReferences(document, definitions); err != nil {
 		t.Error(err)
+	}
+	if _, ok := definitions["model.LocationDto"]; !ok {
+		t.Error("LocationDto definition is missing")
+	}
+	if createMatch, ok := definitions["model.CreateMatchRequest"].(map[string]any); ok {
+		if !hasRequiredField(createMatch, "location_id") {
+			t.Error("CreateMatchRequest must require location_id")
+		}
+	} else {
+		t.Error("CreateMatchRequest definition is missing or malformed")
+	}
+	if match, ok := definitions["model.MatchDto"].(map[string]any); ok {
+		properties, _ := match["properties"].(map[string]any)
+		location, _ := properties["location"].(map[string]any)
+		if location["$ref"] != "#/definitions/model.LocationDto" {
+			t.Error("MatchDto.location must reference LocationDto")
+		}
+	} else {
+		t.Error("MatchDto definition is missing or malformed")
 	}
 
 	securityDefinitions, _ := document["securityDefinitions"].(map[string]any)
@@ -186,6 +210,16 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 	if !hasParameter(matchList, "query", "typeId") {
 		t.Error("GET /matches must document the typeId query parameter exactly as the handler reads it")
 	}
+}
+
+func hasRequiredField(schema map[string]any, name string) bool {
+	required, _ := schema["required"].([]any)
+	for _, field := range required {
+		if field == name {
+			return true
+		}
+	}
+	return false
 }
 
 func hasRequiredHeader(operation map[string]any, name string) bool {

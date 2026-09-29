@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/location"
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	"github.com/esc-chula/intania-888-backend/internal/testutil"
 )
@@ -33,6 +34,7 @@ func TestCatalogueReseedPreservesRenamesAndRestoresDeletedDefaults(t *testing.T)
 	}
 
 	service := sporttype.NewService(sporttype.NewGORMRepository(p.DB), nil)
+	locationService := location.NewService(location.NewGORMRepository(p.DB), nil)
 	ctx := context.Background()
 	if _, err := service.UpdateSportType(ctx, sporttype.Running, "Renamed running"); err != nil {
 		t.Fatal(err)
@@ -41,6 +43,12 @@ func TestCatalogueReseedPreservesRenamesAndRestoresDeletedDefaults(t *testing.T)
 		t.Fatal(err)
 	}
 	if _, err := service.CreateSportType(ctx, sporttype.SportType{ID: "CUSTOM", Title: "Custom sport"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := locationService.UpdateLocation(ctx, location.CivilCourt, "Renamed venue"); err != nil {
+		t.Fatal(err)
+	}
+	if err := locationService.DeleteLocation(ctx, location.GearLawn); err != nil {
 		t.Fatal(err)
 	}
 	if err := seedCatalogue(p.DB); err != nil {
@@ -59,5 +67,16 @@ func TestCatalogueReseedPreservesRenamesAndRestoresDeletedDefaults(t *testing.T)
 	rows, err := service.GetAllSportTypes(ctx)
 	if err != nil || len(rows) != 14 {
 		t.Fatalf("reseed duplicated or lost entries: count=%d err=%v", len(rows), err)
+	}
+	venue, err := locationService.GetLocation(ctx, location.CivilCourt)
+	if err != nil || venue.Title != "Renamed venue" {
+		t.Fatalf("reseed did not preserve venue rename: %+v; err=%v", venue, err)
+	}
+	if _, err := locationService.GetLocation(ctx, location.GearLawn); err != nil {
+		t.Fatalf("reseed did not restore default venue: %v", err)
+	}
+	venues, err := locationService.GetAllLocations(ctx)
+	if err != nil || len(venues) != 6 {
+		t.Fatalf("reseed duplicated or lost locations: count=%d err=%v", len(venues), err)
 	}
 }

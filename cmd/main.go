@@ -16,6 +16,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/bill"
 	"github.com/esc-chula/intania-888-backend/internal/domain/color"
 	"github.com/esc-chula/intania-888-backend/internal/domain/event"
+	"github.com/esc-chula/intania-888-backend/internal/domain/location"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/domain/policy"
@@ -139,6 +140,9 @@ func run() (runErr error) {
 	sportTypeRepo := sporttype.NewGORMRepository(db)
 	sportTypeSvc := sporttype.NewService(sportTypeRepo, logger.Named("SportTypeSvc"))
 	sportTypeHTTP := sporttype.NewHTTPHandler(sportTypeSvc)
+	locationRepo := location.NewGORMRepository(db)
+	locationSvc := location.NewService(locationRepo, logger.Named("LocationSvc"))
+	locationHTTP := location.NewHTTPHandler(locationSvc)
 
 	// init router
 	httpServer, err := server.NewFiberHTTPServer(cfg, logger,
@@ -161,6 +165,7 @@ func run() (runErr error) {
 	eventHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 	stakeMineHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
 	sportTypeHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	locationHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 
 	// Register external API routes. Deprecated: retain them while their original purpose and
 	// consumers are investigated. Do not add new integrations to these routes.

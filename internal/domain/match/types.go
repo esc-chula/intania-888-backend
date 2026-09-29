@@ -8,16 +8,18 @@ import (
 
 // Snapshot is a persisted match state without transport or ORM metadata.
 type Snapshot struct {
-	ID         string
-	TeamAID    *string
-	TeamBID    *string
-	TeamAScore *int
-	TeamBScore *int
-	WinnerID   *string
-	TypeID     string
-	IsDraw     bool
-	StartTime  time.Time
-	EndTime    time.Time
+	ID            string
+	TeamAID       *string
+	TeamBID       *string
+	TeamAScore    *int
+	TeamBScore    *int
+	WinnerID      *string
+	TypeID        string
+	LocationID    string
+	LocationTitle string
+	IsDraw        bool
+	StartTime     time.Time
+	EndTime       time.Time
 }
 
 // Input supplies match details to create and update use cases.
@@ -29,6 +31,7 @@ type Input struct {
 	TeamBScore *int
 	WinnerID   string
 	TypeID     string
+	LocationID string
 	IsDraw     bool
 	StartTime  time.Time
 	EndTime    time.Time
@@ -36,18 +39,20 @@ type Input struct {
 
 // Result contains a match and its current authoritative rates.
 type Result struct {
-	ID         string
-	TeamAID    string
-	TeamBID    string
-	TeamAScore *int
-	TeamBScore *int
-	TeamARate  value.Rate
-	TeamBRate  value.Rate
-	WinnerID   string
-	TypeID     string
-	IsDraw     bool
-	StartTime  time.Time
-	EndTime    time.Time
+	ID            string
+	TeamAID       string
+	TeamBID       string
+	TeamAScore    *int
+	TeamBScore    *int
+	TeamARate     value.Rate
+	TeamBRate     value.Rate
+	WinnerID      string
+	TypeID        string
+	LocationID    string
+	LocationTitle string
+	IsDraw        bool
+	StartTime     time.Time
+	EndTime       time.Time
 }
 
 // ScoreInput supplies the two non-negative scores.
