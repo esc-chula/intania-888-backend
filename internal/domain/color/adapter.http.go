@@ -8,7 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// HTTPHandler exposes authenticated color and group-stage leaderboard queries.
+// HTTPHandler exposes color and group-stage leaderboard queries.
 type HTTPHandler struct {
 	service ServicePort
 }
@@ -18,9 +18,9 @@ func NewHTTPHandler(service ServicePort) *HTTPHandler {
 	return &HTTPHandler{service: service}
 }
 
-// RegisterRoutes registers authenticated leaderboard and group-stage read routes.
-func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Handler) {
-	router = router.Group("/colors", authenticate)
+// RegisterRoutes exposes the leaderboard and group-stage read routes.
+func (h *HTTPHandler) RegisterRoutes(router fiber.Router) {
+	router = router.Group("/colors")
 
 	router.Get("/leaderboards", h.GetAllLeaderboards)
 	router.Get("/group-stage", h.GetGroupStageTable)

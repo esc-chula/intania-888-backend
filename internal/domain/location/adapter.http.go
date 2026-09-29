@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// HTTPHandler exposes authenticated catalogue reads and administrator mutations.
+// HTTPHandler exposes the location catalogue and administrator mutations.
 type HTTPHandler struct {
 	service ServicePort
 }
@@ -16,14 +16,14 @@ func NewHTTPHandler(service ServicePort) *HTTPHandler {
 	return &HTTPHandler{service: service}
 }
 
-// RegisterRoutes authenticates catalogue reads and protects admin mutations.
+// RegisterRoutes exposes catalogue reads and protects administrator mutations.
 func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fiber.Handler) {
-	router = router.Group("/locations", authenticate)
-	router.Get("/", h.GetAllLocations)
-	router.Get("/:id", h.GetLocation)
-	router.Post("/admin", admin, h.CreateLocation)
-	router.Patch("/admin/:id", admin, h.UpdateLocation)
-	router.Delete("/admin/:id", admin, h.DeleteLocation)
+	locations := router.Group("/locations")
+	locations.Get("/", h.GetAllLocations)
+	locations.Get("/:id", h.GetLocation)
+	locations.Post("/admin", authenticate, admin, h.CreateLocation)
+	locations.Patch("/admin/:id", authenticate, admin, h.UpdateLocation)
+	locations.Delete("/admin/:id", authenticate, admin, h.DeleteLocation)
 }
 
 // GetAllLocations returns the configured venue catalogue.

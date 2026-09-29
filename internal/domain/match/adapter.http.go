@@ -18,19 +18,18 @@ func NewHTTPHandler(s HTTPService) *HTTPHandler {
 	return &HTTPHandler{matchService: s}
 }
 
-// RegisterRoutes registers the existing match routes and authentication guards.
+// RegisterRoutes exposes fixture reads and protects administrator mutations.
 func (h *HTTPHandler) RegisterRoutes(r fiber.Router, auth, admin fiber.Handler) {
-	r = r.Group("/matches", auth)
-	r.Get("/", h.GetAllMatches)
-	r.Get("/current/time", h.GetTime)
-	r.Get("/:id", h.GetMatch)
+	matches := r.Group("/matches")
+	matches.Get("/", h.GetAllMatches)
+	matches.Get("/current/time", h.GetTime)
+	matches.Get("/:id", h.GetMatch)
 
-	a := r.Group("", admin)
-	a.Post("/", h.CreateMatch)
-	a.Put("/:id", h.UpdateMatch)
-	a.Patch("/:id/score", h.UpdateMatchScore)
-	a.Put("/:id/result", h.SetResult)
-	a.Delete("/:id", h.DeleteMatch)
+	matches.Post("/", auth, admin, h.CreateMatch)
+	matches.Put("/:id", auth, admin, h.UpdateMatch)
+	matches.Patch("/:id/score", auth, admin, h.UpdateMatchScore)
+	matches.Put("/:id/result", auth, admin, h.SetResult)
+	matches.Delete("/:id", auth, admin, h.DeleteMatch)
 }
 
 // CreateMatch validates match details and creates an administrator-managed fixture.

@@ -210,6 +210,35 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 	if !hasParameter(matchList, "query", "typeId") {
 		t.Error("GET /matches must document the typeId query parameter exactly as the handler reads it")
 	}
+
+	for _, operation := range []string{
+		"GET /locations",
+		"GET /locations/{id}",
+		"GET /sport-types",
+		"GET /sport-types/{id}",
+		"GET /matches",
+		"GET /matches/{id}",
+		"GET /matches/current/time",
+		"GET /colors/leaderboards",
+		"GET /colors/group-stage",
+	} {
+		parts := strings.SplitN(operation, " ", 2)
+		path, _ := paths[parts[1]].(map[string]any)
+		item, _ := path[strings.ToLower(parts[0])].(map[string]any)
+		if _, secured := item["security"]; secured {
+			t.Errorf("%s must not require CookieSession", operation)
+		}
+		responses, _ := item["responses"].(map[string]any)
+		if _, ok := responses["401"]; ok {
+			t.Errorf("%s must not document authentication failure", operation)
+		}
+		if _, ok := responses["403"]; !ok {
+			t.Errorf("%s must document rejection by the configured origin policy", operation)
+		}
+		if _, ok := responses["429"]; !ok {
+			t.Errorf("%s must document the shared IP rate limit", operation)
+		}
+	}
 }
 
 func hasRequiredField(schema map[string]any, name string) bool {

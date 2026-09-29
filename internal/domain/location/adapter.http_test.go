@@ -78,10 +78,20 @@ func (r *memoryRepository) DeleteLocation(_ context.Context, id string) error {
 }
 
 func locationTestApp(repo *memoryRepository) *fiber.App {
+	return locationTestAppWithGuards(
+		repo,
+		func(c *fiber.Ctx) error { return c.Next() },
+		func(c *fiber.Ctx) error { return c.Next() },
+	)
+}
+
+func locationTestAppWithAuth(repo *memoryRepository, authenticate fiber.Handler) *fiber.App {
+	return locationTestAppWithGuards(repo, authenticate, func(c *fiber.Ctx) error { return c.Next() })
+}
+
+func locationTestAppWithGuards(repo *memoryRepository, authenticate, admin fiber.Handler) *fiber.App {
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
-	readAuth := func(c *fiber.Ctx) error { return c.Next() }
-	admin := func(c *fiber.Ctx) error { return c.Next() }
-	NewHTTPHandler(NewService(repo, nil)).RegisterRoutes(app, readAuth, admin)
+	NewHTTPHandler(NewService(repo, nil)).RegisterRoutes(app, authenticate, admin)
 
 	return app
 }
@@ -153,6 +163,37 @@ func TestLocationHTTPCRUDAndReferencedDeletion(t *testing.T) {
 				t.Fatalf("failure = %+v", failure)
 			}
 		})
+	}
+}
+
+func TestLocationReadsArePublicAndMutationsStillAuthenticate(t *testing.T) {
+	repo := newMemoryRepository()
+	app := locationTestAppWithAuth(repo, func(c *fiber.Ctx) error {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	})
+
+	for _, path := range []string{"/locations", "/locations/USED"} {
+		status, body := locationResponse(t, app, locationRequest(http.MethodGet, path, ""))
+		if status != fiber.StatusOK {
+			t.Fatalf("public GET %s = %d %s", path, status, body)
+		}
+	}
+
+	status, body := locationResponse(t, app, locationRequest(http.MethodPost, "/locations/admin", `{"id":"NEW","title":"Venue"}`))
+	if status != fiber.StatusUnauthorized || !strings.Contains(string(body), `"code":"UNAUTHORIZED"`) {
+		t.Fatalf("protected POST = %d %s; want authentication failure", status, body)
+	}
+
+	app = locationTestAppWithGuards(
+		repo,
+		func(c *fiber.Ctx) error { return c.Next() },
+		func(c *fiber.Ctx) error {
+			return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator access required")
+		},
+	)
+	status, body = locationResponse(t, app, locationRequest(http.MethodPost, "/locations/admin", `{"id":"NEW","title":"Venue"}`))
+	if status != fiber.StatusForbidden || !strings.Contains(string(body), `"code":"FORBIDDEN"`) {
+		t.Fatalf("admin-protected POST = %d %s; want administrator failure", status, body)
 	}
 }
 

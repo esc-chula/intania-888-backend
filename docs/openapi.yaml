@@ -2297,6 +2297,7 @@ paths:
       - application/json
       description: Returns standings for the selected group and optional sport type, calculated from completed
         match results. Omit either UUID filter to include all groups or sport types for that dimension.
+        No session is required. Browser requests with an Origin must use one configured on the server.
       parameters:
       - description: Optional sport-type UUID used to filter standings.
         in: query
@@ -2321,6 +2322,12 @@ paths:
             X-Request-ID:
               type: string
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+        '403':
+          description: The request Origin is not allowed by the configured browser origin policy.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
         '400':
           description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
             safe to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -2348,31 +2355,6 @@ paths:
               code: INTERNAL_ERROR
               message: Internal server error
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '401':
-          description: 'The browser session is missing or expired. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'Session or access-policy state could not be checked because a required dependency
-            is unavailable. Failure body follows apierror.Response: stable code, safe message, request_id,
-            and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute.
           schema:
@@ -2386,8 +2368,6 @@ paths:
               code: TOO_MANY_REQUESTS
               message: Too many requests
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      security:
-      - CookieSession: []
       summary: Get group stage table
       tags:
       - Color
@@ -2397,6 +2377,7 @@ paths:
       - application/json
       description: Returns color standings calculated from completed matches. An optional sport-type ID
         limits the results to one sport.
+        No session is required. Browser requests with an Origin must use one configured on the server.
       parameters:
       - description: Optional sport-type UUID used to filter standings.
         in: query
@@ -2416,6 +2397,12 @@ paths:
             X-Request-ID:
               type: string
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+        '403':
+          description: The request Origin is not allowed by the configured browser origin policy.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
         '400':
           description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
             safe to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -2443,31 +2430,6 @@ paths:
               code: INTERNAL_ERROR
               message: Internal server error
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '401':
-          description: 'The browser session is missing or expired. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'Session or access-policy state could not be checked because a required dependency
-            is unavailable. Failure body follows apierror.Response: stable code, safe message, request_id,
-            and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute.
           schema:
@@ -2481,8 +2443,6 @@ paths:
               code: TOO_MANY_REQUESTS
               message: Too many requests
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      security:
-      - CookieSession: []
       summary: Get all color leaderboards
       tags:
       - Color
@@ -3185,11 +3145,10 @@ paths:
   /locations:
     get:
       summary: List locations
-      description: Returns the configured venue catalogue. Each item contains the stable location ID and its current display title. Authentication is required.
+      description: Returns the configured venue catalogue. Each item contains the stable location ID and its current display title. No session is required.
+        Browser requests with an Origin must use one configured on the server.
       tags:
       - Location
-      security:
-      - CookieSession: []
       produces:
       - application/json
       responses:
@@ -3201,8 +3160,8 @@ paths:
               $ref: '#/definitions/model.LocationDto'
           headers:
             X-Request-ID: *id001
-        '401':
-          description: Authentication is required. The body uses apierror.Response.
+        '403':
+          description: The request Origin is not allowed by the configured browser origin policy.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
@@ -3219,20 +3178,13 @@ paths:
             $ref: '#/definitions/apierror.Response'
           headers:
             X-Request-ID: *id001
-        '503':
-          description: Session or access-policy state could not be checked because a required dependency is unavailable.
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
   /locations/{id}:
     get:
       summary: Get a location
       description: Returns one configured venue by its stable ID.
+        No session is required. Browser requests with an Origin must use one configured on the server.
       tags:
       - Location
-      security:
-      - CookieSession: []
       produces:
       - application/json
       parameters:
@@ -3248,14 +3200,14 @@ paths:
             $ref: '#/definitions/model.LocationDto'
           headers:
             X-Request-ID: *id001
-        '400':
-          description: Invalid ID or title. The body uses apierror.Response; details identifies fields that failed validation.
+        '403':
+          description: The request Origin is not allowed by the configured browser origin policy.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
             X-Request-ID: *id001
-        '401':
-          description: Authentication is required. The body uses apierror.Response.
+        '400':
+          description: Invalid ID or title. The body uses apierror.Response; details identifies fields that failed validation.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
@@ -3274,12 +3226,6 @@ paths:
             X-Request-ID: *id001
         '500':
           description: Unexpected server failure. The body uses apierror.Response.
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-        '503':
-          description: Session or access-policy state could not be checked because a required dependency is unavailable.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
@@ -3527,6 +3473,12 @@ paths:
             X-Request-ID:
               type: string
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+        '403':
+          description: The request Origin is not allowed by the configured browser origin policy.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
         '400':
           description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
             safe to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -3539,19 +3491,6 @@ paths:
             application/json:
               code: INVALID_REQUEST
               message: Invalid request
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '401':
-          description: 'Unauthorized Failure body follows apierror.Response; code is stable, message is
-            safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
@@ -3567,19 +3506,6 @@ paths:
               code: INTERNAL_ERROR
               message: Internal server error
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'Session or access-policy state could not be checked because a required dependency
-            is unavailable. Failure body follows apierror.Response: stable code, safe message, request_id,
-            and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute.
           schema:
@@ -3593,13 +3519,12 @@ paths:
               code: TOO_MANY_REQUESTS
               message: Too many requests
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      security:
-      - CookieSession: []
       summary: List matches
       tags:
       - Match
       description: Lists fixtures grouped by start date and sport type. Every match includes its assigned
         location object ({id, title}). Optionally filter by sport-type ID and choose schedule or result grouping.
+        No session is required. Browser requests with an Origin must use one configured on the server.
     post:
       consumes:
       - application/json
@@ -3850,19 +3775,12 @@ paths:
               end_time: '2026-10-01T10:00:00Z'
               team_a_rate: '1.750000'
               team_b_rate: '2.500000'
-        '401':
-          description: 'Unauthorized Failure body follows apierror.Response; code is stable, message is
-            safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
+        '403':
+          description: The request Origin is not allowed by the configured browser origin policy.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
             X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '404':
           description: 'Not Found Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -3885,19 +3803,6 @@ paths:
               code: INTERNAL_ERROR
               message: Internal server error
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'Session or access-policy state could not be checked because a required dependency
-            is unavailable. Failure body follows apierror.Response: stable code, safe message, request_id,
-            and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute.
           schema:
@@ -3911,13 +3816,12 @@ paths:
               code: TOO_MANY_REQUESTS
               message: Too many requests
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      security:
-      - CookieSession: []
       summary: Get a match by ID
       tags:
       - Match
       description: Returns one fixture with its schedule, scores, outcome, current server-calculated rates,
         and its assigned location object ({id, title}).
+        No session is required. Browser requests with an Origin must use one configured on the server.
     put:
       consumes:
       - application/json
@@ -4322,31 +4226,12 @@ paths:
             X-Request-ID:
               type: string
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-        '401':
-          description: 'The browser session is missing or expired. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
+        '403':
+          description: The request Origin is not allowed by the configured browser origin policy.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
             X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'Session or access-policy state could not be checked because a required dependency
-            is unavailable. Failure body follows apierror.Response: stable code, safe message, request_id,
-            and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute.
           schema:
@@ -4360,13 +4245,12 @@ paths:
               code: TOO_MANY_REQUESTS
               message: Too many requests
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      security:
-      - CookieSession: []
       summary: Get current server match time
       tags:
       - Match
       description: Returns the backend’s current UTC time for clients that need to compare or display
         match schedules.
+        No session is required. Browser requests with an Origin must use one configured on the server.
   /mines/{id}:
     get:
       description: Returns the selected Stake Mines game only when it belongs to the authenticated account,
@@ -5117,6 +5001,7 @@ paths:
       - application/json
       description: Returns the sport-type catalogue. IDs are stable keys; titles are mutable and may be
         duplicated.
+        No session is required. Browser requests with an Origin must use one configured on the server.
       produces:
       - application/json
       responses:
@@ -5130,32 +5015,12 @@ paths:
             X-Request-ID:
               type: string
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-        '401':
-          description: 'Unauthorized Failure body follows apierror.Response; code is stable, message is
-            safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '403':
-          description: 'Forbidden Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
+          description: The request Origin is not allowed by the configured browser origin policy.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
             X-Request-ID: *id001
-          examples:
-            application/json:
-              code: FORBIDDEN
-              message: The request is not allowed
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5170,19 +5035,6 @@ paths:
               code: INTERNAL_ERROR
               message: Internal server error
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'Service Unavailable Failure body follows apierror.Response; code is stable, message
-            is safe to display, and request_id matches the X-Request-ID response header. Failure body
-            follows apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute.
           schema:
@@ -5196,8 +5048,6 @@ paths:
               code: TOO_MANY_REQUESTS
               message: Too many requests
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      security:
-      - CookieSession: []
       summary: Get all sport types
       tags:
       - SportType
@@ -5220,6 +5070,12 @@ paths:
             X-Request-ID:
               type: string
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+        '403':
+          description: The request Origin is not allowed by the configured browser origin policy.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+          headers:
+            X-Request-ID: *id001
         '400':
           description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
             safe to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -5232,32 +5088,6 @@ paths:
             application/json:
               code: INVALID_REQUEST
               message: Invalid request
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '401':
-          description: 'Unauthorized Failure body follows apierror.Response; code is stable, message is
-            safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '403':
-          description: 'Forbidden Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: FORBIDDEN
-              message: The request is not allowed
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '404':
           description: 'Not Found Failure body follows apierror.Response; code is stable, message is safe
@@ -5281,19 +5111,6 @@ paths:
               code: INTERNAL_ERROR
               message: Internal server error
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'Service Unavailable Failure body follows apierror.Response; code is stable, message
-            is safe to display, and request_id matches the X-Request-ID response header. Failure body
-            follows apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute.
           schema:
@@ -5307,12 +5124,11 @@ paths:
               code: TOO_MANY_REQUESTS
               message: Too many requests
               request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      security:
-      - CookieSession: []
       summary: Get a sport type
       tags:
       - SportType
       description: Returns one sport type by its stable ID.
+        No session is required. Browser requests with an Origin must use one configured on the server.
   /sport-types/admin:
     post:
       consumes:

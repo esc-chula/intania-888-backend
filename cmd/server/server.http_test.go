@@ -304,6 +304,31 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 	}
 }
 
+func TestRateLimitAppliesToPublicAPIReads(t *testing.T) {
+	httpServer, router := newOriginGuardTestServer(t)
+	router.Get("/public-read", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+
+	for requestNumber := 1; requestNumber <= 201; requestNumber++ {
+		response, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/public-read", nil))
+		if err != nil {
+			t.Fatalf("request %d error = %v", requestNumber, err)
+		}
+		want := http.StatusNoContent
+		if requestNumber == 201 {
+			want = http.StatusTooManyRequests
+		}
+		if response.StatusCode != want {
+			if err := response.Body.Close(); err != nil {
+				t.Errorf("close response for request %d: %v", requestNumber, err)
+			}
+			t.Fatalf("request %d status = %d, want %d", requestNumber, response.StatusCode, want)
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Fatalf("close response for request %d: %v", requestNumber, err)
+		}
+	}
+}
+
 func TestUnmatchedAPIPathUsesSharedErrorContract(t *testing.T) {
 	httpServer, _ := newOriginGuardTestServer(t)
 	response, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/not-registered", nil))

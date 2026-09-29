@@ -161,7 +161,7 @@ func run() (runErr error) {
 	policyHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 	billHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 	matchHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
-	colorHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
+	colorHTTP.RegisterRoutes(router)
 	eventHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 	stakeMineHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
 	sportTypeHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)

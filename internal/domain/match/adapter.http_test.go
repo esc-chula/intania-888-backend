@@ -3,7 +3,9 @@ package match
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -100,5 +102,75 @@ func TestGetMatchReturnsStringRatesAndNumericScores(t *testing.T) {
 	}
 	if body["team_a_score"] != float64(0) || body["team_b_score"] != nil {
 		t.Fatalf("score number/null contract changed: %+v", body)
+	}
+}
+
+func TestMatchReadsArePublicAndMutationsRemainProtected(t *testing.T) {
+	service := &matchFilterService{result: &Result{ID: "match"}}
+	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
+	authCalls := 0
+	adminCalls := 0
+	unauthorized := func(c *fiber.Ctx) error {
+		authCalls++
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+	forbidden := func(c *fiber.Ctx) error {
+		adminCalls++
+		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator access required")
+	}
+	createRequest := func() *http.Request {
+		const body = `{"team_a":"A","team_b":"B","type":"S","location_id":"L","start_time":"2026-10-01T10:00:00Z","end_time":"2026-10-01T11:00:00Z"}`
+		request := httptest.NewRequest(http.MethodPost, "/matches", strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		return request
+	}
+	NewHTTPHandler(service).RegisterRoutes(app, unauthorized, forbidden)
+
+	for _, path := range []string{"/matches", "/matches/current/time", "/matches/match"} {
+		response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		status := response.StatusCode
+		if err := response.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if status != http.StatusOK {
+			t.Fatalf("public GET %s = %d", path, status)
+		}
+	}
+	if authCalls != 0 || adminCalls != 0 {
+		t.Fatalf("public reads called auth/admin middleware %d/%d times", authCalls, adminCalls)
+	}
+
+	response, err := app.Test(createRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := response.StatusCode
+	if err := response.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if status != http.StatusUnauthorized || authCalls != 1 || adminCalls != 0 {
+		t.Fatalf("create route status/middleware calls = %d/%d/%d", status, authCalls, adminCalls)
+	}
+
+	authorized := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
+	adminCalls = 0
+	NewHTTPHandler(service).RegisterRoutes(
+		authorized,
+		func(c *fiber.Ctx) error { return c.Next() },
+		forbidden,
+	)
+	response, err = authorized.Test(createRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	status = response.StatusCode
+	if err := response.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if status != http.StatusForbidden || adminCalls != 1 {
+		t.Fatalf("administrator-protected create status/calls = %d/%d", status, adminCalls)
 	}
 }

@@ -66,10 +66,11 @@ func TestColorHTTPPreservesRowsEmptyListsFiltersAndContext(t *testing.T) {
 			defer cancel()
 			service := &contractService{rows: test.rows}
 			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
-			NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error {
+			app.Use(func(c *fiber.Ctx) error {
 				c.SetUserContext(ctx)
 				return c.Next()
 			})
+			NewHTTPHandler(service).RegisterRoutes(app)
 			response, err := app.Test(httptest.NewRequest("GET", test.path, nil))
 			if err != nil {
 				t.Fatal(err)
@@ -117,7 +118,7 @@ func TestColorHTTPPreservesValidationAndDependencyErrorContract(t *testing.T) {
 			service := &contractService{err: test.err}
 			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 			app.Use(apierror.RequestID())
-			NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error { return c.Next() })
+			NewHTTPHandler(service).RegisterRoutes(app)
 			response, err := app.Test(httptest.NewRequest("GET", test.path, nil))
 			if err != nil {
 				t.Fatal(err)

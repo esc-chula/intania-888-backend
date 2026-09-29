@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// HTTPHandler exposes authenticated catalogue reads and administrator mutations.
+// HTTPHandler exposes the sport catalogue and administrator mutations.
 type HTTPHandler struct {
 	service ServicePort
 }
@@ -16,15 +16,14 @@ func NewHTTPHandler(service ServicePort) *HTTPHandler {
 	return &HTTPHandler{service: service}
 }
 
-// RegisterRoutes authenticates catalogue reads and additionally protects admin mutations.
+// RegisterRoutes exposes catalogue reads and protects administrator mutations.
 func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fiber.Handler) {
-	router = router.Group("/sport-types", authenticate)
-
-	router.Get("/", h.GetAllSportTypes)
-	router.Post("/admin", admin, h.CreateSportType)
-	router.Patch("/admin/:id", admin, h.UpdateSportType)
-	router.Delete("/admin/:id", admin, h.DeleteSportType)
-	router.Get("/:id", h.GetSportType)
+	sportTypes := router.Group("/sport-types")
+	sportTypes.Get("/", h.GetAllSportTypes)
+	sportTypes.Get("/:id", h.GetSportType)
+	sportTypes.Post("/admin", authenticate, admin, h.CreateSportType)
+	sportTypes.Patch("/admin/:id", authenticate, admin, h.UpdateSportType)
+	sportTypes.Delete("/admin/:id", authenticate, admin, h.DeleteSportType)
 }
 
 // GetAllSportTypes returns the complete sport catalogue using its public HTTP representation.

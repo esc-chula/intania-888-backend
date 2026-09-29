@@ -43,10 +43,11 @@ func TestSportTypeHTTPPreservesCatalogueEmptyListsAndContext(t *testing.T) {
 			defer cancel()
 			service := &contractService{rows: test.rows}
 			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
-			NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error {
+			app.Use(func(c *fiber.Ctx) error {
 				c.SetUserContext(ctx)
 				return c.Next()
-			}, func(c *fiber.Ctx) error { return c.Next() })
+			})
+			NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error { return c.Next() }, func(c *fiber.Ctx) error { return c.Next() })
 			response, err := app.Test(httptest.NewRequest("GET", "/sport-types", nil))
 			if err != nil {
 				t.Fatal(err)
