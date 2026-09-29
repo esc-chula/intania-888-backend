@@ -91,7 +91,7 @@ func (r UpdatePolicyRequest) ValidateRequest() map[string]string {
 type ListResponse struct {
 	Items      []*Response `json:"items"`
 	NextCursor *string     `json:"next_cursor"`
-} // @name policy.PolicyListResponse
+}
 
 // Response is the established access-policy HTTP representation.
 type Response struct {
@@ -104,7 +104,7 @@ type Response struct {
 	ExpiresAt     *time.Time `json:"expires_at"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
-} // @name policy.AccessPolicy
+}
 
 // BootstrapFile is the operator policy-import wire format.
 type BootstrapFile struct {

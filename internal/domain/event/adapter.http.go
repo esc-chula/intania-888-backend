@@ -41,18 +41,6 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authMiddleware, adminM
 }
 
 // RedeemDailyReward handles the daily reward redemption
-// @Summary Redeem daily reward
-// @Description Redeem daily reward for the logged-in user
-// @Tags Event
-// @Accept  json
-// @Produce  json
-// @Success 200 {object} map[string]string "redeemed daily reward successful"
-// @Failure 401 {object} apierror.Response "unauthorized"
-// @Failure 404 {object} apierror.Response "user not found"
-// @Failure 409 {object} apierror.Response "daily reward already claimed"
-// @Failure 500 {object} apierror.Response "internal server error"
-// @Router /events/redeem/daily [get]
-// @Security CookieSession
 func (h *HTTPHandler) RedeemDailyReward(c *fiber.Ctx) error {
 	// get user from context
 	userProfile := httpidentity.GetProfile(c)
@@ -69,20 +57,6 @@ func (h *HTTPHandler) RedeemDailyReward(c *fiber.Ctx) error {
 }
 
 // SpinSlotMachine validates the requested spend and returns the committed slot result.
-// @Summary Spin the slot machine
-// @Description Spins the slot machine using the requested coin amount
-// @Tags Event
-// @Produce json
-// @Param spendAmount query string true "Money string to spend (50, 100, or 500)"
-// @Success 200 {object} SpinResponse "slot result"
-// @Failure 400 {object} apierror.Response "invalid spend amount or user profile"
-// @Failure 401 {object} apierror.Response "unauthorized"
-// @Failure 404 {object} apierror.Response "user not found"
-// @Failure 422 {object} apierror.Response "insufficient balance"
-// @Failure 500 {object} apierror.Response "internal server error"
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Router /events/spin/slot [post]
-// @Security CookieSession
 func (h *HTTPHandler) SpinSlotMachine(c *fiber.Ctx) error {
 	// Get user from context
 	userProfile := httpidentity.GetProfile(c)
@@ -117,21 +91,6 @@ func (h *HTTPHandler) SpinSlotMachine(c *fiber.Ctx) error {
 }
 
 // SetDailyReward handles setting daily reward amount
-// @Summary Set daily reward
-// @Description Creates or replaces the daily reward override for a specific date (admin only). Repeating the same request is safe.
-// @Tags Event
-// @Accept json
-// @Produce json
-// @Param date path string true "Reward date in DD-MM-YYYY format"
-// @Param request body SetDailyRewardRequest true "Daily reward amount"
-// @Success 200 {object} map[string]string "Set daily reward successful"
-// @Failure 400 {object} apierror.Response "Invalid request payload"
-// @Failure 401 {object} apierror.Response "unauthorized"
-// @Failure 403 {object} apierror.Response "admin access required"
-// @Failure 500 {object} apierror.Response "Failed to set daily reward"
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Router /events/daily-rewards/{date} [put]
-// @Security CookieSession
 func (h *HTTPHandler) SetDailyReward(c *fiber.Ctx) error {
 	date := c.Params("date")
 	if !validRewardDate(date) {
@@ -152,16 +111,6 @@ func (h *HTTPHandler) SetDailyReward(c *fiber.Ctx) error {
 }
 
 // GetDailyRewardSchedule returns the default daily reward and date-specific overrides.
-// @Summary List daily reward schedule
-// @Description Returns the configured default daily reward and date-specific overrides (admin only).
-// @Tags Event
-// @Produce json
-// @Success 200 {object} DailyRewardScheduleResponse
-// @Failure 401 {object} apierror.Response "unauthorized"
-// @Failure 403 {object} apierror.Response "admin access required"
-// @Failure 500 {object} apierror.Response "Failed to list daily reward schedule"
-// @Router /events/daily-rewards [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetDailyRewardSchedule(c *fiber.Ctx) error {
 	response, err := h.eventService.GetDailyRewardSchedule(c.UserContext())
 	if err != nil {
@@ -172,20 +121,6 @@ func (h *HTTPHandler) GetDailyRewardSchedule(c *fiber.Ctx) error {
 }
 
 // DeleteDailyReward removes a date-specific daily reward override.
-// @Summary Delete a daily reward override
-// @Description Deletes the date-specific reward override so the default reward applies again (admin only).
-// @Tags Event
-// @Produce json
-// @Param date path string true "Reward date in DD-MM-YYYY format"
-// @Success 200 {object} map[string]string "Daily reward override deleted"
-// @Failure 400 {object} apierror.Response "Invalid reward date"
-// @Failure 401 {object} apierror.Response "unauthorized"
-// @Failure 403 {object} apierror.Response "admin access required"
-// @Failure 404 {object} apierror.Response "Daily reward override not found"
-// @Failure 500 {object} apierror.Response "Failed to delete daily reward override"
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Router /events/daily-rewards/{date} [delete]
-// @Security CookieSession
 func (h *HTTPHandler) DeleteDailyReward(c *fiber.Ctx) error {
 	date := c.Params("date")
 	if !validRewardDate(date) {
@@ -203,23 +138,6 @@ func (h *HTTPHandler) DeleteDailyReward(c *fiber.Ctx) error {
 }
 
 // UseStealToken commits the raid against the selected token candidate.
-// @Summary Use a steal token
-// @Description Uses a steal token against one of its eligible victims
-// @Tags Event
-// @Accept json
-// @Produce json
-// @Param request body UseStealTokenRequest true "Steal token request"
-// @Success 200 {object} UseStealTokenResponse "steal result"
-// @Failure 400 {object} apierror.Response "invalid request or token"
-// @Failure 401 {object} apierror.Response "missing or invalid authorization"
-// @Failure 403 {object} apierror.Response "token is not available to this user"
-// @Failure 404 {object} apierror.Response "requested resource not found"
-// @Failure 409 {object} apierror.Response "token state conflict"
-// @Failure 422 {object} apierror.Response "insufficient balance"
-// @Failure 500 {object} apierror.Response "internal server error"
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Router /events/use-steal-token [post]
-// @Security CookieSession
 func (h *HTTPHandler) UseStealToken(c *fiber.Ctx) error {
 	userProfile := httpidentity.GetProfile(c)
 	if userProfile == nil {

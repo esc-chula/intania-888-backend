@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,9 +11,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 
-	"github.com/esc-chula/intania-888-backend/docs"
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
+	"gopkg.in/yaml.v3"
 )
 
 type swaggerTestConfig struct {
@@ -82,6 +83,17 @@ func TestSwaggerProductionRequiresBasicAuthentication(t *testing.T) {
 		t.Fatalf("WWW-Authenticate = %q, want Basic challenge", got)
 	}
 
+	for _, path := range []string{"/swagger/openapi.yaml", "/swagger/doc.json"} {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		response, err := httpServer.app.Test(request)
+		if err != nil {
+			t.Fatalf("unauthenticated %s request error = %v", path, err)
+		}
+		if response.StatusCode != http.StatusUnauthorized {
+			t.Errorf("unauthenticated %s status = %d, want %d", path, response.StatusCode, http.StatusUnauthorized)
+		}
+	}
+
 	wrongCredentials := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
 	wrongCredentials.SetBasicAuth("swagger-user", "wrong-password")
 	wrongResponse, err := httpServer.app.Test(wrongCredentials)
@@ -135,25 +147,70 @@ func TestSwaggerCanBeDisabled(t *testing.T) {
 	if response.StatusCode != http.StatusNotFound {
 		t.Fatalf("disabled Swagger status = %d, want %d", response.StatusCode, http.StatusNotFound)
 	}
+
+	specResponse, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/swagger/openapi.yaml", nil))
+	if err != nil {
+		t.Fatalf("disabled OpenAPI app.Test() error = %v", err)
+	}
+	if specResponse.StatusCode != http.StatusNotFound {
+		t.Fatalf("disabled OpenAPI status = %d, want %d", specResponse.StatusCode, http.StatusNotFound)
+	}
 }
 
 func TestSwaggerUsesConfiguredServerURL(t *testing.T) {
-	_, err := NewFiberHTTPServer(swaggerTestConfig{
-		server:  config.Server{URL: "https://api.example.test/api/v1"},
+	httpServer, err := NewFiberHTTPServer(swaggerTestConfig{
+		server:  config.Server{URL: "https://api.example.test/gateway/api/v1"},
 		swagger: config.Swagger{Enabled: true},
+		cors:    config.CORS{AllowOrigins: "http://localhost:3000"},
 	}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("NewFiberHTTPServer() error = %v", err)
 	}
+	httpServer.InitHTTPServer()
 
-	if docs.SwaggerInfo.Host != "api.example.test" {
-		t.Fatalf("Swagger host = %q, want %q", docs.SwaggerInfo.Host, "api.example.test")
+	response, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/swagger/openapi.yaml", nil))
+	if err != nil {
+		t.Fatalf("OpenAPI request error = %v", err)
 	}
-	if len(docs.SwaggerInfo.Schemes) != 1 || docs.SwaggerInfo.Schemes[0] != "https" {
-		t.Fatalf("Swagger schemes = %v, want [https]", docs.SwaggerInfo.Schemes)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("OpenAPI status = %d, want %d", response.StatusCode, http.StatusOK)
 	}
-	if docs.SwaggerInfo.BasePath != "/api/v1" {
-		t.Fatalf("Swagger base path = %q, want %q", docs.SwaggerInfo.BasePath, "/api/v1")
+	if got := response.Header.Get(fiber.HeaderContentType); !strings.HasPrefix(got, "application/yaml") {
+		t.Fatalf("OpenAPI content type = %q, want application/yaml", got)
+	}
+
+	var document map[string]any
+	if err := yaml.NewDecoder(response.Body).Decode(&document); err != nil {
+		t.Fatalf("decode OpenAPI response: %v", err)
+	}
+	if document["host"] != "api.example.test" {
+		t.Errorf("OpenAPI host = %v, want %q", document["host"], "api.example.test")
+	}
+	if got, ok := document["schemes"].([]any); !ok || len(got) != 1 || got[0] != "https" {
+		t.Errorf("OpenAPI schemes = %v, want [https]", document["schemes"])
+	}
+	if document["basePath"] != "/gateway/api/v1" {
+		t.Errorf("OpenAPI basePath = %v, want %q", document["basePath"], "/gateway/api/v1")
+	}
+
+	uiResponse, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil))
+	if err != nil {
+		t.Fatalf("Swagger UI request error = %v", err)
+	}
+	uiContents, err := io.ReadAll(uiResponse.Body)
+	if err != nil {
+		t.Fatalf("read Swagger UI response: %v", err)
+	}
+	if !strings.Contains(string(uiContents), "/swagger/openapi.yaml") {
+		t.Error("Swagger UI does not point to /swagger/openapi.yaml")
+	}
+
+	redirect, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	if err != nil {
+		t.Fatalf("legacy Swagger document request error = %v", err)
+	}
+	if redirect.StatusCode != http.StatusMovedPermanently || redirect.Header.Get("Location") != "/swagger/openapi.yaml" {
+		t.Errorf("legacy document response = %d %q, want redirect to /swagger/openapi.yaml", redirect.StatusCode, redirect.Header.Get("Location"))
 	}
 }
 

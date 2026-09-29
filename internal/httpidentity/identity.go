@@ -26,9 +26,9 @@ type ProfileResponse struct {
 	NickName      *string     `json:"nick_name"`
 	RoleID        string      `json:"role_id"`
 	GroupID       *string     `json:"group_id"`
-	RemainingCoin value.Money `json:"remaining_coin" swaggertype:"string" example:"888.88"`
+	RemainingCoin value.Money `json:"remaining_coin"`
 	CreatedAt     time.Time   `json:"created_at"`
-} // @name model.UserDto
+}
 
 // GetProfile returns the authenticated actor, or nil when no actor is installed.
 func GetProfile(c *fiber.Ctx) *identity.Profile {

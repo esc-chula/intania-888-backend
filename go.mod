@@ -11,11 +11,11 @@ require (
 	github.com/pressly/goose/v3 v3.24.1
 	github.com/redis/go-redis/v9 v9.6.1
 	github.com/spf13/viper v1.19.0
-	github.com/swaggo/swag v1.16.3
 	go.uber.org/zap v1.27.0
 	golang.org/x/oauth2 v0.18.0
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.12
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -55,6 +55,7 @@ require (
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
+	github.com/swaggo/swag v1.16.3 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -76,5 +77,4 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

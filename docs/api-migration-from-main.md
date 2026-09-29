@@ -494,7 +494,7 @@ controlled accounts and resources against the prepared deployment.
 ## Source references
 
 - [Backend API reference and error contract](README.md)
-- [Generated OpenAPI specification](swagger.yaml)
+- [OpenAPI specification](openapi.yaml)
 - [Exact-decimal frontend handoff](frontend-exact-decimals.md)
 - [Sport-type frontend handoff](frontend-sport-types.md)
 - [Exact money decision](adr/0001-exact-money-representation.md)

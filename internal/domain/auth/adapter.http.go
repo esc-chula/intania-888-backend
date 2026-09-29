@@ -62,14 +62,6 @@ func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, authenticate f
 }
 
 // Login returns the authorization URL and binds its state to a short-lived HttpOnly cookie.
-// @Summary Start Google OAuth login
-// @Description Retrieves a Google OAuth login URL and binds it to a short-lived browser cookie.
-// @Tags Auth
-// @Produce json
-// @Success 200 {object} map[string]string "authorization URL"
-// @Failure 400 {object} apierror.Response "redirect_to is not supported"
-// @Failure 503 {object} apierror.Response "OAuth login unavailable"
-// @Router /auth/login [get]
 func (h *HTTPHandler) Login(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
@@ -101,18 +93,6 @@ func (h *HTTPHandler) Login(c *fiber.Ctx) error {
 }
 
 // OAuthCallback exchanges the browser-bound login request, sets the session cookie, and redirects to the fixed frontend URL.
-// @Summary Complete Google OAuth login
-// @Description Exchanges a state-bound Google authorization code and establishes a cookie session.
-// @Tags Auth
-// @Produce json
-// @Param code query string true "OAuth authorization code"
-// @Param state query string true "OAuth state nonce"
-// @Success 302 {string} string "fixed frontend redirect"
-// @Failure 400 {object} apierror.Response "invalid OAuth request"
-// @Failure 403 {object} apierror.Response "email is not allowed"
-// @Failure 500 {object} apierror.Response "post-login redirect is not configured"
-// @Failure 503 {object} apierror.Response "OAuth login or access policy unavailable"
-// @Router /auth/callback [get]
 func (h *HTTPHandler) OAuthCallback(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
@@ -152,14 +132,6 @@ func (h *HTTPHandler) OAuthCallback(c *fiber.Ctx) error {
 
 // Logout checks CSRF for an active browser session, revokes it, and clears its cookie.
 // Missing or expired sessions succeed; backend revocation failures remain retryable.
-// @Summary Log out of browser session
-// @Description Revokes the active server-side session and clears its browser cookie. An absent or expired session is already logged out.
-// @Tags Auth
-// @Success 204 "logged out"
-// @Failure 403 {object} apierror.Response "invalid CSRF token"
-// @Failure 503 {object} apierror.Response "session store or revocation unavailable"
-// @Router /auth/logout [post]
-// @Security CookieSession
 func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
@@ -199,15 +171,6 @@ func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 }
 
 // GetMe returns the authenticated browser profile and its session-bound CSRF token.
-// @Summary Browser profile and CSRF token
-// @Description Retrieves the profile and CSRF token associated with the browser session cookie.
-// @Tags Auth
-// @Produce json
-// @Success 200 {object} MeResponse
-// @Failure 401 {object} apierror.Response "unauthorized"
-// @Failure 503 {object} apierror.Response "session or policy unavailable"
-// @Router /auth/me [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetMe(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
@@ -225,16 +188,6 @@ func (h *HTTPHandler) GetMe(c *fiber.Ctx) error {
 }
 
 // GetExternalMe returns the bearer-authenticated profile without exposing browser CSRF state.
-// @Summary External client profile
-// @Description Retrieves user profile data through Bearer authentication.
-// @Tags External
-// @Deprecated
-// @Produce json
-// @Success 200 {object} map[string]interface{} "profile"
-// @Failure 401 {object} apierror.Response "missing or invalid authorization"
-// @Failure 503 {object} apierror.Response "token, user, or policy status unavailable"
-// @Security BearerAuth
-// @Router /external/me [get]
 func (h *HTTPHandler) GetExternalMe(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -245,18 +198,6 @@ func (h *HTTPHandler) GetExternalMe(c *fiber.Ctx) error {
 }
 
 // IssueExternalToken validates the selected account and returns its one-hour external JWT and revocation ID.
-// @Summary Issue a one-hour external JWT
-// @Tags Auth
-// @Deprecated
-// @Param request body externalTokenRequest true "existing user"
-// @Success 201 {object} ExternalTokenResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 503 {object} apierror.Response
-// @Router /auth/external-tokens [post]
-// @Security CookieSession
 func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
@@ -279,16 +220,6 @@ func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
 }
 
 // RevokeExternalToken revokes the selected external JWT identifier and returns an empty success response.
-// @Summary Revoke an external JWT
-// @Tags Auth
-// @Deprecated
-// @Param id path string true "token ID"
-// @Success 204 "revoked"
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 503 {object} apierror.Response
-// @Router /auth/external-tokens/{id} [delete]
-// @Security CookieSession
 func (h *HTTPHandler) RevokeExternalToken(c *fiber.Ctx) error {
 	issuer := httpidentity.GetProfile(c)
 	if issuer == nil {

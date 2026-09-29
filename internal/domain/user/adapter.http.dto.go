@@ -16,8 +16,8 @@ type CreateUserRequest httpidentity.ProfileResponse
 // Omitted fields remain unchanged; null clears nickname or group.
 type UpdateOwnProfileRequest struct {
 	Name     *string `json:"name"`
-	NickName *string `json:"nick_name" extensions:"x-nullable"`
-	GroupID  *string `json:"group_id" extensions:"x-nullable"`
+	NickName *string `json:"nick_name"`
+	GroupID  *string `json:"group_id"`
 
 	nameSet     bool
 	nickNameSet bool
@@ -49,20 +49,20 @@ type AdminUpdateUserRequest struct {
 	Name          string      `json:"name" validate:"required"`
 	NickName      *string     `json:"nick_name"`
 	GroupID       *string     `json:"group_id"`
-	RemainingCoin value.Money `json:"remaining_coin" swaggertype:"string" example:"888.88"`
-} // @name model.AdminUpdateUserDto
+	RemainingCoin value.Money `json:"remaining_coin"`
+}
 
 // DeductCoinRequest defines the HTTP payload for this account operation.
 type DeductCoinRequest struct {
-	Amount value.Money `json:"amount" swaggertype:"string" validate:"required"`
-} // @name model.DeductCoinRequest
+	Amount value.Money `json:"amount" validate:"required"`
+}
 
 // DeductCoinResponse defines the HTTP payload for this account operation.
 type DeductCoinResponse struct {
 	Success          bool        `json:"success"`
-	DeductedAmount   value.Money `json:"deducted_amount" swaggertype:"string"`
-	RemainingBalance value.Money `json:"remaining_balance" swaggertype:"string"`
-} // @name model.DeductCoinResponse
+	DeductedAmount   value.Money `json:"deducted_amount"`
+	RemainingBalance value.Money `json:"remaining_balance"`
+}
 
 // ValidateRequest rejects empty updates, null or blank names, and blank group IDs.
 func (r UpdateOwnProfileRequest) ValidateRequest() map[string]string {

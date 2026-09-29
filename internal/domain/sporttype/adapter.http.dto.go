@@ -4,13 +4,13 @@ package sporttype
 type Response struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
-} // @name model.SportTypeDto
+}
 
 // CreateRequest defines an immutable catalogue ID and a mutable display title.
 type CreateRequest struct {
-	ID    string `json:"id" validate:"required,min=1,max=100" example:"BADMINTON_ALL"`
-	Title string `json:"title" validate:"required,min=1,max=100" example:"Badminton"`
-} // @name model.CreateSportTypeRequest
+	ID    string `json:"id" validate:"required,min=1,max=100"`
+	Title string `json:"title" validate:"required,min=1,max=100"`
+}
 
 // ValidateRequest validates ASCII identifiers and trimmed Unicode titles.
 func (r CreateRequest) ValidateRequest() map[string]string {
@@ -23,8 +23,8 @@ func (r CreateRequest) ValidateRequest() map[string]string {
 
 // UpdateRequest renames a sport type; its ID cannot be changed.
 type UpdateRequest struct {
-	Title string `json:"title" validate:"required,min=1,max=100" example:"Badminton (all years)"`
-} // @name model.UpdateSportTypeRequest
+	Title string `json:"title" validate:"required,min=1,max=100"`
+}
 
 // ValidateRequest requires a title with 1–100 characters after trimming.
 func (r UpdateRequest) ValidateRequest() map[string]string { return titleDetails(r.Title) }

@@ -30,24 +30,6 @@ import (
 	"github.com/esc-chula/intania-888-backend/pkg/oauth"
 )
 
-// @title Intania888 Backend - API
-// @version 1.0.0-breaking
-// @description Breaking backend release: all Money fields are fixed two-decimal strings and the current frontend is incompatible until migrated.
-// @description All failed /api/v1 requests use the apierror.Response schema with stable codes and X-Request-ID. See docs/README.md for the code catalog and frontend migration handoff.
-
-// @host      localhost:8080
-// @schemes   http
-// @BasePath  /api/v1
-
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
-// @description Type "Bearer" followed by a space and the token
-//
-// @securityDefinitions.apikey CookieSession
-// @in header
-// @name Cookie
-// @description Browser cookie session (production uses __Host-session). Mutations also require X-CSRF-Token and an allowed Origin. Swagger 2.0 has no native cookie authentication; use an authenticated browser session.
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -10,9 +10,9 @@ import (
 
 // SetDailyRewardRequest contains an explicitly supplied daily override amount.
 type SetDailyRewardRequest struct {
-	Amount    value.Money `json:"amount" swaggertype:"string" validate:"required"`
+	Amount    value.Money `json:"amount" validate:"required"`
 	amountSet bool
-} // @name model.SetDailyRewardRequest
+}
 
 // UnmarshalJSON rejects unknown fields and preserves zero versus missing amount.
 func (r *SetDailyRewardRequest) UnmarshalJSON(data []byte) error {
@@ -44,14 +44,14 @@ func (r SetDailyRewardRequest) ValidateRequest() map[string]string {
 // DailyRewardScheduleItemResponse is one dated reward amount.
 type DailyRewardScheduleItemResponse struct {
 	Date   string      `json:"date"`
-	Amount value.Money `json:"amount" swaggertype:"string"`
-} // @name model.DailyRewardScheduleItem
+	Amount value.Money `json:"amount"`
+}
 
 // DailyRewardScheduleResponse contains the configured default and overrides.
 type DailyRewardScheduleResponse struct {
-	DefaultAmount value.Money                       `json:"default_amount" swaggertype:"string"`
+	DefaultAmount value.Money                       `json:"default_amount"`
 	Overrides     []DailyRewardScheduleItemResponse `json:"overrides"`
-} // @name model.DailyRewardScheduleResponse
+}
 
 // StealTokenResponse is the token issued by an alien slot result.
 type StealTokenResponse struct {
@@ -59,7 +59,7 @@ type StealTokenResponse struct {
 	ExpiresAt   time.Time `json:"expires_at"`
 	VictimCount int       `json:"victim_count"`
 	Message     string    `json:"message"`
-} // @name model.StealTokenDto
+}
 
 // CandidatePreviewResponse identifies a candidate without revealing its balance.
 type CandidatePreviewResponse struct {
@@ -67,12 +67,12 @@ type CandidatePreviewResponse struct {
 	Name    string  `json:"name"`
 	RoleID  string  `json:"role_id"`
 	GroupID *string `json:"group_id"`
-} // @name model.CandidatePreviewDto
+}
 
 // SpinResponse preserves optional token and candidate fields from the slot API.
 type SpinResponse struct {
 	Slots      []string                   `json:"slots"`
-	Reward     value.Money                `json:"reward" swaggertype:"string"`
+	Reward     value.Money                `json:"reward"`
 	StealToken *StealTokenResponse        `json:"stealToken,omitempty"`
 	Candidates []CandidatePreviewResponse `json:"candidates,omitempty"`
 }
@@ -82,7 +82,7 @@ type UseStealTokenRequest struct {
 	Token          string `json:"token" validate:"required"`
 	VictimIndex    int    `json:"victim_index" validate:"required,min=0"`
 	victimIndexSet bool
-} // @name model.UseStealTokenRequestDto
+}
 
 // UnmarshalJSON distinguishes index zero from a missing victim index.
 func (r *UseStealTokenRequest) UnmarshalJSON(data []byte) error {
@@ -121,15 +121,15 @@ type VictimDetailResponse struct {
 	Name          string      `json:"name"`
 	RoleID        string      `json:"role_id"`
 	GroupID       *string     `json:"group_id"`
-	BalanceBefore value.Money `json:"balance_before" swaggertype:"string"`
-	AmountStolen  value.Money `json:"amount_stolen" swaggertype:"string"`
+	BalanceBefore value.Money `json:"balance_before"`
+	AmountStolen  value.Money `json:"amount_stolen"`
 	WasChosen     bool        `json:"was_chosen"`
-} // @name model.VictimDetailDto
+}
 
 // UseStealTokenResponse contains the committed raid result.
 type UseStealTokenResponse struct {
-	TotalStolen      value.Money            `json:"total_stolen" swaggertype:"string"`
-	RaiderNewBalance value.Money            `json:"raider_new_balance" swaggertype:"string"`
+	TotalStolen      value.Money            `json:"total_stolen"`
+	RaiderNewBalance value.Money            `json:"raider_new_balance"`
 	AllCandidates    []VictimDetailResponse `json:"all_candidates"`
 	Message          string                 `json:"message"`
-} // @name model.UseStealTokenResponseDto
+}

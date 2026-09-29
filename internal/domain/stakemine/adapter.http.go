@@ -34,23 +34,6 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, auth fiber.Handler) {
 }
 
 // CreateGame creates an authenticated game.
-//
-// @Summary Create a new Stake Mines game
-// @Description Start a new Stake Mines game with specified bet amount and risk level
-// @Tags StakeMines
-// @Accept json
-// @Produce json
-// @Param request body CreateGameRequest true "Game creation request"
-// @Success 200 {object} GameResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 409 {object} apierror.Response
-// @Failure 422 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /mines/create [post]
-// @Security CookieSession
 func (h *HTTPHandler) CreateGame(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -71,23 +54,6 @@ func (h *HTTPHandler) CreateGame(c *fiber.Ctx) error {
 }
 
 // RevealTile reveals a tile for the authenticated game owner.
-//
-// @Summary Reveal a tile in the game
-// @Description Reveal a specific tile in an active Stake Mines game
-// @Tags StakeMines
-// @Accept json
-// @Produce json
-// @Param id path string true "Game ID"
-// @Param request body RevealTileRequest true "Reveal tile request"
-// @Success 200 {object} RevealTileResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 409 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /mines/{id}/reveal [post]
-// @Security CookieSession
 func (h *HTTPHandler) RevealTile(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -112,21 +78,6 @@ func (h *HTTPHandler) RevealTile(c *fiber.Ctx) error {
 }
 
 // CashOut cashes out an authenticated game.
-//
-// @Summary Cash out from the current game
-// @Description Cash out and take winnings from an active Stake Mines game
-// @Tags StakeMines
-// @Produce json
-// @Param id path string true "Game ID"
-// @Success 200 {object} CashOutResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 409 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /mines/{id}/cashout [post]
-// @Security CookieSession
 func (h *HTTPHandler) CashOut(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -146,18 +97,6 @@ func (h *HTTPHandler) CashOut(c *fiber.Ctx) error {
 }
 
 // GetGame serves an owned game.
-//
-// @Summary Get game details
-// @Description Get details of a specific Stake Mines game by ID
-// @Tags StakeMines
-// @Produce json
-// @Param id path string true "Game ID"
-// @Success 200 {object} GameResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Router /mines/{id} [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetGame(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -177,17 +116,6 @@ func (h *HTTPHandler) GetGame(c *fiber.Ctx) error {
 }
 
 // GetActiveGame serves the authenticated account's active game.
-//
-// @Summary Get active game
-// @Description Get the current active Stake Mines game for the user
-// @Tags StakeMines
-// @Produce json
-// @Success 200 {object} GameResponse
-// @Failure 404 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /mines/active [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetActiveGame(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -203,19 +131,6 @@ func (h *HTTPHandler) GetActiveGame(c *fiber.Ctx) error {
 }
 
 // GetHistory serves the existing newest-first game history page.
-//
-// @Summary Get game history
-// @Description Get user's Stake Mines game history with pagination
-// @Tags StakeMines
-// @Produce json
-// @Param limit query int false "Limit" default(20)
-// @Param offset query int false "Offset" default(0)
-// @Success 200 {object} HistoryListResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /mines/history [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetHistory(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -244,16 +159,6 @@ func (h *HTTPHandler) GetHistory(c *fiber.Ctx) error {
 }
 
 // GetStats serves realized game totals and active exposure.
-//
-// @Summary Get user statistics
-// @Description Get comprehensive statistics for the user's Stake Mines games
-// @Tags StakeMines
-// @Produce json
-// @Success 200 {object} StatsResponse
-// @Failure 401 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /mines/stats [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetStats(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {

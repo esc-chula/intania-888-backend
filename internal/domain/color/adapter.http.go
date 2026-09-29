@@ -27,17 +27,6 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Han
 }
 
 // GetAllLeaderboards validates the optional sport identifier and returns the color standings.
-// @Summary Get all color leaderboards
-// @Description Get all colors with their leaderboard info
-// @Tags Color
-// @Accept json
-// @Produce json
-// @Param type_id query string false "Type ID to filter"
-// @Success 200 {array} Response
-// @Failure 400 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /colors/leaderboards [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 	typeID := c.Query("type_id", "")
 	if err := validateOptionalID("type_id", typeID); err != nil {
@@ -53,18 +42,6 @@ func (h *HTTPHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 }
 
 // GetGroupStageTable validates optional sport and group identifiers and returns group-stage standings.
-// @Summary Get group stage table
-// @Description Get group stage table with group id and sport type
-// @Tags Color
-// @Accept json
-// @Produce json
-// @Param type_id query string false "Type ID to filter"
-// @Param group_id query string false "Group ID to filter"
-// @Success 200 {array} Response
-// @Failure 400 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /colors/group-stage [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetGroupStageTable(c *fiber.Ctx) error {
 	typeID := c.Query("type_id", "")
 	groupID := c.Query("group_id", "")

@@ -34,18 +34,6 @@ func (h *HTTPHandler) RegisterRoutes(r fiber.Router, auth, admin fiber.Handler) 
 }
 
 // CreateMatch validates match details and creates an administrator-managed fixture.
-// @Summary Create a match
-// @Tags Match
-// @Accept json
-// @Produce json
-// @Param match body CreateMatchRequest true "Match"
-// @Success 201 {object} map[string]string
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /matches [post]
-// @Security CookieSession
 func (h *HTTPHandler) CreateMatch(c *fiber.Ctx) error {
 	var request CreateMatchRequest
 
@@ -68,16 +56,6 @@ func (h *HTTPHandler) CreateMatch(c *fiber.Ctx) error {
 }
 
 // GetMatch returns one fixture with its current authoritative betting rates.
-// @Summary Get a match by ID
-// @Tags Match
-// @Produce json
-// @Param id path string true "Match ID"
-// @Success 200 {object} Response
-// @Failure 401 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /matches/{id} [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetMatch(c *fiber.Ctx) error {
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
@@ -91,17 +69,6 @@ func (h *HTTPHandler) GetMatch(c *fiber.Ctx) error {
 }
 
 // GetAllMatches validates filters and groups matching fixtures by date and sport type.
-// @Summary List matches
-// @Tags Match
-// @Produce json
-// @Param typeID query string false "Sport type ID"
-// @Param schedule query string false "schedule or result"
-// @Success 200 {array} MatchesByDate
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /matches [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetAllMatches(c *fiber.Ctx) error {
 	f := &Filter{TypeID: c.Query("typeId")}
 	switch c.Query("schedule") {
@@ -124,19 +91,6 @@ func (h *HTTPHandler) GetAllMatches(c *fiber.Ctx) error {
 }
 
 // UpdateMatchScore accepts explicitly supplied nonnegative team scores, including zero.
-// @Summary Update a match score
-// @Tags Match
-// @Accept json
-// @Param id path string true "Match ID"
-// @Param score body ScoreDTO true "Score"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /matches/{id}/score [patch]
-// @Security CookieSession
 func (h *HTTPHandler) UpdateMatchScore(c *fiber.Ctx) error {
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
@@ -158,19 +112,6 @@ func (h *HTTPHandler) UpdateMatchScore(c *fiber.Ctx) error {
 }
 
 // UpdateMatch applies the supplied fixture fields through the administrator use case.
-// @Summary Update match details
-// @Tags Match
-// @Accept json
-// @Param id path string true "Match ID"
-// @Param match body UpdateMatchRequest true "Match fields to update"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /matches/{id} [put]
-// @Security CookieSession
 func (h *HTTPHandler) UpdateMatch(c *fiber.Ctx) error {
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
@@ -205,16 +146,6 @@ func (h *HTTPHandler) UpdateMatch(c *fiber.Ctx) error {
 }
 
 // DeleteMatch removes the selected fixture after the administrator route guard.
-// @Summary Delete a match
-// @Tags Match
-// @Param id path string true "Match ID"
-// @Success 200 {object} map[string]string
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /matches/{id} [delete]
-// @Security CookieSession
 func (h *HTTPHandler) DeleteMatch(c *fiber.Ctx) error {
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
@@ -227,12 +158,6 @@ func (h *HTTPHandler) DeleteMatch(c *fiber.Ctx) error {
 }
 
 // GetTime returns the server's current UTC time.
-// @Summary Get current server match time
-// @Tags Match
-// @Produce json
-// @Success 200 {object} map[string]string
-// @Router /matches/current/time [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetTime(c *fiber.Ctx) error {
 	v, err := h.matchService.GetTime()
 	if err != nil {
@@ -243,21 +168,6 @@ func (h *HTTPHandler) GetTime(c *fiber.Ctx) error {
 }
 
 // SetResult validates a terminal winner or draw result and requests atomic settlement.
-// @Summary Idempotently set a match result and settle affected bills
-// @Tags Match
-// @Accept json
-// @Produce json
-// @Param id path string true "Match ID"
-// @Param result body ResultRequest true "Winner or draw result"
-// @Success 200 {object} map[string]string
-// @Failure 409 {object} apierror.Response
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /matches/{id}/result [put]
-// @Security CookieSession
 func (h *HTTPHandler) SetResult(c *fiber.Ctx) error {
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})

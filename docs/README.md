@@ -81,22 +81,21 @@ https://888api.chula.engineering/swagger/index.html
 The development configuration leaves the UI open. Production requires HTTP
 Basic Auth using `SWAGGER_USERNAME` and `SWAGGER_PASSWORD`.
 
-The runtime OpenAPI document is available at `/swagger/doc.json`.
+The manually maintained Swagger 2.0 document is available at
+`/swagger/openapi.yaml`. The former `/swagger/doc.json` URL redirects there.
 
-The **Authorize** button accepts external JWTs only for `/external/*`. Browser routes use the session cookie and CSRF header.
+Browser routes use the session cookie and CSRF header. The separate backend
+integration's Bearer flow is described under
+[External minigame backend](#external-minigame-backend).
 
-## Generate the specification
+## Maintain the specification
 
-Regenerate the tracked files after changing Swagger annotations:
+Edit [`openapi.yaml`](openapi.yaml) directly when an API route or wire contract
+changes. Handler comments describe route purpose; the OpenAPI file owns the
+request, response, security, and schema documentation.
 
 ```bash
-make docs
-```
-
-Check that the tracked generated files are current without changing them:
-
-```bash
-make docs-check
+make openapi-check
 ```
 
 The API target used by **Try it out** comes from `SERVER_URL`, including the
@@ -254,8 +253,9 @@ Development on `http://localhost:3000` and `http://localhost:8080` uses HttpOnly
 
 The `/api/v1/external/*` API is used by a separate backend that runs other
 minigames, such as the war game, and reports game outcomes to this backend.
-The integration purpose is now confirmed. Current Swagger annotations still
-mark the external routes and their token-management routes deprecated.
+The browser-focused OpenAPI reference documents administrator token issuance
+and revocation. The separate `/external/*` backend routes are described here
+because they use Bearer authentication instead of browser sessions.
 
 The implemented routes are `GET /api/v1/external/me`, which returns the
 JWT-bound user's profile, and `POST /api/v1/external/deduct-coin`, which deducts
@@ -267,6 +267,9 @@ There is currently no external endpoint for submitting game results or crediting
 winnings. That part of the intended integration still needs a defined contract.
 
 External clients use a separate, revocable one-hour JWT. An authenticated administrator can issue one for an existing user with `POST /api/v1/auth/external-tokens` and body `{"user_id":"..."}`; the response contains `token`, `id`, and `expires_in`. The administrator can revoke it with `DELETE /api/v1/auth/external-tokens/{id}`. Both administrative mutations require the browser session, allowed Origin, and CSRF header. The regular frontend should not request these tokens. Existing external JWTs must be reissued through this API at cutover.
+
+The OpenAPI reference marks these token-management operations as deprecated;
+they remain available for the existing backend integration.
 
 # API error contract and frontend handoff
 
@@ -311,8 +314,6 @@ The frontend migration is outside this backend branch.
 
 The required layout, documentation and dependency rules are documented in
 [coding-standard.md](coding-standard.md). Run `make fmt` before `make ci`.
-Behavior intentionally retained during normalization is recorded in
-[refactor-followups.md](refactor-followups.md).
 
 Browser routes use the `CookieSession` documentation scheme. Swagger 2.0 does
 not support a native cookie security scheme; its `Cookie` header representation

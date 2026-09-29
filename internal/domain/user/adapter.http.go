@@ -53,16 +53,6 @@ func (h *HTTPHandler) CreateUser(c *fiber.Ctx) error {
 }
 
 // GetUser serves one account profile.
-//
-// @Summary Get user by ID
-// @Description Retrieves a single user by their ID
-// @Tags User
-// @Produce  json
-// @Param   id    path      string  true  "User ID"
-// @Success 200    {object} httpidentity.ProfileResponse
-// @Failure 404    {object} apierror.Response  "user not found"
-// @Router  /users/{id} [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetUser(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if strings.TrimSpace(id) == "" {
@@ -78,15 +68,6 @@ func (h *HTTPHandler) GetUser(c *fiber.Ctx) error {
 }
 
 // GetAllUsers serves every account profile.
-//
-// @Summary Get all users
-// @Description Retrieves a list of all users
-// @Tags User
-// @Produce  json
-// @Success 200    {array}  httpidentity.ProfileResponse
-// @Failure 500    {object} apierror.Response  "internal server error"
-// @Router  /users [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetAllUsers(c *fiber.Ctx) error {
 	users, err := h.service.GetAllUsers(c.UserContext())
 	if err != nil {
@@ -101,22 +82,6 @@ func (h *HTTPHandler) GetAllUsers(c *fiber.Ctx) error {
 }
 
 // UpdateOwnProfile applies a partial update to the signed-in user's profile.
-//
-// @Summary Update your own profile
-// @Description Updates only supplied name, nick_name, and group_id fields. Omitted fields remain unchanged; null clears nick_name or group_id. Account identity, email, role, and balance are not editable.
-// @Tags User
-// @Accept json
-// @Produce json
-// @Param user body UpdateOwnProfileRequest true "Editable profile fields"
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Success 200 {object} httpidentity.ProfileResponse
-// @Failure 400 {object} apierror.Response "invalid profile update"
-// @Failure 401 {object} apierror.Response "unauthorized"
-// @Failure 403 {object} apierror.Response "invalid CSRF token"
-// @Failure 404 {object} apierror.Response "user not found"
-// @Failure 500 {object} apierror.Response "internal server error"
-// @Router /users/me [patch]
-// @Security CookieSession
 func (h *HTTPHandler) UpdateOwnProfile(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -145,24 +110,6 @@ func (h *HTTPHandler) UpdateOwnProfile(c *fiber.Ctx) error {
 // UpdateUser checks the legacy path ID and delegates to UpdateOwnProfile.
 //
 // Deprecated: use PATCH /users/me through UpdateOwnProfile.
-//
-// @Summary Update user (deprecated)
-// @Description Deprecated alias of PATCH /users/me with the same partial-update body. The path ID must match the signed-in user.
-// @Tags User
-// @Deprecated
-// @Accept  json
-// @Produce  json
-// @Param   id    path      string  true  "User ID"
-// @Param   user  body      UpdateOwnProfileRequest  true  "Editable profile fields"
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Success 200    {object} httpidentity.ProfileResponse
-// @Failure 400    {object} apierror.Response  "cannot parse body"
-// @Failure 401    {object} apierror.Response  "unauthorized"
-// @Failure 403    {object} apierror.Response  "path ID does not match the signed-in user or invalid CSRF token"
-// @Failure 404    {object} apierror.Response  "user not found"
-// @Failure 500    {object} apierror.Response  "internal server error"
-// @Router  /users/{id} [patch]
-// @Security CookieSession
 func (h *HTTPHandler) UpdateUser(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
@@ -176,22 +123,6 @@ func (h *HTTPHandler) UpdateUser(c *fiber.Ctx) error {
 }
 
 // AdminUpdateUser updates administrator-editable account fields.
-//
-// @Summary Admin update user
-// @Description Allows admin to update user profile and coins. Role changes use the operator database workflow.
-// @Tags User
-// @Accept  json
-// @Produce  json
-// @Param   id    path      string  true  "User ID"
-// @Param   user  body      AdminUpdateUserRequest  true  "Updated user information"
-// @Success 200    {object} httpidentity.ProfileResponse
-// @Failure 400    {object} apierror.Response  "cannot parse body"
-// @Failure 401    {object} apierror.Response  "unauthorized"
-// @Failure 403    {object} apierror.Response  "administrator permission required"
-// @Failure 404    {object} apierror.Response  "user not found"
-// @Failure 500    {object} apierror.Response  "internal server error"
-// @Router  /users/admin/{id} [patch]
-// @Security CookieSession
 func (h *HTTPHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	userID := c.Params("id")
 	if strings.TrimSpace(userID) == "" {
@@ -228,22 +159,6 @@ func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, externalAuth f
 }
 
 // DeductCoin deducts coins for an authenticated external client.
-//
-// @Summary Deduct coins from user balance (External API)
-// @Description External API endpoint to deduct coins from authenticated user's balance. Bypasses browser-only validation but requires JWT authentication.
-// @Tags External
-// @Deprecated
-// @Accept json
-// @Produce json
-// @Param request body DeductCoinRequest true "Deduction request"
-// @Success 200 {object} DeductCoinResponse
-// @Failure 400 {object} apierror.Response "Invalid amount or parse error"
-// @Failure 401 {object} apierror.Response "Missing or invalid token"
-// @Failure 404 {object} apierror.Response "User not found"
-// @Failure 422 {object} apierror.Response "Insufficient balance"
-// @Failure 500 {object} apierror.Response "Internal server error"
-// @Router /external/deduct-coin [post]
-// @Security BearerAuth
 func (h *HTTPHandler) DeductCoin(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {

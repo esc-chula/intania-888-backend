@@ -32,22 +32,6 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authMiddleware, adminM
 }
 
 // List returns the filtered policy page and next cursor.
-// @Summary List access policies
-// @Description Lists allowlist and blacklist entries for an administrator.
-// @Tags Auth Policy
-// @Produce json
-// @Param kind query string false "allowlist or blacklist"
-// @Param principal_type query string false "email or google_subject"
-// @Param status query string false "active, inactive, or all"
-// @Param limit query int false "page size, maximum 200"
-// @Param cursor query string false "opaque pagination cursor"
-// @Success 200 {object} ListResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /auth/policies [get]
-// @Security CookieSession
 func (h *HTTPHandler) List(c *fiber.Ctx) error {
 	limit, err := parseLimit(c.Query("limit"))
 	if err != nil {
@@ -78,21 +62,6 @@ func (h *HTTPHandler) List(c *fiber.Ctx) error {
 }
 
 // Create creates a normalized access policy.
-// @Summary Create access policy
-// @Description Creates an allowlist or blacklist entry.
-// @Tags Auth Policy
-// @Accept json
-// @Produce json
-// @Param policy body CreatePolicyRequest true "access policy"
-// @Success 201 {object} Response
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 409 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Router /auth/policies [post]
-// @Security CookieSession
 func (h *HTTPHandler) Create(c *fiber.Ctx) error {
 	var request CreatePolicyRequest
 	if err := apierror.BindJSON(c, &request); err != nil {
@@ -106,22 +75,6 @@ func (h *HTTPHandler) Create(c *fiber.Ctx) error {
 }
 
 // Update changes mutable fields while preserving policy identity.
-// @Summary Update access policy
-// @Description Updates reason, expiry, or enabled state. Identity and kind are immutable.
-// @Tags Auth Policy
-// @Accept json
-// @Produce json
-// @Param id path string true "policy ID"
-// @Param policy body UpdatePolicyRequest true "policy changes"
-// @Success 200 {object} Response
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Router /auth/policies/{id} [patch]
-// @Security CookieSession
 func (h *HTTPHandler) Update(c *fiber.Ctx) error {
 	var request UpdatePolicyRequest
 	if err := apierror.BindJSON(c, &request); err != nil {
@@ -153,18 +106,6 @@ func (h *HTTPHandler) Update(c *fiber.Ctx) error {
 }
 
 // Delete disables a policy without deleting its audit history.
-// @Summary Disable access policy
-// @Description Disables an allowlist or blacklist entry.
-// @Tags Auth Policy
-// @Param id path string true "policy ID"
-// @Success 204 "policy disabled"
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Param X-CSRF-Token header string true "Session-bound CSRF token returned by /auth/me"
-// @Router /auth/policies/{id} [delete]
-// @Security CookieSession
 func (h *HTTPHandler) Delete(c *fiber.Ctx) error {
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})

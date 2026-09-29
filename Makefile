@@ -14,16 +14,12 @@ TEST_POSTGRES_PORT ?= 55432
 TEST_REDIS_PORT ?= 56379
 TEST_DATABASE_URL ?= postgres://root:1234@localhost:$(TEST_POSTGRES_PORT)/intania888_test?sslmode=disable
 
-# Resolve the generator from go.mod so docs checks use the project's pinned version.
-SWAG_CMD := $(GO) run github.com/swaggo/swag/cmd/swag
-# Each search root is a Go package, so Swag can resolve moved @name schemas through imports.
-SWAG_SEARCH_DIRS = cmd,$(shell $(GO) list -f '{{.Dir}}' ./internal/... ./pkg/... | paste -sd , -)
 GO_PACKAGES := ./cmd/... ./docs/... ./internal/... ./pkg/...
 GOLANGCI_VERSION := $(shell cat .golangci-version)
 DESTRUCTIVE_MIGRATION_CONFIRMATION := I_UNDERSTAND_DATA_WILL_BE_LOST
 
 .PHONY: help dev deps migrate migrate-up migrate-status migrate-down migrate-reset seed test test-race test-integration \
-	build fmt fmt-check lint docs docs-check tidy ci check-env check-air check-docker check-golangci
+	build fmt fmt-check lint openapi-check tidy ci check-env check-air check-docker check-golangci
 
 help:
 	@printf '%s\n' \
@@ -41,8 +37,7 @@ help:
 		'  make build                                    Compile all Go packages' \
 		'  make fmt                                      Format authored Go code and imports' \
 		'  make lint                                     Check formatting, vet, and run golangci-lint' \
-		'  make docs                                     Regenerate API documentation' \
-		'  make docs-check                               Verify generated documentation files are current' \
+		'  make openapi-check                            Validate the manual OpenAPI contract' \
 		'  make tidy                                     Tidy Go modules' \
 		'  make ci                                       Run the local CI checks'
 
@@ -78,7 +73,7 @@ check-golangci:
 deps: check-docker
 	$(DOCKER_COMPOSE) up --detach --wait postgres redis
 
-dev: check-env check-air deps docs
+dev: check-env check-air deps
 	$(MAKE) APP_ENV=dev migrate
 	APP_ENV=dev $(AIR) -c $(AIR_CONFIG)
 
@@ -146,21 +141,10 @@ lint: fmt-check
 	$(GO) vet ./...
 	$(GOLANGCI_LINT) run --allow-parallel-runners $(GO_PACKAGES)
 
-docs:
-	$(SWAG_CMD) init -g main.go -d "$(SWAG_SEARCH_DIRS)" -o docs
-
-docs-check:
-	@set -e; \
-		tmp_root=$$(mktemp -d); \
-		tmp_dir="$$tmp_root/docs"; \
-		mkdir "$$tmp_dir"; \
-		trap 'rm -rf "$$tmp_root"' EXIT; \
-		$(SWAG_CMD) init -g main.go -d "$(SWAG_SEARCH_DIRS)" -o "$$tmp_dir"; \
-		diff -u docs/docs.go "$$tmp_dir/docs.go"; \
-		diff -u docs/swagger.json "$$tmp_dir/swagger.json"; \
-		diff -u docs/swagger.yaml "$$tmp_dir/swagger.yaml"
+openapi-check:
+	$(GO) test ./docs
 
 tidy:
 	$(GO) mod tidy
 
-ci: lint test test-race build docs-check
+ci: lint test test-race build openapi-check

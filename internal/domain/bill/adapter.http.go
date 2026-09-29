@@ -32,22 +32,6 @@ func (h *HTTPHandler) RegisterRoutes(r fiber.Router, auth, admin fiber.Handler) 
 }
 
 // CreateBill validates a browser stake and creates a bill for the authenticated actor.
-// @Summary Place an authoritative bill
-// @Description Breaking contract: money is a string and rates are calculated by the server.
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Param bill body CreateBillRequest true "Bill stake and selections"
-// @Success 201 {object} HeadResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 409 {object} apierror.Response
-// @Failure 422 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /bills [post]
-// @Security CookieSession
 func (h *HTTPHandler) CreateBill(c *fiber.Ctx) error {
 	u := httpidentity.GetProfile(c)
 
@@ -71,16 +55,6 @@ func (h *HTTPHandler) CreateBill(c *fiber.Ctx) error {
 }
 
 // GetBill returns one bill belonging to the authenticated actor.
-// @Summary Get a bill by ID
-// @Tags Bill
-// @Produce json
-// @Param id path string true "Bill ID"
-// @Success 200 {object} HeadResponse
-// @Failure 401 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /bills/{id} [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetBill(c *fiber.Ctx) error {
 	u := httpidentity.GetProfile(c)
 
@@ -101,12 +75,6 @@ func (h *HTTPHandler) GetBill(c *fiber.Ctx) error {
 }
 
 // GetAllBills lists the authenticated actor's bills in their existing order.
-// @Summary Get the authenticated user's bills
-// @Tags Bill
-// @Produce json
-// @Success 200 {array} HeadResponse
-// @Router /bills [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetAllBills(c *fiber.Ctx) error {
 	u := httpidentity.GetProfile(c)
 
@@ -124,12 +92,6 @@ func (h *HTTPHandler) GetAllBills(c *fiber.Ctx) error {
 }
 
 // GetAllBillsAdmin lists every bill after the administrator route guard.
-// @Summary Get all bills (admin)
-// @Tags Bill
-// @Produce json
-// @Success 200 {array} HeadResponse
-// @Router /bills/admin/all [get]
-// @Security CookieSession
 func (h *HTTPHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
 	v, e := h.service.GetAllBillsAdmin(c.UserContext())
 
@@ -141,21 +103,6 @@ func (h *HTTPHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
 }
 
 // VoidBill validates an audit reason and refunds a pending bill for an administrator.
-// @Summary Void and refund a pending bill
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Param id path string true "Bill ID"
-// @Param request body VoidBillRequest true "Audit reason"
-// @Success 200 {object} HeadResponse
-// @Failure 400 {object} apierror.Response
-// @Failure 401 {object} apierror.Response
-// @Failure 403 {object} apierror.Response
-// @Failure 404 {object} apierror.Response
-// @Failure 409 {object} apierror.Response
-// @Failure 500 {object} apierror.Response
-// @Router /bills/admin/{id}/void [put]
-// @Security CookieSession
 func (h *HTTPHandler) VoidBill(c *fiber.Ctx) error {
 	u := httpidentity.GetProfile(c)
 

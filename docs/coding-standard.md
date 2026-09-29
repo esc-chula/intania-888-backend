@@ -108,11 +108,11 @@ Log propagated request failures once at the HTTP boundary with request ID and
 cause. Services may log business events or failures they intentionally recover
 from. Never log tokens, credentials or complete request bodies. Handle returned
 errors; retained behavior exceptions require a narrowly scoped suppression with
-a reason and reference to [the follow-up record](refactor-followups.md).
+a reason.
 
-Place each handler's Go doc and Swagger annotations directly above that handler.
-Verify documented routes, methods and security against registered routes.
-Preserve public schema identifiers with `@name` when moving HTTP Go types.
+Keep a concise Go comment above each exported route handler describing its purpose.
+Maintain request, response, security, and schema details in `docs/openapi.yaml`,
+and keep its route inventory aligned with registered handlers.
 
 ## Checks and review
 
@@ -132,5 +132,4 @@ is not evidence of runtime correctness.
 
 PR quality checks run the same local commands and a separate dependency-backed
 integration job. This normalization changes no deployment configuration, schema,
-API routes, business outcomes or gameplay odds. Known exceptions are recorded in
-[refactor-followups.md](refactor-followups.md).
+API routes, business outcomes or gameplay odds.

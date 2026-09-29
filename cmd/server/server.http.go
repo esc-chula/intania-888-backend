@@ -22,6 +22,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 
 	swagger "github.com/arsmn/fiber-swagger/v2"
 )
@@ -39,16 +40,17 @@ type FiberHTTPServer struct {
 	logger          *zap.Logger
 	allowedOrigins  map[string]struct{}
 	readinessChecks []ReadinessCheck
+	openAPIDocument []byte
 }
 
-// NewFiberHTTPServer constructs the HTTP application after validating origins and Swagger settings.
-// It also sets the generated Swagger document's public URL metadata; it does not listen.
+// NewFiberHTTPServer constructs the HTTP application after validating origins and documentation settings.
 func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger, readinessChecks ...ReadinessCheck) (*FiberHTTPServer, error) {
 	allowedOrigins, err := parseAllowedOrigins(cfg.GetCORS().AllowOrigins)
 	if err != nil {
 		return nil, err
 	}
-	if err := configureSwaggerInfo(cfg); err != nil {
+	openAPIDocument, err := configureOpenAPIDocument(cfg)
+	if err != nil {
 		return nil, err
 	}
 
@@ -66,39 +68,54 @@ func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger, readinessChecks .
 		logger:          logger,
 		allowedOrigins:  allowedOrigins,
 		readinessChecks: readinessChecks,
+		openAPIDocument: openAPIDocument,
 	}, nil
 }
 
-func configureSwaggerInfo(cfg config.Config) error {
+func configureOpenAPIDocument(cfg config.Config) ([]byte, error) {
 	if !cfg.GetSwagger().Enabled {
-		return nil
+		return nil, nil
 	}
 
 	rawURL := strings.TrimSpace(cfg.GetServer().URL)
 	if rawURL == "" {
-		return fmt.Errorf("SERVER_URL is required when Swagger is enabled")
+		return nil, fmt.Errorf("SERVER_URL is required when Swagger is enabled")
 	}
 
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return fmt.Errorf("SERVER_URL must be a full URL with scheme and host")
+		return nil, fmt.Errorf("SERVER_URL must be a full URL with scheme and host")
 	}
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("SERVER_URL must use http or https")
+		return nil, fmt.Errorf("SERVER_URL must use http or https")
 	}
 	if parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
-		return fmt.Errorf("SERVER_URL must not contain credentials, query parameters, or fragments")
+		return nil, fmt.Errorf("SERVER_URL must not contain credentials, query parameters, or fragments")
 	}
 
-	docs.SwaggerInfo.Host = parsedURL.Host
-	docs.SwaggerInfo.Schemes = []string{parsedURL.Scheme}
+	document, err := docs.ReadOpenAPI()
+	if err != nil {
+		return nil, fmt.Errorf("read OpenAPI document: %w", err)
+	}
+	var specification map[string]any
+	if err := yaml.Unmarshal(document, &specification); err != nil {
+		return nil, fmt.Errorf("parse OpenAPI document: %w", err)
+	}
+
+	specification["host"] = parsedURL.Host
+	specification["schemes"] = []string{parsedURL.Scheme}
 	basePath := strings.TrimRight(parsedURL.EscapedPath(), "/")
 	if basePath == "" {
 		basePath = "/api/v1"
 	}
-	docs.SwaggerInfo.BasePath = basePath
+	specification["basePath"] = basePath
 
-	return nil
+	document, err = yaml.Marshal(specification)
+	if err != nil {
+		return nil, fmt.Errorf("render OpenAPI document: %w", err)
+	}
+
+	return document, nil
 }
 
 // Start listens on the configured address and blocks until an interrupt or termination signal.
@@ -233,7 +250,17 @@ func (s *FiberHTTPServer) registerSwagger() {
 		}))
 	}
 
-	s.app.Get("/swagger/*", swagger.HandlerDefault)
+	s.app.Get("/swagger/openapi.yaml", func(c *fiber.Ctx) error {
+		c.Set(fiber.HeaderContentType, "application/yaml; charset=utf-8")
+		c.Set(fiber.HeaderCacheControl, "no-store")
+		return c.Send(s.openAPIDocument)
+	})
+	s.app.Get("/swagger/doc.json", func(c *fiber.Ctx) error {
+		return c.Redirect("/swagger/openapi.yaml", fiber.StatusMovedPermanently)
+	})
+	s.app.Get("/swagger/*", swagger.New(swagger.Config{
+		URL: "/swagger/openapi.yaml",
+	}))
 }
 
 // OriginGuard enforces exact configured browser origins and permits safe reads without Origin.

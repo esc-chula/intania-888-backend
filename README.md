@@ -64,7 +64,6 @@ the Go process directly:
 
 ```sh
 make deps
-make docs
 make migrate-up
 APP_ENV=dev go run ./cmd/main.go
 ```
@@ -85,9 +84,8 @@ The example Compose setup publishes PostgreSQL on port `5432` and Redis on
 | `make test-race` | Run tests with Go's race detector |
 | `make test-integration` | Run integration tests with disposable PostgreSQL and Redis containers |
 | `make lint` | Check formatting, run `go vet`, and run pinned golangci-lint |
-| `make ci` | Run lint, tests, race tests, build, and generated Swagger checks |
-| `make docs` | Regenerate the Swagger files |
-| `make docs-check` | Check that generated Swagger files match the source annotations |
+| `make ci` | Run lint, tests, race tests, build, and OpenAPI contract checks |
+| `make openapi-check` | Validate the manually maintained OpenAPI contract |
 
 Catalogue seeding inserts missing defaults without overwriting edited titles.
 Explicitly rerunning `make seed` restores deleted default sport entries. Admins
