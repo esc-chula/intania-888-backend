@@ -86,6 +86,7 @@ func (r *gormRepository) AcquireLifecycleLock(ctx context.Context) error {
 func (r *gormRepository) LockMatches(ctx context.Context, ids []string) ([]match.Snapshot, error) {
 	var rows []persistence.Match
 	if err := r.db.WithContext(ctx).
+		Preload("Location").
 		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id IN ?", ids).
 		Order("id").
