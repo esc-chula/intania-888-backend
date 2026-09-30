@@ -206,7 +206,7 @@ func (h *HTTPHandler) GetExternalMe(c *fiber.Ctx) error {
 	return c.JSON(ExternalMeResponse{Profile: httpidentity.Response(profile)})
 }
 
-// IssueExternalToken validates the selected account and returns its one-hour external JWT and revocation ID.
+// IssueExternalToken returns the selected account credential and its actual lifetime.
 func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
@@ -220,12 +220,16 @@ func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
 		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
-	token, jti, err := h.service.IssueExternalToken(c.UserContext(), req.UserID)
+	issued, err := h.service.IssueExternalToken(c.UserContext(), req.UserID)
 	if err != nil {
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Token service is unavailable")
 	}
 
-	return c.Status(201).JSON(ExternalTokenResponse{Token: token, ID: jti, ExpiresIn: 3600})
+	return c.Status(fiber.StatusCreated).JSON(ExternalTokenResponse{
+		Token:     issued.Token,
+		ID:        issued.ID,
+		ExpiresIn: issued.ExpiresIn,
+	})
 }
 
 // RevokeExternalToken revokes the selected external JWT identifier and returns an empty success response.

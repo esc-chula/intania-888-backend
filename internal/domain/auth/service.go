@@ -215,26 +215,26 @@ func (s *Service) GetPostLoginRedirectURL() string {
 }
 
 // IssueExternalToken signs a JWT using the registry access-token lifetime and records its active subject binding.
-// It returns the token followed by its revocation identifier.
-func (s *Service) IssueExternalToken(ctx context.Context, subjectID string) (string, string, error) {
+// Its result carries the same lifetime used for JWT expiry and the Redis binding.
+func (s *Service) IssueExternalToken(ctx context.Context, subjectID string) (*IssuedExternalToken, error) {
 	subject, err := s.userRepo.GetByID(ctx, subjectID)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	if subject == nil {
-		return "", "", identity.ErrUserNotFound
+		return nil, identity.ErrUserNotFound
 	}
 
 	registry := s.cfg.GetOAuth().Registry
 	if registry == nil || registry.Lifetimes.Access <= 0 {
-		return "", "", errors.New("access token lifetime is not configured")
+		return nil, errors.New("access token lifetime is not configured")
 	}
 
 	tokenSeconds := registry.Lifetimes.Access
 
 	jti, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	token, err := security.JWTSignExternalToken(
@@ -245,15 +245,15 @@ func (s *Service) IssueExternalToken(ctx context.Context, subjectID string) (str
 		tokenSeconds,
 	)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	key := security.ToExternalTokenCacheKey(jti)
 	if err := s.authRepo.StoreExternalToken(ctx, key, subjectID, tokenSeconds); err != nil {
-		return "", "", err
+		return nil, err
 	}
 
-	return token, jti, nil
+	return &IssuedExternalToken{Token: token, ID: jti, ExpiresIn: tokenSeconds}, nil
 }
 
 // RevokeExternalToken removes the token identifier's active subject binding. An empty identifier is invalid.

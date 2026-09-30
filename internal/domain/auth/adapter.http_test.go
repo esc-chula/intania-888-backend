@@ -39,8 +39,8 @@ func (s fakeAuthService) Logout(context.Context, string) error { return s.logout
 
 func (s fakeAuthService) GetPostLoginRedirectURL() string { return s.redirect }
 
-func (s fakeAuthService) IssueExternalToken(context.Context, string) (string, string, error) {
-	return "token", "id", nil
+func (s fakeAuthService) IssueExternalToken(context.Context, string) (*IssuedExternalToken, error) {
+	return &IssuedExternalToken{Token: "token", ID: "id", ExpiresIn: 3600}, nil
 }
 
 func (s fakeAuthService) RevokeExternalToken(context.Context, string) error { return nil }

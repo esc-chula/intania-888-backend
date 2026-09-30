@@ -12,3 +12,10 @@ type SessionCredentials struct {
 
 // OAuthState contains the secret PKCE verifier retained during one login flow.
 type OAuthState struct{ CodeVerifier string }
+
+// IssuedExternalToken contains the credential, revocation ID, and configured lifetime.
+type IssuedExternalToken struct {
+	Token     string
+	ID        string
+	ExpiresIn int
+}

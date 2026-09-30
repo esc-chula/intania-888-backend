@@ -17,8 +17,8 @@ type ServicePort interface {
 	Logout(context.Context, string) error
 	// GetPostLoginRedirectURL returns the configured fixed frontend destination.
 	GetPostLoginRedirectURL() string
-	// IssueExternalToken returns a one-hour JWT and its revocation identifier for an existing subject.
-	IssueExternalToken(context.Context, string) (string, string, error)
+	// IssueExternalToken returns a JWT, revocation ID, and configured lifetime for an existing subject.
+	IssueExternalToken(context.Context, string) (*IssuedExternalToken, error)
 	// RevokeExternalToken removes the active subject binding for a token identifier.
 	RevokeExternalToken(context.Context, string) error
 }
