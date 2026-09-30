@@ -88,6 +88,33 @@ func TestSwaggerDevelopmentDoesNotRequireAuthenticationOrOrigin(t *testing.T) {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("Swagger status = %d, want %d", response.StatusCode, http.StatusOK)
 	}
+	indexBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read Swagger index: %v", err)
+	}
+	if !strings.Contains(string(indexBody), `src="/swagger/swagger-session.js"`) {
+		t.Fatal("Swagger index does not load the embedded session helper")
+	}
+	if !strings.Contains(string(indexBody), `data-api-base="http://localhost:8080/api/v1"`) {
+		t.Fatal("Swagger index does not include the configured API base URL")
+	}
+
+	scriptResponse, err := httpServer.app.Test(
+		httptest.NewRequest(http.MethodGet, "/swagger/swagger-session.js", nil),
+	)
+	if err != nil {
+		t.Fatalf("Swagger session script request error = %v", err)
+	}
+	if scriptResponse.StatusCode != http.StatusOK {
+		t.Fatalf("Swagger session script status = %d, want %d", scriptResponse.StatusCode, http.StatusOK)
+	}
+	scriptBody, err := io.ReadAll(scriptResponse.Body)
+	if err != nil {
+		t.Fatalf("read Swagger session script: %v", err)
+	}
+	if !strings.Contains(string(scriptBody), "window.IntaniaSwaggerSession") {
+		t.Fatal("served Swagger helper is missing its UI callbacks")
+	}
 }
 
 func TestSwaggerProductionRequiresBasicAuthentication(t *testing.T) {
@@ -213,14 +240,13 @@ func TestSwaggerUsesConfiguredServerURL(t *testing.T) {
 	if err := yaml.NewDecoder(response.Body).Decode(&document); err != nil {
 		t.Fatalf("decode OpenAPI response: %v", err)
 	}
-	if document["host"] != "api.example.test" {
-		t.Errorf("OpenAPI host = %v, want %q", document["host"], "api.example.test")
+	servers, ok := document["servers"].([]any)
+	if !ok || len(servers) != 1 {
+		t.Fatalf("OpenAPI servers = %v, want one configured server", document["servers"])
 	}
-	if got, ok := document["schemes"].([]any); !ok || len(got) != 1 || got[0] != "https" {
-		t.Errorf("OpenAPI schemes = %v, want [https]", document["schemes"])
-	}
-	if document["basePath"] != "/gateway/api/v1" {
-		t.Errorf("OpenAPI basePath = %v, want %q", document["basePath"], "/gateway/api/v1")
+	server, ok := servers[0].(map[string]any)
+	if !ok || server["url"] != "https://api.example.test/gateway/api/v1" {
+		t.Errorf("OpenAPI server URL = %v, want %q", servers[0], "https://api.example.test/gateway/api/v1")
 	}
 
 	uiResponse, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil))

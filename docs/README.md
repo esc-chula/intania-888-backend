@@ -177,8 +177,16 @@ use the callback URL registered with Google.
 The development configuration leaves the UI open. Production requires HTTP
 Basic Auth using `SWAGGER_USERNAME` and `SWAGGER_PASSWORD`.
 
-The manually maintained Swagger 2.0 document is available at
+The manually maintained OpenAPI 3.0.3 document is available at
 `/swagger/openapi.yaml`. The former `/swagger/doc.json` URL redirects there.
+
+Swagger UI has **Sign in with Google** and **Refresh session** controls. It uses
+the browser's HttpOnly session cookie, reads the CSRF token from `/auth/me` for
+mutations, and shows the latest `X-Request-ID` with a copy button. When Swagger
+is enabled, the API origin is allowed so same-origin Try It Out requests pass
+the origin check. The browser helper is maintained in
+[`cmd/server/swagger-session.js`](../cmd/server/swagger-session.js) and embedded
+in the server binary.
 
 Protected browser routes use the session cookie; their mutations also require
 the CSRF header and an allowed Origin. Public shared reads do not require a
@@ -453,17 +461,15 @@ The frontend migration is outside this backend branch.
 The required layout, documentation and dependency rules are documented in
 [coding-standard.md](coding-standard.md). Run `make fmt` before `make ci`.
 
-Browser routes use the `CookieSession` documentation scheme. Swagger 2.0 does
-not support a native cookie security scheme; its `Cookie` header representation
-is descriptive. Browser cookies are supplied by an authenticated browser session,
-and protected mutations also require `X-CSRF-Token` and an allowed Origin.
-`BearerAuth` applies only to the scoped external resources. `OAuthClient` is
-HTTP Basic backend-client authentication for `/auth/token` and `/auth/revoke`;
-it is separate from Swagger UI access protection and browser account login.
+Browser routes use the `CookieSession` scheme for development and the
+`SecureCookieSession` scheme for production. Both describe the environment's
+HttpOnly session cookie; protected mutations also require `X-CSRF-Token` and an
+allowed Origin. `BearerAuth` applies only to scoped external resources.
+`OAuthClient` is HTTP Basic backend-client authentication for `/auth/token` and
+`/auth/revoke`; it is separate from Swagger UI access protection and browser
+account login.
 
 Start cookie login by navigating to `/auth/login?client_id=intania-888-web`,
 then return to Swagger in the same browser and hostname. Do not fetch login as
 JSON or follow Google authentication through **Try it out**. Obtain CSRF from
-`/auth/me` before an active-session mutation. This branch serves Swagger 2.0;
-the OpenAPI 3 document and Swagger session helper are maintained on the separate
-`feat/swagger-openapi-v3-session-ux` branch and are not included here.
+`/auth/me` before an active-session mutation.

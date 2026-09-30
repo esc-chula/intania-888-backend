@@ -18,8 +18,8 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 	if err := yaml.Unmarshal(contents, &document); err != nil {
 		t.Fatalf("yaml.Unmarshal() error = %v", err)
 	}
-	if got := document["swagger"]; got != "2.0" {
-		t.Fatalf("swagger version = %v, want 2.0", got)
+	if got := document["openapi"]; got != "3.0.3" {
+		t.Fatalf("OpenAPI version = %v, want 3.0.3", got)
 	}
 
 	paths, ok := document["paths"].(map[string]any)
@@ -162,36 +162,43 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 		t.Errorf("documented operation count = %d, want 56", len(gotOperations))
 	}
 
-	definitions, ok := document["definitions"].(map[string]any)
+	components, ok := document["components"].(map[string]any)
 	if !ok {
-		t.Fatalf("definitions has type %T", document["definitions"])
+		t.Fatalf("components has type %T", document["components"])
 	}
-	if err := checkReferences(document, definitions); err != nil {
+	schemas, ok := components["schemas"].(map[string]any)
+	if !ok {
+		t.Fatalf("components.schemas has type %T", components["schemas"])
+	}
+	if err := checkReferences(document, schemas); err != nil {
 		t.Error(err)
 	}
-	if _, ok := definitions["model.LocationDto"]; !ok {
-		t.Error("LocationDto definition is missing")
+	if _, ok := schemas["model.LocationDto"]; !ok {
+		t.Error("LocationDto schema is missing")
 	}
-	if createMatch, ok := definitions["model.CreateMatchRequest"].(map[string]any); ok {
+	if createMatch, ok := schemas["model.CreateMatchRequest"].(map[string]any); ok {
 		if !hasRequiredField(createMatch, "location_id") {
 			t.Error("CreateMatchRequest must require location_id")
 		}
 	} else {
-		t.Error("CreateMatchRequest definition is missing or malformed")
+		t.Error("CreateMatchRequest schema is missing or malformed")
 	}
-	if match, ok := definitions["model.MatchDto"].(map[string]any); ok {
+	if match, ok := schemas["model.MatchDto"].(map[string]any); ok {
 		properties, _ := match["properties"].(map[string]any)
 		location, _ := properties["location"].(map[string]any)
-		if location["$ref"] != "#/definitions/model.LocationDto" {
+		if location["$ref"] != "#/components/schemas/model.LocationDto" {
 			t.Error("MatchDto.location must reference LocationDto")
 		}
 	} else {
-		t.Error("MatchDto definition is missing or malformed")
+		t.Error("MatchDto schema is missing or malformed")
 	}
 
-	securityDefinitions, _ := document["securityDefinitions"].(map[string]any)
-	if _, ok := securityDefinitions["CookieSession"]; !ok {
-		t.Error("CookieSession security definition is missing")
+	securitySchemes, _ := components["securitySchemes"].(map[string]any)
+	if _, ok := securitySchemes["CookieSession"]; !ok {
+		t.Error("CookieSession security scheme is missing")
+	}
+	if _, ok := securitySchemes["SecureCookieSession"]; !ok {
+		t.Error("SecureCookieSession security scheme is missing")
 	}
 	for _, operation := range []string{
 		"PATCH /users/{id}",
@@ -274,27 +281,27 @@ func hasParameter(operation map[string]any, location, name string) bool {
 	return false
 }
 
-func checkReferences(value any, definitions map[string]any) error {
+func checkReferences(value any, schemas map[string]any) error {
 	switch typed := value.(type) {
 	case map[string]any:
 		if reference, ok := typed["$ref"].(string); ok {
-			const prefix = "#/definitions/"
+			const prefix = "#/components/schemas/"
 			if !strings.HasPrefix(reference, prefix) {
 				return fmt.Errorf("unsupported reference %q", reference)
 			}
 			name := strings.TrimPrefix(reference, prefix)
-			if _, ok := definitions[name]; !ok {
+			if _, ok := schemas[name]; !ok {
 				return fmt.Errorf("unresolved schema reference %q", reference)
 			}
 		}
 		for key, item := range typed {
-			if err := checkReferences(item, definitions); err != nil {
+			if err := checkReferences(item, schemas); err != nil {
 				return fmt.Errorf("%s: %w", key, err)
 			}
 		}
 	case []any:
 		for index, item := range typed {
-			if err := checkReferences(item, definitions); err != nil {
+			if err := checkReferences(item, schemas); err != nil {
 				return fmt.Errorf("item %d: %w", index, err)
 			}
 		}
