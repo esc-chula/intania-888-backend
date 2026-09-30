@@ -49,7 +49,6 @@ func validSecurityConfig(env string) securityValidationConfig {
 		oauth: OAuth{
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
-			RedirectURL:  "http://localhost:8080/api/v1/auth/callback",
 			Registry:     registry,
 		},
 		session: Session{
@@ -74,8 +73,7 @@ func TestValidateSecurityRejectsProductionInsecureConfiguration(t *testing.T) {
 
 	cfg = validSecurityConfig("production")
 	cfg.server.URL = "https://api.example.test/api/v1"
-	cfg.oauth.RedirectURL = "https://api.example.test/api/v1/auth/callback"
-	cfg.oauth.Registry.Google.CallbackURI = cfg.oauth.RedirectURL
+	cfg.oauth.Registry.Google.CallbackURI = "https://api.example.test/api/v1/auth/callback"
 	cfg.oauth.Registry.Applications[0].FrontendOrigin = "https://frontend.example.test"
 	cfg.cors.AllowOrigins = "https://frontend.example.test"
 	if err := ValidateSecurity(cfg); err != nil {

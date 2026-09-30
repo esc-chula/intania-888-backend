@@ -81,7 +81,6 @@ func NewViperConfig() *viperConfig {
 			log.Fatalf("Unable to load auth registry: %v", err)
 		}
 		cfg.Registry = registry
-		cfg.RedirectURL = registry.Google.CallbackURI
 
 		instance = cfg
 	})

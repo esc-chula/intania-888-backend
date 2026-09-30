@@ -34,7 +34,7 @@ func ValidateSecurity(cfg Config) error {
 		return fmt.Errorf("OAuth client ID and secret are required")
 	}
 	if oauth.Registry == nil {
-		return fmt.Errorf("auth registry is required")
+		return fmt.Errorf("AUTH_CONFIG_FILE must load a valid auth registry")
 	}
 	if session.IdleTTLSeconds <= 0 {
 		return fmt.Errorf("SESSION_IDLE_TTL_SECONDS must be positive")
@@ -46,13 +46,8 @@ func ValidateSecurity(cfg Config) error {
 		return fmt.Errorf("SESSION_ABSOLUTE_TTL_SECONDS must be at least SESSION_IDLE_TTL_SECONDS")
 	}
 
-	if _, err := validateAbsoluteURL(oauth.RedirectURL, "OAUTH_REDIRECT_URI", false, false); err != nil {
-		return err
-	}
-	if oauth.Registry != nil {
-		if err := oauth.Registry.Validate(server.Env, cfg.GetCORS().AllowOrigins); err != nil {
-			return err
-		}
+	if err := oauth.Registry.Validate(server.Env, cfg.GetCORS().AllowOrigins); err != nil {
+		return fmt.Errorf("auth registry: %w", err)
 	}
 
 	env := strings.ToLower(strings.TrimSpace(server.Env))
@@ -62,9 +57,6 @@ func ValidateSecurity(cfg Config) error {
 	if env == "production" {
 		if len(jwt.AccessTokenSecret) < 32 {
 			return fmt.Errorf("JWT_ACCESS_TOKEN_SECRET must contain at least 32 characters in production")
-		}
-		if _, err := validateAbsoluteURL(oauth.RedirectURL, "OAUTH_REDIRECT_URI", true, false); err != nil {
-			return err
 		}
 		if strings.TrimSpace(server.URL) == "" {
 			return fmt.Errorf("SERVER_URL is required in production")

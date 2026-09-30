@@ -131,7 +131,7 @@ func LoadOAuthConfig(cfg config.Config) *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     cfg.GetOAuth().ClientID,
 		ClientSecret: cfg.GetOAuth().ClientSecret,
-		RedirectURL:  cfg.GetOAuth().RedirectURL,
+		RedirectURL:  cfg.GetOAuth().Registry.Google.CallbackURI,
 		Endpoint:     google.Endpoint,
 		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
 	}

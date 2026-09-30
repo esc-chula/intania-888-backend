@@ -154,12 +154,30 @@ func (r *AuthRegistry) Validate(environment, cors string) error {
 	}
 
 	t := r.Lifetimes
-	if t.Login <= 0 || t.Code <= 0 || t.Access <= 0 || t.Idle <= 0 || t.Absolute < t.Idle || t.Access > t.Absolute {
-		return fmt.Errorf("invalid auth registry lifetimes")
+	for _, lifetime := range []struct {
+		name    string
+		seconds int
+	}{
+		{"login_transaction_seconds", t.Login},
+		{"authorization_code_seconds", t.Code},
+		{"access_token_seconds", t.Access},
+		{"delegation_idle_seconds", t.Idle},
+		{"delegation_absolute_seconds", t.Absolute},
+	} {
+		if lifetime.seconds <= 0 {
+			return fmt.Errorf("lifetimes.%s must be positive", lifetime.name)
+		}
+	}
+
+	if t.Absolute < t.Idle {
+		return fmt.Errorf("lifetimes.delegation_absolute_seconds must be at least lifetimes.delegation_idle_seconds")
+	}
+	if t.Access > t.Absolute {
+		return fmt.Errorf("lifetimes.access_token_seconds must not exceed lifetimes.delegation_absolute_seconds")
 	}
 
 	if err := authURL(r.Google.CallbackURI, production, false); err != nil {
-		return fmt.Errorf("google callback: %w", err)
+		return fmt.Errorf("google.callback_uri: %w", err)
 	}
 
 	origins, err := validateConfiguredOrigins(cors)

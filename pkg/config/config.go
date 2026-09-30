@@ -68,11 +68,10 @@ type JWT struct {
 	AccessTokenSecret string `mapstructure:"jwt_access_token_secret"`
 }
 
-// OAuth contains Google client credentials and fixed login redirect destinations.
+// OAuth contains upstream Google credentials and registered application settings.
 type OAuth struct {
 	ClientID     string        `mapstructure:"oauth_client_id"`
 	ClientSecret string        `mapstructure:"oauth_client_secret"`
-	RedirectURL  string        `mapstructure:"-"`
 	Registry     *AuthRegistry `mapstructure:"-"`
 }
 
@@ -94,4 +93,18 @@ type Swagger struct {
 	RequireAuth bool   `mapstructure:"swagger_require_auth"`
 	Username    string `mapstructure:"swagger_username"`
 	Password    string `mapstructure:"swagger_password"`
+}
+
+// CookieApplicationID identifies the first registered browser application for documentation login.
+// An empty result means browser login is unavailable to the documentation UI.
+func (o OAuth) CookieApplicationID() string {
+	if o.Registry != nil {
+		for _, application := range o.Registry.Applications {
+			if application.Mode == CookieApplication {
+				return application.ID
+			}
+		}
+	}
+
+	return ""
 }
