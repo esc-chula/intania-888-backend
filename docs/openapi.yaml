@@ -8,8 +8,8 @@ info:
     \ JSON strings with up to six fractional digits in requests and six in responses. Numeric JSON tokens are not\
     \ accepted for these decimal values. \n\nAPI failures use the shared apierror.Response shape: code, message,\
     \ request_id, and optional field-level details. The same request ID is returned in the X-Request-ID header.\
-    \ Dates and timestamps use the formats documented by each field. The separate /external/* backend integration\
-    \ is described in docs/README.md and is intentionally outside this browser-focused reference.\n\nThe API is\
+    \ Dates and timestamps use the formats documented by each field. The /external/* backend integration\
+    \ requires scoped Bearer credentials.\n\nThe API is\
     \ rate limited to 200 requests per minute per client IP. Exceeding the limit returns 429 TOO_MANY_REQUESTS."
   title: Intania 888 API
   version: 1.0.0-breaking
@@ -46,7 +46,7 @@ paths:
       responses:
         '303':
           description: Application continuation or trusted error redirect.
-          headers: &id001
+          headers: &id001_1
             X-Request-ID:
               description: Correlation ID for this request.
               schema:
@@ -57,215 +57,30 @@ paths:
                 type: string
         '400':
           description: Missing, expired, replayed or unbound transaction.
-          headers: *id001
+          headers: *id001_1
           content:
             text/html:
               schema:
                 type: string
         '503':
           description: Login storage unavailable.
-          headers: *id001
+          headers: *id001_1
           content:
             text/html:
               schema:
                 type: string
-  /auth/external-tokens:
-    post:
-      deprecated: true
-      description: Deprecated. Administrator-only. Issues a one-hour Bearer JWT for the selected account. The response
-        includes the token, its revocation ID, and its lifetime in seconds. Treat the token as a secret; use DELETE
-        on the returned ID to revoke it.
-      parameters:
-      - description: Session-bound token returned by GET /auth/me. Required for browser mutations.
-        in: header
-        name: X-CSRF-Token
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/auth.externalTokenRequest'
-        description: existing user
-        required: true
-        x-originalParamName: request
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/auth.ExternalTokenResponse'
-          description: Created
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'Bad Request Failure body follows apierror.Response; code is stable, message is safe to display,
-            and request_id matches the X-Request-ID response header. Failure body follows apierror.Response: stable
-            code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'Unauthorized Failure body follows apierror.Response; code is stable, message is safe to
-            display, and request_id matches the X-Request-ID response header. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'Forbidden Failure body follows apierror.Response; code is stable, message is safe to display,
-            and request_id matches the X-Request-ID response header. Failure body follows apierror.Response: stable
-            code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'Not Found Failure body follows apierror.Response; code is stable, message is safe to display,
-            and request_id matches the X-Request-ID response header. Failure body follows apierror.Response: stable
-            code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
         '429':
+          description: 'TOO_MANY_REQUESTS: global per-IP limit. Pending-login limit instead returns a local HTML sign-in
+            error with status 429.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '503':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'Service Unavailable Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-      security:
-      - CookieSession: []
-      - SecureCookieSession: []
-      summary: Issue a one-hour external JWT
-      tags:
-      - Auth
-  /auth/external-tokens/{id}:
-    delete:
-      deprecated: true
-      description: Deprecated. Administrator-only. Revokes an issued external JWT by its revocation ID. The operation
-        returns no response body after successful revocation.
-      parameters:
-      - description: token ID
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      - description: Session-bound token returned by GET /auth/me. Required for browser mutations.
-        in: header
-        name: X-CSRF-Token
-        required: true
-        schema:
-          type: string
-      responses:
-        '204':
-          description: revoked
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'Unauthorized Failure body follows apierror.Response; code is stable, message is safe to
-            display, and request_id matches the X-Request-ID response header. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'Forbidden Failure body follows apierror.Response; code is stable, message is safe to display,
-            and request_id matches the X-Request-ID response header. Failure body follows apierror.Response: stable
-            code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '429':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '503':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'Service Unavailable Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-      security:
-      - CookieSession: []
-      - SecureCookieSession: []
-      summary: Revoke an external JWT
-      tags:
-      - Auth
   /auth/authorize:
     get:
       summary: Authorize a registered backend application
@@ -319,7 +134,7 @@ paths:
       responses:
         '303':
           description: Google login or registered callback with code/state or error/state.
-          headers: &id001
+          headers: &id001_2
             X-Request-ID:
               description: Correlation ID for this request.
               schema:
@@ -330,21 +145,21 @@ paths:
                 type: string
         '400':
           description: Invalid client or callback; no redirect.
-          headers: *id001
+          headers: *id001_2
           content:
             text/html:
               schema:
                 type: string
         '429':
           description: Pending transaction or IP limit reached.
-          headers: *id001
+          headers: *id001_2
           content:
             text/html:
               schema:
                 type: string
         '503':
           description: Login storage unavailable.
-          headers: *id001
+          headers: *id001_2
           content:
             text/html:
               schema:
@@ -380,7 +195,7 @@ paths:
       responses:
         '200':
           description: Bearer access_token, rotating refresh_token, token_type, expires_in, scope and user_id.
-          headers: *id001
+          headers: *id001_2
           content:
             application/json:
               schema:
@@ -407,7 +222,7 @@ paths:
                     type: string
         '400':
           description: invalid_request, invalid_grant or unsupported_grant_type.
-          headers: *id001
+          headers: *id001_2
           content:
             application/json:
               schema:
@@ -417,7 +232,7 @@ paths:
                     type: string
         '401':
           description: invalid_client.
-          headers: *id001
+          headers: *id001_2
           content:
             application/json:
               schema:
@@ -427,7 +242,7 @@ paths:
                     type: string
         '503':
           description: temporarily_unavailable.
-          headers: *id001
+          headers: *id001_2
           content:
             application/json:
               schema:
@@ -435,6 +250,17 @@ paths:
                 properties:
                   error:
                     type: string
+        '429':
+          description: 'TOO_MANY_REQUESTS: API-wide per-IP limit; this response uses the shared resource error envelope.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
   /auth/revoke:
     post:
       summary: Revoke a client-owned delegation
@@ -458,10 +284,10 @@ paths:
       responses:
         '200':
           description: Revocation completed or credential unknown.
-          headers: *id001
+          headers: *id001_2
         '400':
           description: invalid_request.
-          headers: *id001
+          headers: *id001_2
           content:
             application/json:
               schema:
@@ -471,7 +297,7 @@ paths:
                     type: string
         '401':
           description: invalid_client.
-          headers: *id001
+          headers: *id001_2
           content:
             application/json:
               schema:
@@ -481,7 +307,7 @@ paths:
                     type: string
         '503':
           description: temporarily_unavailable.
-          headers: *id001
+          headers: *id001_2
           content:
             application/json:
               schema:
@@ -489,6 +315,17 @@ paths:
                 properties:
                   error:
                     type: string
+        '429':
+          description: 'TOO_MANY_REQUESTS: API-wide per-IP limit; this response uses the shared resource error envelope.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
   /auth/login:
     get:
       summary: Start registered cookie application login
@@ -513,7 +350,7 @@ paths:
       responses:
         '303':
           description: Google or application redirect.
-          headers: &id001
+          headers: &id001_3
             X-Request-ID:
               description: Correlation ID for this request.
               schema:
@@ -524,21 +361,21 @@ paths:
                 type: string
         '400':
           description: Invalid application or return path.
-          headers: *id001
+          headers: *id001_3
           content:
             text/html:
               schema:
                 type: string
         '429':
           description: Pending transaction or IP limit reached.
-          headers: *id001
+          headers: *id001_3
           content:
             text/html:
               schema:
                 type: string
         '503':
           description: Login storage unavailable.
-          headers: *id001
+          headers: *id001_3
           content:
             text/html:
               schema:
@@ -5732,6 +5569,202 @@ paths:
       summary: Update your own profile
       tags:
       - User
+  /external/me:
+    get:
+      tags:
+      - External
+      summary: Read the delegated account profile
+      description: Requires profile.read. The account comes from the delegated bearer token. Returns profile only,
+        without csrf_token. The credential must match an active client registration and delegation. Browser Origin
+        guard and CSRF do not apply; browser CORS still applies to browser reads.
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/auth.ExternalMeResponse'
+        '401':
+          description: 'UNAUTHORIZED: missing, expired, revoked, invalid or unregistered delegated credentials, missing
+            user, or blacklisted account.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '403':
+          description: 'FORBIDDEN: required scope is missing.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '429':
+          description: 'TOO_MANY_REQUESTS: shared per-IP rate limit.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '500':
+          description: 'INTERNAL_ERROR: unexpected resource failure.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '503':
+          description: 'DEPENDENCY_UNAVAILABLE: credential, user, or policy state cannot be checked.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+  /external/deduct-coin:
+    post:
+      tags:
+      - External
+      summary: Deduct coins from the delegated account
+      description: Requires coins.spend. Strict JSON amount uses the money-string contract; no user_id is accepted.
+        Locks the authenticated account and checks its balance in one 888 database transaction. No idempotency key,
+        reservation, refund, or cross-database rollback contract exists; do not blindly retry an ambiguous response.
+      security:
+      - BearerAuth: []
+      requestBody:
+        description: Exact coin amount to deduct from the authenticated account.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/user.DeductCoinRequest'
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/user.DeductCoinResponse'
+        '401':
+          description: 'UNAUTHORIZED: missing, expired, revoked, invalid or unregistered delegated credentials, missing
+            user, or blacklisted account.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '403':
+          description: 'FORBIDDEN: required scope is missing.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '429':
+          description: 'TOO_MANY_REQUESTS: shared per-IP rate limit.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '500':
+          description: 'INTERNAL_ERROR: unexpected resource failure.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '503':
+          description: 'DEPENDENCY_UNAVAILABLE: credential, user, or policy state cannot be checked.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '400':
+          description: 'INVALID_REQUEST: invalid JSON, unsupported fields, or invalid money amount.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '404':
+          description: 'RESOURCE_NOT_FOUND: account disappeared before deduction.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+        '422':
+          description: 'INSUFFICIENT_BALANCE: no coins deducted.'
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
 components:
   schemas:
     apierror.Response:
@@ -5759,30 +5792,12 @@ components:
           description: Server-generated ID for tracing this request; also returned in X-Request-ID.
           type: string
       type: object
-    auth.ExternalTokenResponse:
-      properties:
-        expires_in:
-          type: integer
-        id:
-          description: Identifier of the associated resource.
-          type: string
-        token:
-          type: string
-      type: object
     auth.MeResponse:
       properties:
         csrf_token:
           type: string
         profile:
           $ref: '#/components/schemas/model.UserDto'
-      type: object
-    auth.externalTokenRequest:
-      properties:
-        user_id:
-          description: Identifier of the associated resource.
-          type: string
-      required:
-      - user_id
       type: object
     event.SpinResponse:
       properties:
@@ -6062,6 +6077,7 @@ components:
           type: boolean
         location:
           $ref: '#/components/schemas/model.LocationDto'
+          description: Assigned venue, including its stable ID and current display title.
         start_time:
           description: Match start timestamp in RFC 3339 format.
           type: string
@@ -6369,7 +6385,8 @@ components:
         email:
           type: string
         group_id:
-          description: Current group ID, or null when the account has no group.
+          nullable: true
+          description: Current group ID; null when unassigned. A game must validate this ID against its own playable groups.
           type: string
         id:
           description: Identifier of the associated resource.
@@ -6377,6 +6394,8 @@ components:
         name:
           type: string
         nick_name:
+          nullable: true
+          description: Optional nickname; null when unset.
           type: string
         remaining_coin:
           description: Account balance as a JSON string with two fractional digits.
@@ -6541,11 +6560,54 @@ components:
           nullable: true
           type: string
       type: object
+    auth.ExternalMeResponse:
+      type: object
+      required:
+      - profile
+      properties:
+        profile:
+          $ref: '#/components/schemas/model.UserDto'
+      description: Authenticated delegated profile. Does not include a browser CSRF token.
+    user.DeductCoinRequest:
+      type: object
+      required:
+      - amount
+      additionalProperties: false
+      properties:
+        amount:
+          type: string
+          example: '25.00'
+          description: Coin amount as an exact decimal JSON string with at most two fractional digits; numeric JSON
+            tokens and negative values are rejected.
+    user.DeductCoinResponse:
+      type: object
+      required:
+      - success
+      - deducted_amount
+      - remaining_balance
+      properties:
+        success:
+          type: boolean
+          example: true
+        deducted_amount:
+          type: string
+          example: '25.00'
+          description: Deduction as a two-decimal money string.
+        remaining_balance:
+          type: string
+          example: '863.88'
+          description: Balance after deduction as a two-decimal money string.
   securitySchemes:
     OAuthClient:
       type: http
       scheme: basic
       description: Backend client ID and secret; never supply from frontend JavaScript.
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Delegated access token issued to a registered backend. Enter Bearer followed by the access token.
+        /external/me requires profile.read; /external/deduct-coin requires coins.spend. Cookies and unscoped credentials
+        are not accepted.
     CookieSession:
       description: Development browser session cookie named session. The browser sends this HttpOnly cookie automatically.
         Do not paste a cookie into Swagger's Authorize dialog. Swagger reads the CSRF token from GET /auth/me and
@@ -6561,7 +6623,7 @@ components:
       name: __Host-session
       type: apiKey
 tags:
-- description: OAuth login, browser sessions, profile context, and administrator external-token management.
+- description: Registered application login, browser sessions, profile context, and scoped backend delegation.
   name: Auth
 - description: Administrator-managed allowlist and blacklist rules for account access.
   name: Auth Policy
@@ -6581,3 +6643,5 @@ tags:
   name: SportType
 - description: Authenticated profile reads and self-service or administrator profile updates.
   name: User
+- name: External
+  description: Scoped delegated profile reads and account coin spending by registered backends.
