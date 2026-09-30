@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html"
 	"net/url"
 	"regexp"
@@ -91,8 +92,9 @@ type tokenResponse struct {
 }
 
 var (
-	opaquePattern   = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
-	verifierPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
+	opaquePattern    = regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9_-]{%d}$`, base64.RawURLEncoding.EncodedLen(security.OpaqueTokenBytes)))
+	challengePattern = regexp.MustCompile(fmt.Sprintf(`^[A-Za-z0-9_-]{%d}$`, base64.RawURLEncoding.EncodedLen(sha256.Size)))
+	verifierPattern  = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
 )
 
 // ConfigureApplications installs the registry-driven protocol while retaining existing resource handlers.
@@ -154,7 +156,7 @@ func (h *ApplicationHTTPHandler) Authorize(c *fiber.Ctx) error {
 		Challenge:   c.Query("code_challenge"),
 		Scopes:      strings.Fields(c.Query("scope")),
 	}
-	if c.Query("response_type") != oauthResponseTypeCode || c.Query("code_challenge_method") != oauthPKCEMethod || !opaquePattern.MatchString(tx.Challenge) || tx.ClientState == "" || len(tx.ClientState) > maxClientStateLength || len(tx.Scopes) == 0 {
+	if c.Query("response_type") != oauthResponseTypeCode || c.Query("code_challenge_method") != oauthPKCEMethod || !challengePattern.MatchString(tx.Challenge) || tx.ClientState == "" || len(tx.ClientState) > maxClientStateLength || len(tx.Scopes) == 0 {
 		return h.failure(c, tx, oauthErrorInvalidRequest)
 	}
 

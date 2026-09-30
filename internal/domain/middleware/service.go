@@ -33,7 +33,7 @@ func NewService(repo Repository, sessions SessionStore, cfg config.Config, polic
 // Malformed IDs or incomplete and expired records return ErrSessionMissing.
 func (s *Service) GetSession(ctx context.Context, id string) (*security.Session, error) {
 	decoded, decodeErr := base64.RawURLEncoding.DecodeString(id)
-	if decodeErr != nil || len(decoded) != 32 {
+	if decodeErr != nil || len(decoded) != security.OpaqueTokenBytes {
 		return nil, ErrSessionMissing
 	}
 
