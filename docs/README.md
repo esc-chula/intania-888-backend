@@ -335,14 +335,16 @@ include the intended `remaining_coin` because an omitted value is written as
 
 The frontend must use `credentials: "include"` for API requests. The only browser credential is the API's HttpOnly session cookie. Do not read or store an OAuth access token, refresh token, session ID, or external JWT in frontend JavaScript.
 
-1. Call `GET /api/v1/auth/login` with the frontend `Origin` header and navigate the browser to the returned `url`.
-2. Google redirects to `GET /api/v1/auth/callback`. The API sets the session cookie and redirects to the configured frontend URL. Only a first registration adds `is_new_user=true`.
-3. Call `GET /api/v1/auth/me` with credentials. The response contains the existing `profile` object and a `csrf_token` string. Keep the CSRF token in memory and send it in `X-CSRF-Token` on POST, PUT, PATCH, and DELETE requests. Send the exact configured frontend `Origin` on all requests. Reload `/auth/me` after a page refresh.
-4. Call `POST /api/v1/auth/logout` with credentials and the CSRF header. Discard the in-memory token after a 204 response. Logout is also 204 when the session is absent or expired. A 503 means revocation could not be confirmed; keep the cookie and retry.
+1. Navigate the browser to `GET /api/v1/auth/login?client_id=intania-888-web&return_to=/`. This is a redirect endpoint; do not fetch a JSON login URL. `client_id` must identify a registered cookie application. `return_to` is an optional safe relative path on that application's configured origin.
+2. Google redirects to `GET /api/v1/auth/callback`. The API validates and consumes the browser-bound transaction, sets its session cookie, and redirects to the registered frontend. New accounts go to the application's `onboarding_path`, with the original relative destination in `return_to`.
+3. Call `GET /api/v1/auth/me` with credentials. Keep the returned `csrf_token` in memory and send it as `X-CSRF-Token` on protected mutations. Browsers supply the Origin header; configure its exact value in CORS.
+4. Call `POST /api/v1/auth/logout` with credentials and CSRF. A `204` confirms logout, including an absent or expired session. A `503` leaves revocation unconfirmed; retain state and retry.
 
-A 401 on a browser route means the session is missing or expired; clear frontend profile and CSRF state, then offer login. A 503 means Redis, user, or policy status is uncertain; retain the frontend state and retry. The browser no longer uses `/auth/refresh` or `Authorization: Bearer`.
+Development uses the HttpOnly `session` cookie and separate `oauth-tx-<state>` cookies on localhost HTTP. Production uses `__Host-session` and `__Host-oauth-tx-<state>` with Secure, HttpOnly, Path=/, SameSite=Lax, and no Domain attribute. Separate transaction cookies allow concurrent login attempts.
 
-Development on `http://localhost:3000` and `http://localhost:8080` uses HttpOnly `session` and `oauth` cookies with `SameSite=Lax`. Production on same-site HTTPS subdomains uses `__Host-session` and temporary `__Host-oauth`, with `Secure`, `HttpOnly`, `Path=/`, and `SameSite=Lax`; neither cookie has a `Domain` attribute. The API clears legacy `access_token`, `refresh_token`, `csrf_token`, and `oauth_state` cookies during login and callback.
+A `401` on a protected browser route means authentication is missing or expired. A dependency `503` permits retry without discarding browser state. The browser does not use `/auth/refresh` or store bearer credentials.
+
+See [Application authentication](authentication-applications.md) for registration, backend delegation, configuration, and legacy retirement.
 
 ## External minigame backend
 
@@ -361,14 +363,15 @@ and CSRF. The token identifies a user rather than the minigame service itself.
 There is currently no external endpoint for submitting game results or crediting
 winnings. That part of the intended integration still needs a defined contract.
 
-External clients use a separate, revocable one-hour JWT. An authenticated administrator can issue one for an existing user with `POST /api/v1/auth/external-tokens` and body `{"user_id":"..."}`; the response contains `token`, `id`, and `expires_in`. The administrator can revoke it with `DELETE /api/v1/auth/external-tokens/{id}`. Both administrative mutations require the browser session, allowed Origin, and CSRF header. The regular frontend should not request these tokens. Existing external JWTs must be reissued through this API at cutover.
+Registered game backends use delegated OAuth credentials bound to a client, account, grant, and scopes. `GET /external/me` requires `profile.read`; `POST /external/deduct-coin` requires `coins.spend`. The browser authenticates to its game backend through that backend's own session cookie. Access and refresh credentials stay on the backend.
 
-The OpenAPI reference marks these token-management operations as deprecated;
-they remain available for the existing backend integration.
+Legacy administrator-issued, unscoped tokens are disabled by default. A migration window can be enabled with `legacy_external_tokens.accept_until` in the auth YAML. The value must be an RFC3339 timestamp. At the cutoff, issuance returns `410 LEGACY_AUTH_RETIRED` and legacy bearer authentication returns `401`. Issued token lifetimes use `lifetimes.access_token_seconds`, capped by the remaining migration window; `expires_in` reports the actual duration. Administrator revocation remains available after retirement.
 
 # API error contract and frontend handoff
 
-Every failed `/api/v1` request returns a stable code, a safe message, and the
+OAuth token endpoints use the standard `{ "error": "..." }` response. Browser login failures use a registered error redirect or a local HTML error page. These protocol endpoints differ from the resource error envelope below.
+
+Protected resource failures return a stable code, a safe message, and the
 server generated request ID. `X-Request-ID` contains the same value and is
 exposed to configured browser origins. Validation failures can include
 `details` keyed by safe request field names. Clients should branch on `code`

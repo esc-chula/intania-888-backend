@@ -75,9 +75,9 @@ sequenceDiagram
     participant Browser as Browser / frontend
     participant API as Backend API
 participant Google
-    Browser->>API: GET /auth/login (credentials included)
-    API-->>Browser: OAuth URL + HttpOnly OAuth state cookie
-    Browser->>Google: Navigate to returned URL
+    Browser->>API: Navigate to /auth/login?client_id=...&return_to=/
+    API-->>Browser: Google redirect + bound transaction cookie
+    Browser->>Google: Follow redirect
     Google-->>Browser: Redirect to API callback
     Browser->>API: GET /auth/callback?code=...&state=...
     API-->>Browser: HttpOnly session cookie + frontend redirect
@@ -85,9 +85,12 @@ participant Google
     API-->>Browser: profile + csrf_token
 ```
 
-The callback response is a redirect, not JSON. A first-time registration adds
-`is_new_user=true` to the configured frontend redirect. Do not send a
-`redirect_to` query to `/auth/login`; the API rejects it with `400 INVALID_REQUEST`.
+Login and callback responses are browser redirects. Register each frontend in
+`AUTH_CONFIG_FILE`; `/auth/login` requires its `client_id` and accepts an optional
+safe relative `return_to`. New accounts go to the registered `onboarding_path`,
+carrying the original destination as `return_to`. Caller-selected `redirect_to`
+is unsupported. See [Application authentication](authentication-applications.md)
+for backend delegation and the legacy-token retirement window.
 
 Keep `csrf_token` in memory and send it as `X-CSRF-Token` on protected
 POST/PUT/PATCH/DELETE requests. Reload `/auth/me` after a page refresh.
