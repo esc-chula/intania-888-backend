@@ -19,10 +19,11 @@ import (
 
 // HTTPHandler adapts browser OAuth/session requests and administrator external-token operations.
 type HTTPHandler struct {
-	service    ServicePort
-	cfg        config.Config
-	sessions   SessionReader
-	production bool
+	service      ServicePort
+	cfg          config.Config
+	sessions     SessionReader
+	production   bool
+	applications *ApplicationHTTPHandler
 }
 
 // NewHTTPHandler binds authentication and session services to the configured browser cookie policy.
@@ -42,8 +43,16 @@ func (h *HTTPHandler) oauthName() string {
 // External-token administration requires both authentication and administrator middleware.
 func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fiber.Handler) {
 	router = router.Group("/auth")
-	router.Get("/login", h.Login)
-	router.Get("/callback", h.OAuthCallback)
+	if h.applications != nil {
+		router.Get("/login", h.applications.Login)
+		router.Get("/callback", h.applications.Callback)
+		router.Get("/authorize", h.applications.Authorize)
+		router.Post("/token", h.applications.Token)
+		router.Post("/revoke", h.applications.Revoke)
+	} else {
+		router.Get("/login", h.Login)
+		router.Get("/callback", h.OAuthCallback)
+	}
 	router.Post("/logout", h.Logout)
 	router.Get("/me", authenticate, h.GetMe)
 
@@ -66,12 +75,12 @@ func (h *HTTPHandler) Login(c *fiber.Ctx) error {
 	setNoStoreHeaders(c)
 
 	if _, ok := c.Queries()["redirect_to"]; ok {
-		return apierror.New(fiber.StatusBadRequest, "INVALID_REQUEST", "redirect_to is not supported")
+		return apierror.New(fiber.StatusBadRequest, apierror.CodeInvalidRequest, "redirect_to is not supported")
 	}
 
 	login, err := h.service.StartOAuthLogin(c.UserContext())
 	if err != nil || login == nil || login.URL == "" || login.State == "" {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "OAuth login is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "OAuth login is unavailable")
 	}
 
 	ttl := 600
@@ -108,12 +117,12 @@ func (h *HTTPHandler) OAuthCallback(c *fiber.Ctx) error {
 	}
 
 	if credentials == nil || credentials.SessionID == "" {
-		return apierror.New(fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
+		return apierror.New(fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
 	}
 
 	redirect, err := h.postLoginRedirect(credentials.IsNewUser)
 	if err != nil {
-		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Post-login redirect is not configured")
+		return apierror.Wrap(err, fiber.StatusInternalServerError, apierror.CodeInternalError, "Post-login redirect is not configured")
 	}
 
 	c.Cookie(&fiber.Cookie{
@@ -142,7 +151,7 @@ func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 	}
 
 	if h.sessions == nil {
-		return apierror.New(fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
+		return apierror.New(fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
 	}
 
 	session, err := h.sessions.Session(c.UserContext(), id)
@@ -153,16 +162,16 @@ func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 			return c.SendStatus(204)
 		}
 
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
 	}
 
 	token := c.Get("X-CSRF-Token")
 	if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(session.CSRFToken)) != 1 {
-		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Invalid CSRF token")
+		return apierror.New(fiber.StatusForbidden, apierror.CodeForbidden, "Invalid CSRF token")
 	}
 
 	if err := h.service.Logout(c.UserContext(), id); err != nil {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
 	}
 
 	h.clearCookie(c, h.sessionName(), true)
@@ -176,12 +185,12 @@ func (h *HTTPHandler) GetMe(c *fiber.Ctx) error {
 
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	csrfToken := httpidentity.CSRFToken(c)
 	if csrfToken == "" {
-		return apierror.New(fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
+		return apierror.New(fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
 	}
 
 	return c.JSON(MeResponse{Profile: httpidentity.Response(profile), CSRFToken: csrfToken})
@@ -191,7 +200,7 @@ func (h *HTTPHandler) GetMe(c *fiber.Ctx) error {
 func (h *HTTPHandler) GetExternalMe(c *fiber.Ctx) error {
 	profile := httpidentity.GetProfile(c)
 	if profile == nil {
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	return c.JSON(ExternalMeResponse{Profile: httpidentity.Response(profile)})
@@ -208,12 +217,12 @@ func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
 
 	issuer := httpidentity.GetProfile(c)
 	if issuer == nil {
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	token, jti, err := h.service.IssueExternalToken(c.UserContext(), req.UserID)
 	if err != nil {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Token service is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Token service is unavailable")
 	}
 
 	return c.Status(201).JSON(ExternalTokenResponse{Token: token, ID: jti, ExpiresIn: 3600})
@@ -223,14 +232,14 @@ func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
 func (h *HTTPHandler) RevokeExternalToken(c *fiber.Ctx) error {
 	issuer := httpidentity.GetProfile(c)
 	if issuer == nil {
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	if strings.TrimSpace(c.Params("id")) == "" {
 		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
 	if err := h.service.RevokeExternalToken(c.UserContext(), c.Params("id")); err != nil {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Token service is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Token service is unavailable")
 	}
 
 	return c.SendStatus(204)

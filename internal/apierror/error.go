@@ -13,6 +13,33 @@ import (
 // RequestIDHeader carries the server-generated correlation ID for an API request.
 const RequestIDHeader = "X-Request-ID"
 
+// Public error codes form the stable API failure contract.
+const (
+	// CodeInvalidRequest identifies invalid request input.
+	CodeInvalidRequest = "INVALID_REQUEST"
+
+	// CodeUnauthorized identifies missing or invalid authentication.
+	CodeUnauthorized = "UNAUTHORIZED"
+
+	// CodeForbidden identifies insufficient permission.
+	CodeForbidden = "FORBIDDEN"
+
+	// CodeResourceNotFound identifies a missing resource.
+	CodeResourceNotFound = "RESOURCE_NOT_FOUND"
+
+	// CodeConflict identifies a conflict with the current resource state.
+	CodeConflict = "CONFLICT"
+
+	// CodeTooManyRequests identifies a request rate limit.
+	CodeTooManyRequests = "TOO_MANY_REQUESTS"
+
+	// CodeDependencyUnavailable identifies an unavailable required service.
+	CodeDependencyUnavailable = "DEPENDENCY_UNAVAILABLE"
+
+	// CodeInternalError identifies an unexpected server failure.
+	CodeInternalError = "INTERNAL_ERROR"
+)
+
 // Error is an application error with a stable public code and message.
 // Cause is retained for errors.Is/errors.As and server-side diagnostics.
 type Error struct {
@@ -48,7 +75,7 @@ func Wrap(cause error, status int, code, message string) *Error {
 func Invalid(details map[string]string) *Error {
 	return &Error{
 		Status:  http.StatusBadRequest,
-		Code:    "INVALID_REQUEST",
+		Code:    CodeInvalidRequest,
 		Message: "Invalid request",
 		Details: details,
 	}
@@ -90,7 +117,7 @@ func ErrorHandler(log *zap.Logger) fiber.ErrorHandler {
 	return func(c *fiber.Ctx, err error) error {
 		id := requestID(c)
 		status := http.StatusInternalServerError
-		code := "INTERNAL_ERROR"
+		code := CodeInternalError
 		message := "Internal server error"
 
 		var details map[string]string
@@ -125,7 +152,7 @@ func ErrorHandler(log *zap.Logger) fiber.ErrorHandler {
 		}
 
 		if status < 400 || status > 599 {
-			status, code, message = http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error"
+			status, code, message = http.StatusInternalServerError, CodeInternalError, "Internal server error"
 		}
 
 		c.Set(RequestIDHeader, id)
@@ -137,28 +164,28 @@ func ErrorHandler(log *zap.Logger) fiber.ErrorHandler {
 func publicFailure(status int) (string, string) {
 	switch status {
 	case http.StatusBadRequest:
-		return "INVALID_REQUEST", "Invalid request"
+		return CodeInvalidRequest, "Invalid request"
 	case http.StatusUnauthorized:
-		return "UNAUTHORIZED", "Authentication required"
+		return CodeUnauthorized, "Authentication required"
 	case http.StatusForbidden:
-		return "FORBIDDEN", "Permission denied"
+		return CodeForbidden, "Permission denied"
 	case http.StatusNotFound:
-		return "RESOURCE_NOT_FOUND", "Resource not found"
+		return CodeResourceNotFound, "Resource not found"
 	case http.StatusConflict:
-		return "CONFLICT", "The request conflicts with the current state"
+		return CodeConflict, "The request conflicts with the current state"
 	case http.StatusUnprocessableEntity:
-		return "INVALID_REQUEST", "The request cannot be processed"
+		return CodeInvalidRequest, "The request cannot be processed"
 	case http.StatusTooManyRequests:
-		return "TOO_MANY_REQUESTS", "Too many requests"
+		return CodeTooManyRequests, "Too many requests"
 	case http.StatusMethodNotAllowed:
-		return "INVALID_REQUEST", "Method not allowed"
+		return CodeInvalidRequest, "Method not allowed"
 	case http.StatusServiceUnavailable:
-		return "DEPENDENCY_UNAVAILABLE", "A required service is unavailable"
+		return CodeDependencyUnavailable, "A required service is unavailable"
 	default:
 		if status >= 400 && status < 500 {
-			return "INVALID_REQUEST", "The request cannot be processed"
+			return CodeInvalidRequest, "The request cannot be processed"
 		}
-		return "INTERNAL_ERROR", "Internal server error"
+		return CodeInternalError, "Internal server error"
 	}
 }
 

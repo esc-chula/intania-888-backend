@@ -9,6 +9,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// OpaqueTokenBytes is the random input size for authentication credentials.
+const OpaqueTokenBytes = 32
+
 // NewOpaqueToken encodes size cryptographically random bytes as unpadded URL-safe base64.
 func NewOpaqueToken(size int) (string, error) {
 	bytes := make([]byte, size)

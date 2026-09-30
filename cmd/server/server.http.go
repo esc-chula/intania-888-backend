@@ -204,7 +204,7 @@ func (s *FiberHTTPServer) InitHTTPServer() fiber.Router {
 			return c.IP()
 		},
 		LimitReached: func(c *fiber.Ctx) error {
-			return apierror.New(fiber.StatusTooManyRequests, "TOO_MANY_REQUESTS", "Too many requests")
+			return apierror.New(fiber.StatusTooManyRequests, apierror.CodeTooManyRequests, "Too many requests")
 		},
 	}))
 
@@ -267,7 +267,8 @@ func (s *FiberHTTPServer) registerSwagger() {
 // External routes and the OAuth callback are exempt from this browser origin policy.
 func (s *FiberHTTPServer) OriginGuard() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if isExternalPath(c.Path()) || c.Path() == "/api/v1/auth/callback" {
+		if isExternalPath(c.Path()) || c.Path() == "/api/v1/auth/callback" ||
+			(c.Method() == fiber.MethodPost && (c.Path() == "/api/v1/auth/token" || c.Path() == "/api/v1/auth/revoke")) {
 			return c.Next()
 		}
 
@@ -276,7 +277,7 @@ func (s *FiberHTTPServer) OriginGuard() fiber.Handler {
 			return c.Next()
 		}
 		if !s.isAllowedOrigin(origin) {
-			return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Origin is not allowed")
+			return apierror.New(fiber.StatusForbidden, apierror.CodeForbidden, "Origin is not allowed")
 		}
 
 		return c.Next()

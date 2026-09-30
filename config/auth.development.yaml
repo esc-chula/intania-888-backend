@@ -1,0 +1,28 @@
+version: 1
+
+google:
+  callback_uri: http://localhost:8080/api/v1/auth/callback
+
+lifetimes:
+  login_transaction_seconds: 600
+  authorization_code_seconds: 60
+  access_token_seconds: 3600
+  delegation_idle_seconds: 604800
+  delegation_absolute_seconds: 2592000
+
+applications:
+  - id: intania-888-web
+    mode: cookie_session
+    frontend_origin: http://localhost:3001
+    default_return_path: /
+    onboarding_path: /register/profile
+    login_error_path: /login-error
+
+  - id: intania-games
+    mode: authorization_code
+    redirect_uris:
+      - http://localhost:3002/auth/callback
+    client_secret_env: INTANIA_GAMES_CLIENT_SECRET
+    allowed_scopes:
+      - profile.read
+      - coins.spend

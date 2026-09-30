@@ -53,7 +53,6 @@ func NewViperConfig() *viperConfig {
 		} else {
 			v.SetDefault("server_env", "development")
 		}
-		v.SetDefault("oauth_state_expiration", 600)
 		v.SetDefault("session_idle_ttl_seconds", DefaultSessionIdleTTLSeconds)
 		v.SetDefault("session_absolute_ttl_seconds", DefaultSessionAbsoluteTTLSeconds)
 		v.SetDefault("daily_reward_default_amount", "300.00")
@@ -76,6 +75,14 @@ func NewViperConfig() *viperConfig {
 		if err != nil {
 			log.Fatalf("Unable to decode into struct, %v", err)
 		}
+
+		registry, err := LoadAuthRegistry(v.GetString("auth_config_file"), cfg.Env, cfg.AllowOrigins, v.GetString)
+		if err != nil {
+			log.Fatalf("Unable to load auth registry: %v", err)
+		}
+		cfg.Registry = registry
+		cfg.RedirectURL = registry.Google.CallbackURI
+		cfg.StateExpiration = registry.Lifetimes.Login
 
 		instance = cfg
 	})
@@ -182,9 +189,7 @@ func bindEnvVars(v *viper.Viper) {
 
 	bind("oauth_client_id", "OAUTH_CLIENT_ID")
 	bind("oauth_client_secret", "OAUTH_CLIENT_SECRET")
-	bind("oauth_redirect_uri", "OAUTH_REDIRECT_URI")
-	bind("oauth_post_login_redirect_url", "OAUTH_POST_LOGIN_REDIRECT_URL")
-	bind("oauth_state_expiration", "OAUTH_STATE_EXPIRATION")
+	bind("auth_config_file", "AUTH_CONFIG_FILE")
 	bind("session_idle_ttl_seconds", "SESSION_IDLE_TTL_SECONDS")
 	bind("session_absolute_ttl_seconds", "SESSION_ABSOLUTE_TTL_SECONDS")
 	bind("daily_reward_default_amount", "DAILY_REWARD_DEFAULT_AMOUNT")

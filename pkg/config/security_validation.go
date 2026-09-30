@@ -49,17 +49,23 @@ func ValidateSecurity(cfg Config) error {
 	if _, err := validateAbsoluteURL(oauth.RedirectURL, "OAUTH_REDIRECT_URI", false, false); err != nil {
 		return err
 	}
-	postLoginOrigin, err := validateAbsoluteURL(oauth.PostLoginRedirectURL, "OAUTH_POST_LOGIN_REDIRECT_URL", false, true)
-	if err != nil {
-		return err
-	}
-
-	origins, err := validateConfiguredOrigins(cfg.GetCORS().AllowOrigins)
-	if err != nil {
-		return err
-	}
-	if _, ok := origins[postLoginOrigin]; !ok {
-		return fmt.Errorf("CORS_ALLOW_ORIGINS must include the post-login frontend origin %q", postLoginOrigin)
+	if oauth.Registry != nil {
+		if err := oauth.Registry.Validate(server.Env, cfg.GetCORS().AllowOrigins); err != nil {
+			return err
+		}
+	} else {
+		// Standalone adapters can still be constructed with explicit test configuration.
+		postLoginOrigin, err := validateAbsoluteURL(oauth.PostLoginRedirectURL, "post-login URL", false, true)
+		if err != nil {
+			return err
+		}
+		origins, err := validateConfiguredOrigins(cfg.GetCORS().AllowOrigins)
+		if err != nil {
+			return err
+		}
+		if _, ok := origins[postLoginOrigin]; !ok {
+			return fmt.Errorf("CORS_ALLOW_ORIGINS must include the post-login frontend origin %q", postLoginOrigin)
+		}
 	}
 
 	env := strings.ToLower(strings.TrimSpace(server.Env))
@@ -73,13 +79,15 @@ func ValidateSecurity(cfg Config) error {
 		if _, err := validateAbsoluteURL(oauth.RedirectURL, "OAUTH_REDIRECT_URI", true, false); err != nil {
 			return err
 		}
-		if _, err := validateAbsoluteURL(
-			oauth.PostLoginRedirectURL,
-			"OAUTH_POST_LOGIN_REDIRECT_URL",
-			true,
-			true,
-		); err != nil {
-			return err
+		if oauth.Registry == nil {
+			if _, err := validateAbsoluteURL(
+				oauth.PostLoginRedirectURL,
+				"OAUTH_POST_LOGIN_REDIRECT_URL",
+				true,
+				true,
+			); err != nil {
+				return err
+			}
 		}
 		if strings.TrimSpace(server.URL) == "" {
 			return fmt.Errorf("SERVER_URL is required in production")

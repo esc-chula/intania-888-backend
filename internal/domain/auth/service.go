@@ -16,10 +16,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const (
-	externalTokenSeconds = 3600
-)
-
 // Service coordinates OAuth state, account admission, browser sessions, and external credentials.
 type Service struct {
 	authRepo    Repository
@@ -41,6 +37,7 @@ func NewService(
 	if policy == nil {
 		policy = security.DefaultPolicyChecker{}
 	}
+
 	return &Service{
 		authRepo:    repo,
 		userRepo:    users,
@@ -55,26 +52,32 @@ func (s *Service) StartOAuthLogin(ctx context.Context) (*OAuthLogin, error) {
 	if s.oauthClient == nil {
 		return nil, errors.New("OAuth client is not configured")
 	}
+
 	cfg := s.oauthClient.OAuthConfig()
 	if cfg == nil || cfg.ClientID == "" || cfg.RedirectURL == "" || cfg.Endpoint.AuthURL == "" {
 		return nil, errors.New("OAuth client is not configured")
 	}
+
 	parsed, err := url.Parse(cfg.Endpoint.AuthURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil {
 		return nil, errors.New("invalid OAuth authorization URL")
 	}
-	state, err := security.NewOpaqueToken(32)
+
+	state, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
 	if err != nil {
 		return nil, err
 	}
-	verifier, err := security.NewOpaqueToken(32)
+
+	verifier, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
 	if err != nil {
 		return nil, err
 	}
+
 	ttl := s.cfg.GetOAuth().StateExpiration
 	if ttl <= 0 {
 		ttl = 600
 	}
+
 	if err = s.authRepo.StoreOAuthState(
 		ctx,
 		security.ToOAuthStateCacheKey(state),
@@ -83,6 +86,7 @@ func (s *Service) StartOAuthLogin(ctx context.Context) (*OAuthLogin, error) {
 	); err != nil {
 		return nil, err
 	}
+
 	return &OAuthLogin{
 		URL: cfg.AuthCodeURL(
 			state,
@@ -103,6 +107,7 @@ func (s *Service) VerifyOAuthLogin(
 		subtle.ConstantTimeCompare([]byte(state), []byte(cookieState)) != 1 {
 		return nil, ErrInvalidOAuthState
 	}
+
 	record, err := s.authRepo.ConsumeOAuthState(ctx, security.ToOAuthStateCacheKey(state))
 	if err != nil {
 		return nil, err
@@ -110,6 +115,7 @@ func (s *Service) VerifyOAuthLogin(
 	if record.CodeVerifier == "" {
 		return nil, ErrInvalidOAuthState
 	}
+
 	info, err := s.oauthClient.GetUserInfo(ctx, code, record.CodeVerifier)
 	if err != nil {
 		return nil, err
@@ -120,9 +126,11 @@ func (s *Service) VerifyOAuthLogin(
 	if info.ID == "" {
 		return nil, errors.New("google user ID is empty")
 	}
+
 	email := security.NormalizeEmail(info.Email)
 	existing, err := s.userRepo.GetByEmail(ctx, email)
 	isNew := false
+
 	switch {
 	case err == nil:
 	case errors.Is(err, identity.ErrUserNotFound):
@@ -130,10 +138,12 @@ func (s *Service) VerifyOAuthLogin(
 	default:
 		return nil, err
 	}
+
 	role := ""
 	if existing != nil {
 		role = existing.RoleID
 	}
+
 	decision, err := s.policy.EvaluateLogin(ctx, email, info.ID, role)
 	if err != nil {
 		return nil, err
@@ -141,6 +151,7 @@ func (s *Service) VerifyOAuthLogin(
 	if decision.Blacklisted || !decision.Allowed {
 		return nil, ErrEmailNotAllowed
 	}
+
 	if existing == nil {
 		isNew = true
 		existing = &identity.User{
@@ -150,18 +161,22 @@ func (s *Service) VerifyOAuthLogin(
 			RoleID:        security.RoleUser,
 			RemainingCoin: 888_88,
 		}
+
 		if err := s.userRepo.Create(ctx, existing); err != nil {
 			return nil, err
 		}
 	}
-	id, err := security.NewOpaqueToken(32)
+
+	id, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
 	if err != nil {
 		return nil, err
 	}
-	csrf, err := security.NewOpaqueToken(32)
+
+	csrf, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
 	if err != nil {
 		return nil, err
 	}
+
 	now := time.Now().Unix()
 	sessionConfig := s.cfg.GetSession()
 	session := security.Session{
@@ -170,6 +185,7 @@ func (s *Service) VerifyOAuthLogin(
 		ExpiresAt: now + int64(sessionConfig.AbsoluteTTLSeconds),
 		CSRFToken: csrf,
 	}
+
 	if err := s.authRepo.RotateSession(
 		ctx,
 		security.ToUserSessionCacheKey(existing.ID),
@@ -181,7 +197,8 @@ func (s *Service) VerifyOAuthLogin(
 	); err != nil {
 		return nil, err
 	}
-	return &SessionCredentials{SessionID: id, IsNewUser: isNew}, nil
+
+	return &SessionCredentials{SessionID: id, UserID: existing.ID, IsNewUser: isNew}, nil
 }
 
 // Logout revokes a browser session. An empty ID or already absent session succeeds.
@@ -197,7 +214,7 @@ func (s *Service) GetPostLoginRedirectURL() string {
 	return s.cfg.GetOAuth().PostLoginRedirectURL
 }
 
-// IssueExternalToken signs a one-hour JWT for an existing user and records its active subject binding.
+// IssueExternalToken signs a JWT using the registry access-token lifetime and records its active subject binding.
 // It returns the token followed by its revocation identifier.
 func (s *Service) IssueExternalToken(ctx context.Context, subjectID string) (string, string, error) {
 	subject, err := s.userRepo.GetByID(ctx, subjectID)
@@ -207,24 +224,35 @@ func (s *Service) IssueExternalToken(ctx context.Context, subjectID string) (str
 	if subject == nil {
 		return "", "", identity.ErrUserNotFound
 	}
-	jti, err := security.NewOpaqueToken(32)
+
+	registry := s.cfg.GetOAuth().Registry
+	if registry == nil || registry.Lifetimes.Access <= 0 {
+		return "", "", errors.New("access token lifetime is not configured")
+	}
+
+	tokenSeconds := registry.Lifetimes.Access
+
+	jti, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
 	if err != nil {
 		return "", "", err
 	}
+
 	token, err := security.JWTSignExternalToken(
 		subjectID,
 		jti,
 		s.cfg.GetJWT().AccessTokenSecret,
 		s.cfg.GetServer().Name,
-		externalTokenSeconds,
+		tokenSeconds,
 	)
 	if err != nil {
 		return "", "", err
 	}
+
 	key := security.ToExternalTokenCacheKey(jti)
-	if err := s.authRepo.StoreExternalToken(ctx, key, subjectID, externalTokenSeconds); err != nil {
+	if err := s.authRepo.StoreExternalToken(ctx, key, subjectID, tokenSeconds); err != nil {
 		return "", "", err
 	}
+
 	return token, jti, nil
 }
 
@@ -233,5 +261,6 @@ func (s *Service) RevokeExternalToken(ctx context.Context, jti string) error {
 	if jti == "" {
 		return errors.New("external token ID is required")
 	}
+
 	return s.authRepo.DeleteSession(ctx, security.ToExternalTokenCacheKey(jti))
 }

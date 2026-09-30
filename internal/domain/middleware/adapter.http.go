@@ -50,39 +50,39 @@ func (h *HTTPHandler) AuthMiddleware(c *fiber.Ctx) error {
 	id := c.Cookies(h.CookieName())
 	if id == "" {
 		clearBrowserSessionCookie(c, h.production)
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	session, err := h.service.GetSession(c.UserContext(), id)
 	if err != nil {
 		if errors.Is(err, ErrSessionMissing) {
 			clearBrowserSessionCookie(c, h.production)
-			return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+			return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 		}
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Session service is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
 	}
 
 	user, err := h.service.GetMe(c.UserContext(), session.UserID)
 	if err != nil {
 		if errors.Is(err, identity.ErrUserNotFound) {
 			clearBrowserSessionCookie(c, h.production)
-			return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+			return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 		}
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "User status is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "User status is unavailable")
 	}
 
 	blacklisted, err := h.service.IsBlacklisted(c.UserContext(), user.Email, user.ID)
 	if err != nil {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Access policy is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Access policy is unavailable")
 	}
 	if blacklisted {
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead && c.Method() != fiber.MethodOptions {
 		token := c.Get("X-CSRF-Token")
 		if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(session.CSRFToken)) != 1 {
-			return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Invalid CSRF token")
+			return apierror.New(fiber.StatusForbidden, apierror.CodeForbidden, "Invalid CSRF token")
 		}
 	}
 
@@ -105,11 +105,11 @@ func (h *HTTPHandler) AuthMiddleware(c *fiber.Ctx) error {
 func (h *HTTPHandler) AdminMiddleware(c *fiber.Ctx) error {
 	user := httpidentity.GetProfile(c)
 	if user == nil {
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	if !security.IsAdminRole(user.RoleID) {
-		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator permission required")
+		return apierror.New(fiber.StatusForbidden, apierror.CodeForbidden, "Administrator permission required")
 	}
 
 	return c.Next()

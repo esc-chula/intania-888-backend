@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -100,7 +101,7 @@ func (r *RedisClient) DeleteValues(ctx context.Context, keys ...string) error {
 	return r.client.Del(ctx, keys...).Err()
 }
 
-// RotateSession commits the new browser session and revokes the prior one in
+// RotateSession commits the new browser session and revokes that browser's prior one in
 // one Redis operation. The per-user pointer never contains a raw session ID.
 // The session record uses idleTTLSeconds and the user pointer uses absoluteTTLSeconds.
 func (r *RedisClient) RotateSession(
@@ -119,10 +120,8 @@ func (r *RedisClient) RotateSession(
 
 	return r.client.Eval(
 		ctx,
-		`local old = redis.call('GET', KEYS[1])
- redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
+		`redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
  redis.call('SET', KEYS[1], KEYS[2], 'EX', ARGV[3])
- if old and old ~= KEYS[2] then redis.call('DEL', old) end
  if KEYS[3] ~= KEYS[2] then redis.call('DEL', KEYS[3]) end
  return 1`,
 		[]string{userKey, sessionKey, previousKey},
@@ -171,4 +170,16 @@ func (r *RedisClient) HasKey(ctx context.Context, key string) (bool, error) {
 	defer cancel()
 	n, err := r.client.Exists(ctx, key).Result()
 	return n > 0, err
+}
+
+// EvalText executes an atomic authentication operation with a bounded deadline.
+func (r *RedisClient) EvalText(ctx context.Context, script string, keys []string, args ...interface{}) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return r.client.Eval(ctx, script, keys, args...).Text()
+}
+
+// IsMissing reports a missing authentication record without leaking driver classification.
+func IsMissing(err error) bool {
+	return errors.Is(err, redis.Nil)
 }

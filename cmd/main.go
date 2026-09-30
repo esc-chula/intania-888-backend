@@ -116,6 +116,7 @@ func run() (runErr error) {
 		cfg.GetSession().IdleTTLSeconds,
 	)
 	authHTTP := auth.NewHTTPHandler(authSvc, midHTTP, cfg, isProduction)
+	authHTTP.ConfigureApplications(authSvc, cacheClient)
 
 	billRepo := bill.NewGORMRepository(db)
 	billSvc := bill.NewService(billRepo, billRepo, time.Now, uuid.NewString)

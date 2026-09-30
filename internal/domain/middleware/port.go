@@ -33,3 +33,9 @@ type SessionStore interface {
 	// GetExternalSubject loads the active subject bound to an external JWT cache key.
 	GetExternalSubject(context.Context, string) (string, error)
 }
+
+// DelegationReader loads active application grants with bounded idle renewal.
+type DelegationReader interface {
+	// ReadDelegation loads a grant and maps expiry to an authentication error.
+	ReadDelegation(context.Context, string, int) (*security.Delegation, error)
+}

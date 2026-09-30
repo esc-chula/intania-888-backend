@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 
 	"github.com/gofiber/fiber/v2"
@@ -8,41 +9,61 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
 	"github.com/esc-chula/intania-888-backend/internal/identity"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
 // ExternalAPIMiddleware is a middleware for external API endpoints that bypasses browser-only validation
 // but keeps JWT authentication, user retrieval, and blacklist enforcement.
 func (h *HTTPHandler) ExternalAPIMiddleware(c *fiber.Ctx) error {
-	token, ok := parseBearerToken(c.Get("Authorization"))
+	token, ok := parseBearerToken(c.Get(fiber.HeaderAuthorization))
 	if !ok {
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	// Verify the token and its revocation status.
-	id, err := h.service.VerifyExternalToken(c.UserContext(), token)
-	if err != nil {
-		if errors.Is(err, ErrExternalMissing) {
-			return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	var id string
+	var err error
+	if scoped, ok := h.service.(interface {
+		VerifyScopedExternalToken(context.Context, string, string) (string, error)
+	}); ok {
+		scope := ""
+		if c.Method() == fiber.MethodGet && c.Path() == "/api/v1/external/me" {
+			scope = config.ScopeProfileRead
 		}
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Token service is unavailable")
+		if c.Method() == fiber.MethodPost && c.Path() == "/api/v1/external/deduct-coin" {
+			scope = config.ScopeCoinsSpend
+		}
+		id, err = scoped.VerifyScopedExternalToken(c.UserContext(), token, scope)
+	} else {
+		id, err = h.service.VerifyExternalToken(c.UserContext(), token)
+	}
+
+	if err != nil {
+		if errors.Is(err, ErrExternalScope) {
+			return apierror.New(fiber.StatusForbidden, apierror.CodeForbidden, "Required scope is missing")
+		}
+		if errors.Is(err, ErrExternalMissing) {
+			return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
+		}
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Token service is unavailable")
 	}
 
 	// Get the user profile.
 	user, err := h.service.GetMe(c.UserContext(), id)
 	if err != nil {
 		if errors.Is(err, identity.ErrUserNotFound) {
-			return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+			return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 		}
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "User status is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "User status is unavailable")
 	}
 
 	// Check blacklist (MUST enforce for security).
 	blacklisted, err := h.service.IsBlacklisted(c.UserContext(), user.Email, user.ID)
 	if err != nil {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, "DEPENDENCY_UNAVAILABLE", "Access policy is unavailable")
+		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Access policy is unavailable")
 	}
 	if blacklisted {
-		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
 	// Store user in context for downstream handlers.

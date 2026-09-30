@@ -56,3 +56,14 @@ func (r *RedisSessionStore) GetExternalSubject(ctx context.Context, key string) 
 	}
 	return record.SubjectID, nil
 }
+
+// ReadDelegation translates cache expiry into an authentication failure.
+func (r *RedisSessionStore) ReadDelegation(ctx context.Context, id string, idle int) (*security.Delegation, error) {
+	store := security.DelegationStore{Cache: r.client}
+	grant, err := store.Read(ctx, id, idle)
+	if errors.Is(err, redis.Nil) {
+		return nil, ErrExternalMissing
+	}
+
+	return grant, err
+}

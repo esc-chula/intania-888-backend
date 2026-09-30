@@ -6,6 +6,7 @@ type OAuthLogin struct{ URL, State string }
 // SessionCredentials identifies the session created by a successful login.
 type SessionCredentials struct {
 	SessionID string
+	UserID    string
 	IsNewUser bool
 }
 

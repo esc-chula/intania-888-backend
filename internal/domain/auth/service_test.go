@@ -245,6 +245,9 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*Service, *memoryAuthRep
 			AccessTokenSecret: "access-secret",
 		},
 		oauth: config.OAuth{
+			Registry: &config.AuthRegistry{
+				Lifetimes: config.AuthLifetimes{Access: 3600},
+			},
 			StateExpiration:      120,
 			PostLoginRedirectURL: "https://frontend.example.test/after-login?source=oauth",
 		},
