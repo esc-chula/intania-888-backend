@@ -120,7 +120,7 @@ func TestExternalIgnoresBrowserCookie(t *testing.T) {
 	service := fakeMiddlewareService{user: &identity.Profile{ID: "user-id", Email: "u@example.test"}}
 	mid := NewHTTPHandler(service, false, config.DefaultSessionIdleTTLSeconds)
 	app := newFiberTestApp()
-	app.Get("/external", mid.ExternalAPIMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	app.Get("/external", mid.RequireExternalScope(config.ScopeProfileRead), func(c *fiber.Ctx) error { return c.SendStatus(204) })
 	req := httptest.NewRequest(http.MethodGet, "/external", nil)
 	req.Header.Set("Cookie", "session=opaque")
 	response, err := app.Test(req)

@@ -64,7 +64,7 @@ func TestAccountFailuresPreserveBrowserAndExternalAuthenticationContract(t *test
 			})
 			authenticate := handler.AuthMiddleware
 			if test.external {
-				authenticate = handler.ExternalAPIMiddleware
+				authenticate = handler.RequireExternalScope(config.ScopeProfileRead)
 			}
 			app.Get("/private", authenticate, func(c *fiber.Ctx) error {
 				t.Error("account lookup failure reached the downstream handler")

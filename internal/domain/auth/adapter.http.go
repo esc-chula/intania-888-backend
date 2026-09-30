@@ -52,9 +52,8 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Han
 }
 
 // RegisterExternalRoutes registers the profile route behind scoped delegated authentication.
-// Legacy bearer credentials require an explicitly configured migration window.
-func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, authenticate fiber.Handler) {
-	router.Get("/me", authenticate, h.GetExternalMe)
+func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, requireScope func(string) fiber.Handler) {
+	router.Get("/me", requireScope(config.ScopeProfileRead), h.GetExternalMe)
 }
 
 // Logout checks CSRF for an active browser session, revokes it, and clears its cookie.

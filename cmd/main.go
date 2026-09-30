@@ -146,7 +146,8 @@ func run() (runErr error) {
 	locationHTTP := location.NewHTTPHandler(locationSvc)
 
 	// init router
-	httpServer, err := server.NewFiberHTTPServer(cfg, logger,
+	httpServer, err := server.NewFiberHTTPServer(
+		cfg, logger,
 		func(ctx context.Context) error { return sqlDB.PingContext(ctx) },
 		cacheClient.Ping,
 	)
@@ -168,13 +169,10 @@ func run() (runErr error) {
 	sportTypeHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 	locationHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 
-	// Register external API routes. Deprecated: retain them while their original purpose and
-	// consumers are investigated. Do not add new integrations to these routes.
+	// Each external route declares its required delegated scope.
 	externalRouter := router.Group("/external")
-	//nolint:staticcheck // Keep the deprecated route available while its consumers are investigated.
-	userHTTP.RegisterExternalRoutes(externalRouter, midHTTP.ExternalAPIMiddleware)
-	//nolint:staticcheck // Keep the deprecated route available while its consumers are investigated.
-	authHTTP.RegisterExternalRoutes(externalRouter, midHTTP.ExternalAPIMiddleware)
+	userHTTP.RegisterExternalRoutes(externalRouter, midHTTP.RequireExternalScope)
+	authHTTP.RegisterExternalRoutes(externalRouter, midHTTP.RequireExternalScope)
 
 	// start server
 	if err := httpServer.Start(); err != nil {

@@ -11,9 +11,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
-	"gopkg.in/yaml.v3"
 )
 
 type swaggerTestConfig struct {

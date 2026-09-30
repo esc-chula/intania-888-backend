@@ -7,6 +7,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
 // HTTPHandler serves account HTTP endpoints.
@@ -150,12 +151,9 @@ func (h *HTTPHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	return c.JSON(httpidentity.Response(updatedUser))
 }
 
-// RegisterExternalRoutes registers the deprecated external coin API. Keep it
-// available until the original integration and its consumers are understood.
-//
-// Deprecated: available until the original integration is understood.
-func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, externalAuth fiber.Handler) {
-	router.Post("/deduct-coin", externalAuth, h.DeductCoin)
+// RegisterExternalRoutes declares the delegated permission required to spend coins.
+func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, requireScope func(string) fiber.Handler) {
+	router.Post("/deduct-coin", requireScope(config.ScopeCoinsSpend), h.DeductCoin)
 }
 
 // DeductCoin deducts coins for an authenticated external client.
