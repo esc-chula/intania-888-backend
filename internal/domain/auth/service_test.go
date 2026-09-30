@@ -246,8 +246,7 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*Service, *memoryAuthRep
 		},
 		oauth: config.OAuth{
 			Registry: &config.AuthRegistry{
-				LegacyExternalTokens: config.LegacyExternalTokens{AcceptUntil: time.Now().Add(time.Hour).UTC().Format(time.RFC3339)},
-				Lifetimes:            config.AuthLifetimes{Login: 120, Access: 3600},
+				Lifetimes: config.AuthLifetimes{Login: 120, Access: 3600},
 			},
 		},
 	}
@@ -420,35 +419,6 @@ func TestOpaqueSessionRotationAndFailedLogin(t *testing.T) {
 	}
 }
 
-func TestExternalTokenIssuanceAndRevocationNeedNoAuditDatabase(t *testing.T) {
-	service, repo, users := newAuthTestService(nil)
-	if err := users.Create(context.Background(), &identity.User{ID: "existing-user", Email: "existing@example.test"}); err != nil {
-		t.Fatal(err)
-	}
-	issued, err := service.IssueExternalToken(context.Background(), "existing-user")
-	if err != nil {
-		t.Fatal(err)
-	}
-	subject, tokenID, err := security.JWTParseExternalToken(issued.Token, service.cfg.GetJWT().AccessTokenSecret, service.cfg.GetServer().Name)
-	if err != nil || subject != "existing-user" || tokenID != issued.ID {
-		t.Fatalf("external token claims = %q, %q, %v", subject, tokenID, err)
-	}
-	var record externalTokenRecord
-	key := security.ToExternalTokenCacheKey(issued.ID)
-	if err := repo.GetCacheValue(key, &record); err != nil || record.SubjectID != subject {
-		t.Fatalf("external token record = %+v, %v", record, err)
-	}
-	if err := service.RevokeExternalToken(context.Background(), issued.ID); err != nil {
-		t.Fatal(err)
-	}
-	if err := repo.GetCacheValue(key, &record); err == nil {
-		t.Fatal("revoked external token is still active")
-	}
-	if _, err := service.IssueExternalToken(context.Background(), "missing-user"); !errors.Is(err, identity.ErrUserNotFound) {
-		t.Fatalf("missing user error = %v", err)
-	}
-}
-
 func (r *memoryAuthRepository) StoreOAuthState(ctx context.Context, key string, state OAuthState, ttl int) error {
 	return r.SetCacheValue(key, oauthStateRecord(state), ttl)
 }
@@ -462,8 +432,4 @@ func (r *memoryAuthRepository) ConsumeOAuthState(ctx context.Context, key string
 		return OAuthState{}, err
 	}
 	return OAuthState(record), nil
-}
-
-func (r *memoryAuthRepository) StoreExternalToken(ctx context.Context, key, subject string, ttl int) error {
-	return r.SetCacheValue(key, externalTokenRecord{SubjectID: subject}, ttl)
 }

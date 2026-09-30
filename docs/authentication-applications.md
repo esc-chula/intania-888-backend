@@ -36,20 +36,9 @@ Protected browser requests use credentials and a CSRF token obtained from `/auth
 
 `profile.read` authorizes `/external/me`. `coins.spend` authorizes `/external/deduct-coin`. Delegated credentials must satisfy their current client registration, grant, token scopes, and account policy. Cookies cannot authenticate token exchange or revocation.
 
-## Legacy-token retirement
+## Credential policy
 
-Unscoped administrator-issued tokens are disabled by default. Their issuer returns `410 LEGACY_AUTH_RETIRED`; bearer authentication returns `401`. Administrator revocation remains available.
-
-To migrate an existing consumer, set an explicit cutoff:
-
-```yaml
-legacy_external_tokens:
-  accept_until: "2026-10-15T00:00:00Z"
-```
-
-This is an example, not a recommended deadline. Choose a deployment-specific cutoff. Before it, administrator-issued tokens remain usable without application scope binding. Their expiry and Redis TTL use the configured access-token lifetime, capped by time remaining until the cutoff. After it, all legacy tokens are rejected even if a Redis record remains. An empty cutoff disables compatibility immediately.
-
-Register each consumer, deploy code exchange and backend credential storage, verify its required scopes, then leave the cutoff empty or allow it to expire. Do not extend the window as a substitute for migration.
+External routes accept registered, scoped delegated credentials only. Administrator token issuance and token-ID revocation routes are removed. Clients obtain credentials through authorization-code exchange and revoke their own grants through `/auth/revoke`.
 
 ## Deployment checklist
 
@@ -58,6 +47,5 @@ Register each consumer, deploy code exchange and backend credential storage, ver
 - Set registry paths, exact browser origins, and production HTTPS destinations.
 - Deploy the game session storage and its callback before switching its login link.
 - Replace JSON login fetching with browser navigation and remove browser token storage.
-- Decide whether an existing legacy consumer needs a bounded migration window.
 
 Authentication changes do not resolve cross-database coin-spending consistency. That recovery work remains a separate phase.

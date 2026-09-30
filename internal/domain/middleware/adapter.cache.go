@@ -43,20 +43,6 @@ func (r *RedisSessionStore) ReadAndRenewSession(ctx context.Context, key string,
 	}, nil
 }
 
-// GetExternalSubject returns the subject bound to an active external JWT.
-func (r *RedisSessionStore) GetExternalSubject(ctx context.Context, key string) (string, error) {
-	var record struct {
-		SubjectID string `json:"subject_id"`
-	}
-	if err := r.client.GetValue(ctx, key, &record); err != nil {
-		if errors.Is(err, redis.Nil) {
-			return "", fmt.Errorf("%w: %w", ErrExternalMissing, err)
-		}
-		return "", err
-	}
-	return record.SubjectID, nil
-}
-
 // ReadDelegation translates cache expiry into an authentication failure.
 func (r *RedisSessionStore) ReadDelegation(ctx context.Context, id string, idle int) (*security.Delegation, error) {
 	store := security.DelegationStore{Cache: r.client}

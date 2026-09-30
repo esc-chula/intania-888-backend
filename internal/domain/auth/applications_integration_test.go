@@ -79,7 +79,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	h.ConfigureApplications(service, client)
 	app := newFiberTestApp()
 	router := app.Group("/api/v1")
-	h.RegisterRoutes(router, mid.AuthMiddleware, mid.AdminMiddleware)
+	h.RegisterRoutes(router, mid.AuthMiddleware)
 	h.RegisterExternalRoutes(router.Group("/external"), mid.ExternalAPIMiddleware)
 	router.Post("/external/deduct-coin", mid.ExternalAPIMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
 

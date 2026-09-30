@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"errors"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,23 +19,15 @@ func (h *HTTPHandler) ExternalAPIMiddleware(c *fiber.Ctx) error {
 		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
-	// Verify the token and its revocation status.
-	var id string
-	var err error
-	if scoped, ok := h.service.(interface {
-		VerifyScopedExternalToken(context.Context, string, string) (string, error)
-	}); ok {
-		scope := ""
-		if c.Method() == fiber.MethodGet && c.Path() == "/api/v1/external/me" {
-			scope = config.ScopeProfileRead
-		}
-		if c.Method() == fiber.MethodPost && c.Path() == "/api/v1/external/deduct-coin" {
-			scope = config.ScopeCoinsSpend
-		}
-		id, err = scoped.VerifyScopedExternalToken(c.UserContext(), token, scope)
-	} else {
-		id, err = h.service.VerifyExternalToken(c.UserContext(), token)
+	// Each external endpoint requires an explicitly supported delegated scope.
+	scope := ""
+	if c.Method() == fiber.MethodGet && c.Path() == "/api/v1/external/me" {
+		scope = config.ScopeProfileRead
 	}
+	if c.Method() == fiber.MethodPost && c.Path() == "/api/v1/external/deduct-coin" {
+		scope = config.ScopeCoinsSpend
+	}
+	id, err := h.service.VerifyScopedExternalToken(c.UserContext(), token, scope)
 
 	if err != nil {
 		if errors.Is(err, ErrExternalScope) {

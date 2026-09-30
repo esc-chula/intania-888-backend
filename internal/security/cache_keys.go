@@ -35,8 +35,3 @@ func HashOpaqueToken(token string) string {
 func ToUserSessionCacheKey(userID string) string {
 	return fmt.Sprintf("auth:v3:user-session:%s", HashOpaqueToken(userID))
 }
-
-// ToExternalTokenCacheKey locates the revocation record for an external JWT identifier.
-func ToExternalTokenCacheKey(jti string) string {
-	return fmt.Sprintf("auth:v3:external:%s", HashOpaqueToken(jti))
-}

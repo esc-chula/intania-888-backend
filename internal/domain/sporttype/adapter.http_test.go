@@ -43,7 +43,7 @@ func (routeAuthService) GetSession(_ context.Context, id string) (*security.Sess
 func (s routeAuthService) GetMe(context.Context, string) (*identity.Profile, error) {
 	return &identity.Profile{ID: "user", Email: "user@example.test", RoleID: s.role}, nil
 }
-func (routeAuthService) VerifyExternalToken(context.Context, string) (string, error) {
+func (routeAuthService) VerifyScopedExternalToken(context.Context, string, string) (string, error) {
 	return "", errors.New("external credentials cannot access browser routes")
 }
 func (s routeAuthService) IsBlacklisted(context.Context, string, string) (bool, error) {

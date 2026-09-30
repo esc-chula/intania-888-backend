@@ -15,10 +15,6 @@ type ServicePort interface {
 	VerifyOAuthLogin(context.Context, string, string, string, string) (*SessionCredentials, error)
 	// Logout revokes the session identified by its opaque ID; absent sessions already count as logged out.
 	Logout(context.Context, string) error
-	// IssueExternalToken returns a JWT, revocation ID, and configured lifetime for an existing subject.
-	IssueExternalToken(context.Context, string) (*IssuedExternalToken, error)
-	// RevokeExternalToken removes the active subject binding for a token identifier.
-	RevokeExternalToken(context.Context, string) error
 }
 
 // Repository stores authentication protocol state without exposing cache encoding.
@@ -32,8 +28,6 @@ type Repository interface {
 	RotateSession(context.Context, string, string, string, security.Session, int, int) error
 	// DeleteSession idempotently removes the record identified by its cache key.
 	DeleteSession(context.Context, string) error
-	// StoreExternalToken records the subject authorized by a JWT identifier; ttl is in seconds.
-	StoreExternalToken(context.Context, string, string, int) error
 }
 
 // Users is the account persistence boundary required during authentication.

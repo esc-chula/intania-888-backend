@@ -90,7 +90,7 @@ Login and callback responses are browser redirects. Register each frontend in
 safe relative `return_to`. New accounts go to the registered `onboarding_path`,
 carrying the original destination as `return_to`. Caller-selected `redirect_to`
 is unsupported. See [Application authentication](authentication-applications.md)
-for backend delegation and the legacy-token retirement window.
+for backend delegation and credential requirements.
 
 Keep `csrf_token` in memory and send it as `X-CSRF-Token` on protected
 POST/PUT/PATCH/DELETE requests. Reload `/auth/me` after a page refresh.

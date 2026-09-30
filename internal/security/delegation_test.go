@@ -23,7 +23,4 @@ func TestDelegatedTokensAreBoundToIssuerClientAndExternalAudience(t *testing.T) 
 	if _, err := ParseDelegatedToken(token, "secret", "another-issuer"); err == nil {
 		t.Fatal("accepted another issuer")
 	}
-	if _, _, err := JWTParseExternalToken(token, "secret", "888"); err == nil {
-		t.Fatal("delegated credential accepted as legacy administrator-issued token")
-	}
 }

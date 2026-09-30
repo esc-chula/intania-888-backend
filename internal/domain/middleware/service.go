@@ -49,32 +49,6 @@ func (s *Service) GetSession(ctx context.Context, id string) (*security.Session,
 	return record, nil
 }
 
-// VerifyExternalToken checks JWT claims and the active subject binding used for revocation.
-func (s *Service) VerifyExternalToken(ctx context.Context, token string) (string, error) {
-	if !s.cfg.GetOAuth().Registry.AcceptsLegacyExternalTokens(time.Now()) {
-		return "", ErrExternalMissing
-	}
-
-	subject, jti, err := security.JWTParseExternalToken(
-		token,
-		s.cfg.GetJWT().AccessTokenSecret,
-		s.cfg.GetServer().Name,
-	)
-	if err != nil {
-		return "", ErrExternalMissing
-	}
-
-	storedSubject, err := s.cache.GetExternalSubject(ctx, security.ToExternalTokenCacheKey(jti))
-	if err != nil {
-		return "", err
-	}
-	if storedSubject != subject {
-		return "", ErrExternalMissing
-	}
-
-	return subject, nil
-}
-
 // GetMe loads the account and converts its minor-unit balance to the shared profile value.
 func (s *Service) GetMe(ctx context.Context, id string) (*identity.Profile, error) {
 	user, err := s.repo.GetByID(ctx, id)
@@ -105,11 +79,7 @@ var ErrExternalScope = errors.New("external scope missing")
 func (s *Service) VerifyScopedExternalToken(ctx context.Context, token, scope string) (string, error) {
 	claims, err := security.ParseDelegatedToken(token, s.cfg.GetJWT().AccessTokenSecret, s.cfg.GetServer().Name)
 	if err != nil {
-		if !s.cfg.GetOAuth().Registry.AcceptsLegacyExternalTokens(time.Now()) {
-			return "", ErrExternalMissing
-		}
-
-		return s.VerifyExternalToken(ctx, token)
+		return "", ErrExternalMissing
 	}
 	if s.grants == nil {
 		return "", ErrExternalMissing

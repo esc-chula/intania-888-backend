@@ -25,16 +25,6 @@ definitions:
       request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
       details:
         total: must be a decimal string
-  auth.ExternalTokenResponse:
-    properties:
-      expires_in:
-        type: integer
-      id:
-        type: string
-        description: Identifier of the associated resource.
-      token:
-        type: string
-    type: object
   auth.MeResponse:
     properties:
       csrf_token:
@@ -822,353 +812,339 @@ info:
     \ and is intentionally outside this browser-focused reference.\n\nThe API is rate limited to 200 requests\
     \ per minute per client IP. Exceeding the limit returns 429 TOO_MANY_REQUESTS."
 paths:
-  /auth/callback:
-    get:
-      description: Google redirects the browser here with code and state. The handler checks the state
-        against the short-lived OAuth cookie, establishes the browser session, clears the OAuth cookie,
-        and redirects to the configured frontend. This is a browser redirect; the response is not JSON.
-      parameters:
-      - description: OAuth authorization code
-        in: query
-        name: code
-        required: true
-        type: string
-      - description: OAuth state nonce
-        in: query
-        name: state
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        '302':
-          description: fixed frontend redirect
-          schema:
-            type: string
-          headers:
-            X-Request-ID:
-              type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-        '400':
-          description: 'invalid OAuth request Failure body follows apierror.Response; code is stable,
-            message is safe to display, and request_id matches the X-Request-ID response header. Failure
-            body follows apierror.Response: stable code, safe message, request_id, and optional field
-            details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: &id001
-              type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-          examples:
-            application/json:
-              code: INVALID_REQUEST
-              message: Invalid request
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '403':
-          description: 'email is not allowed Failure body follows apierror.Response; code is stable, message
-            is safe to display, and request_id matches the X-Request-ID response header. Failure body
-            follows apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: FORBIDDEN
-              message: The request is not allowed
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '500':
-          description: 'post-login redirect is not configured Failure body follows apierror.Response;
-            code is stable, message is safe to display, and request_id matches the X-Request-ID response
-            header. Failure body follows apierror.Response: stable code, safe message, request_id, and
-            optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: INTERNAL_ERROR
-              message: Internal server error
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'OAuth login or access policy unavailable Failure body follows apierror.Response;
-            code is stable, message is safe to display, and request_id matches the X-Request-ID response
-            header. Failure body follows apierror.Response: stable code, safe message, request_id, and
-            optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '429':
-          description: The client IP exceeded the API limit of 200 requests per minute.
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID:
-              type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-          examples:
-            application/json:
-              code: TOO_MANY_REQUESTS
-              message: Too many requests
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      summary: Complete Google OAuth login
-      tags:
-      - Auth
-  /auth/external-tokens:
+  /auth/revoke:
     post:
-      parameters:
-      - description: existing user
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/auth.externalTokenRequest'
-      - name: X-CSRF-Token
-        in: header
-        description: Session-bound token returned by GET /auth/me. Required for browser mutations.
-        required: true
-        type: string
-      responses:
-        '201':
-          description: Created
-          schema:
-            $ref: '#/definitions/auth.ExternalTokenResponse'
-          headers:
-            X-Request-ID:
-              type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-        '400':
-          description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
-            safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: INVALID_REQUEST
-              message: Invalid request
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '401':
-          description: 'Unauthorized Failure body follows apierror.Response; code is stable, message is
-            safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '403':
-          description: 'Forbidden Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: FORBIDDEN
-              message: The request is not allowed
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '404':
-          description: 'Not Found Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-        '503':
-          description: 'Service Unavailable Failure body follows apierror.Response; code is stable, message
-            is safe to display, and request_id matches the X-Request-ID response header. Failure body
-            follows apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '429':
-          description: The client IP exceeded the API limit of 200 requests per minute.
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID:
-              type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-          examples:
-            application/json:
-              code: TOO_MANY_REQUESTS
-              message: Too many requests
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      security:
-      - CookieSession: []
-      summary: Issue a one-hour external JWT
+      summary: Revoke a client-owned delegation
+      description: Server-to-server client_secret_basic. Accepts a refresh or valid access credential. Unknown,
+        already revoked, and other-client credentials return success without revealing ownership.
       tags:
       - Auth
-      description: Deprecated. Administrator-only. Issues a one-hour Bearer JWT for the selected account.
-        The response includes the token, its revocation ID, and its lifetime in seconds. Treat the token
-        as a secret; use DELETE on the returned ID to revoke it.
-      deprecated: true
-  /auth/external-tokens/{id}:
-    delete:
-      parameters:
-      - description: token ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - name: X-CSRF-Token
-        in: header
-        description: Session-bound token returned by GET /auth/me. Required for browser mutations.
-        required: true
-        type: string
-      responses:
-        '204':
-          description: revoked
-          headers:
-            X-Request-ID:
-              type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-        '401':
-          description: 'Unauthorized Failure body follows apierror.Response; code is stable, message is
-            safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: UNAUTHORIZED
-              message: Authentication required
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '403':
-          description: 'Forbidden Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: FORBIDDEN
-              message: The request is not allowed
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'Service Unavailable Failure body follows apierror.Response; code is stable, message
-            is safe to display, and request_id matches the X-Request-ID response header. Failure body
-            follows apierror.Response: stable code, safe message, request_id, and optional field details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '429':
-          description: The client IP exceeded the API limit of 200 requests per minute.
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID:
-              type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-          examples:
-            application/json:
-              code: TOO_MANY_REQUESTS
-              message: Too many requests
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
       security:
-      - CookieSession: []
-      summary: Revoke an external JWT
-      tags:
-      - Auth
-      description: Deprecated. Administrator-only. Revokes an issued external JWT by its revocation ID.
-        The operation returns no response body after successful revocation.
-      deprecated: true
-  /auth/login:
-    get:
-      description: Starts Google OAuth and returns the authorization URL to open in the browser. It also
-        sets a short-lived HttpOnly state cookie that must return with the OAuth callback. The server
-        controls the post-login destination; redirect_to is not supported.
-      produces:
-      - application/json
+      - OAuthClient: []
       responses:
         '200':
-          description: authorization URL
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+          description: Revocation completed or credential unknown.
           headers:
             X-Request-ID:
+              description: Correlation ID for this request.
               type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
         '400':
-          description: 'redirect_to is not supported Failure body follows apierror.Response; code is stable,
-            message is safe to display, and request_id matches the X-Request-ID response header. Failure
-            body follows apierror.Response: stable code, safe message, request_id, and optional field
-            details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: INVALID_REQUEST
-              message: Invalid request
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '503':
-          description: 'OAuth login unavailable Failure body follows apierror.Response; code is stable,
-            message is safe to display, and request_id matches the X-Request-ID response header. Failure
-            body follows apierror.Response: stable code, safe message, request_id, and optional field
-            details.'
-          schema:
-            $ref: '#/definitions/apierror.Response'
-          headers:
-            X-Request-ID: *id001
-          examples:
-            application/json:
-              code: DEPENDENCY_UNAVAILABLE
-              message: A required dependency is unavailable
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-        '429':
-          description: The client IP exceeded the API limit of 200 requests per minute.
-          schema:
-            $ref: '#/definitions/apierror.Response'
+          description: invalid_request.
           headers:
             X-Request-ID:
+              description: Correlation ID for this request.
               type: string
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-          examples:
-            application/json:
-              code: TOO_MANY_REQUESTS
-              message: Too many requests
-              request_id: 5ef9fba0-0123-4abc-8123-0123456789ab
-      summary: Start Google OAuth login
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: invalid_client.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '503':
+          description: temporarily_unavailable.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+      consumes:
+      - application/x-www-form-urlencoded
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+          - token
+          properties:
+            token:
+              type: string
+  /auth/token:
+    post:
+      summary: Exchange a code or rotate a refresh credential
+      description: Server-to-server endpoint authenticated with client_secret_basic. Browser cookies and
+        CSRF are not used. Codes are one-use and bound to client, callback and PKCE. Refresh reuse revokes
+        the entire delegation.
       tags:
       - Auth
+      security:
+      - OAuthClient: []
+      responses:
+        '200':
+          description: Bearer access_token, rotating refresh_token, token_type, expires_in, scope and user_id.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: object
+            required:
+            - access_token
+            - refresh_token
+            - token_type
+            - expires_in
+            - scope
+            - user_id
+            properties:
+              access_token:
+                type: string
+              refresh_token:
+                type: string
+              token_type:
+                type: string
+              expires_in:
+                type: integer
+              scope:
+                type: string
+              user_id:
+                type: string
+        '400':
+          description: invalid_request, invalid_grant or unsupported_grant_type.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '401':
+          description: invalid_client.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+        '503':
+          description: temporarily_unavailable.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+      consumes:
+      - application/x-www-form-urlencoded
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+          - grant_type
+          properties:
+            grant_type:
+              type: string
+            code:
+              type: string
+            redirect_uri:
+              type: string
+            code_verifier:
+              type: string
+            refresh_token:
+              type: string
+  /auth/authorize:
+    get:
+      summary: Authorize a registered backend application
+      description: Uses the 888 browser session or Google login. Requires an exact registered redirect_uri,
+        response_type=code, client state, allowed scopes, and S256 PKCE. Only operator-registered first-party
+        clients are supported.
+      tags:
+      - Auth
+      parameters:
+      - name: client_id
+        in: query
+        description: Registered backend application ID.
+        required: true
+        type: string
+      - name: redirect_uri
+        in: query
+        description: Exact registered backend callback.
+        required: true
+        type: string
+      - name: response_type
+        in: query
+        description: Must be code.
+        required: true
+        type: string
+      - name: state
+        in: query
+        description: Client browser-bound state.
+        required: true
+        type: string
+      - name: scope
+        in: query
+        description: Space-separated requested permissions.
+        required: true
+        type: string
+      - name: code_challenge
+        in: query
+        description: S256 PKCE challenge.
+        required: true
+        type: string
+      - name: code_challenge_method
+        in: query
+        description: Must be S256.
+        required: true
+        type: string
+      responses:
+        '303':
+          description: Google login or registered callback with code/state or error/state.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+        '400':
+          description: Invalid client or callback; no redirect.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+        '429':
+          description: Pending transaction or IP limit reached.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+        '503':
+          description: Login storage unavailable.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+  /auth/callback:
+    get:
+      summary: Complete Google authentication and resume the application flow
+      description: Checks the transaction-specific browser binding and consumes Google state once. Sets
+        the opaque 888 session and redirects to the cookie frontend or registered application callback with
+        a one-use code. Validated failures use the recorded application destination.
+      tags:
+      - Auth
+      parameters:
+      - name: state
+        in: query
+        description: One-use provider transaction state.
+        required: true
+        type: string
+      - name: code
+        in: query
+        description: Google authorization code, absent on provider denial.
+        required: false
+        type: string
+      - name: error
+        in: query
+        description: Google error on provider denial.
+        required: false
+        type: string
+      responses:
+        '303':
+          description: Application continuation or trusted error redirect.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+        '400':
+          description: Missing, expired, replayed or unbound transaction.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+        '503':
+          description: Login storage unavailable.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+  /auth/login:
+    get:
+      summary: Start registered cookie application login
+      description: Browser navigation. Requires client_id. Reuses a valid 888 session or starts Google login
+        with an independent transaction cookie. return_to is a validated relative frontend path. New accounts
+        go to configured onboarding.
+      tags:
+      - Auth
+      parameters:
+      - name: client_id
+        in: query
+        description: Registered cookie application ID.
+        required: true
+        type: string
+      - name: return_to
+        in: query
+        description: Relative frontend path; defaults to the registered path.
+        required: false
+        type: string
+      responses:
+        '303':
+          description: Google or application redirect.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+        '400':
+          description: Invalid application or return path.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+        '429':
+          description: Pending transaction or IP limit reached.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
+        '503':
+          description: Login storage unavailable.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              type: string
+          schema:
+            type: string
   /auth/logout:
     post:
       description: Revokes the active server-side browser session and expires its cookie. If there is
@@ -1188,7 +1164,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -1202,7 +1178,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -1264,7 +1240,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -1278,7 +1254,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -1360,7 +1336,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -1373,7 +1349,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -1386,7 +1362,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -1400,7 +1376,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -1413,7 +1389,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -1481,7 +1457,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -1494,7 +1470,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -1507,7 +1483,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -1520,7 +1496,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -1529,7 +1505,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -1542,7 +1518,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -1595,7 +1571,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -1608,7 +1584,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -1621,7 +1597,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -1630,7 +1606,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -1643,7 +1619,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -1707,7 +1683,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -1720,7 +1696,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -1733,7 +1709,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -1746,7 +1722,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -1755,7 +1731,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -1768,7 +1744,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -1813,7 +1789,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -1826,7 +1802,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -1897,7 +1873,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -1910,7 +1886,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -1923,7 +1899,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -1936,7 +1912,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'Conflict Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -1944,7 +1920,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '422':
           description: 'Unprocessable Entity Failure body follows apierror.Response; code is stable, message
             is safe to display, and request_id matches the X-Request-ID response header. Failure body
@@ -1952,7 +1928,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -1961,7 +1937,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -1974,7 +1950,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2024,7 +2000,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -2037,7 +2013,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -2046,7 +2022,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2059,7 +2035,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2124,7 +2100,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -2137,7 +2113,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -2150,7 +2126,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -2163,7 +2139,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'Conflict Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -2171,7 +2147,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -2180,7 +2156,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2193,7 +2169,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2240,7 +2216,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -2253,7 +2229,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2266,7 +2242,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -2327,7 +2303,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '400':
           description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
             safe to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -2335,7 +2311,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -2349,7 +2325,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2402,7 +2378,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '400':
           description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
             safe to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -2410,7 +2386,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -2424,7 +2400,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2468,7 +2444,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -2482,7 +2458,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -2496,7 +2472,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2509,7 +2485,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2569,7 +2545,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -2582,7 +2558,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -2596,7 +2572,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -2610,7 +2586,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Failed to delete daily reward override Failure body follows apierror.Response;
             code is stable, message is safe to display, and request_id matches the X-Request-ID response
@@ -2619,7 +2595,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2632,7 +2608,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2700,7 +2676,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -2713,7 +2689,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -2727,7 +2703,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -2741,7 +2717,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2754,7 +2730,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2804,7 +2780,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -2817,7 +2793,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'daily reward already claimed Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -2826,7 +2802,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'internal server error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -2835,7 +2811,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2848,7 +2824,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2907,7 +2883,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -2920,7 +2896,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -2933,7 +2909,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '422':
           description: 'insufficient balance Failure body follows apierror.Response; code is stable, message
             is safe to display, and request_id matches the X-Request-ID response header. Failure body
@@ -2941,7 +2917,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'internal server error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -2950,7 +2926,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -2963,7 +2939,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -2976,7 +2952,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -3038,7 +3014,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -3052,7 +3028,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -3066,7 +3042,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -3080,7 +3056,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'token state conflict Failure body follows apierror.Response; code is stable, message
             is safe to display, and request_id matches the X-Request-ID response header. Failure body
@@ -3088,7 +3064,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '422':
           description: 'insufficient balance Failure body follows apierror.Response; code is stable, message
             is safe to display, and request_id matches the X-Request-ID response header. Failure body
@@ -3096,7 +3072,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'internal server error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -3105,7 +3081,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -3118,7 +3094,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -3159,25 +3135,25 @@ paths:
             items:
               $ref: '#/definitions/model.LocationDto'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '403':
           description: The request Origin is not allowed by the configured browser origin policy.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: Unexpected server failure. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
   /locations/{id}:
     get:
       summary: Get a location
@@ -3199,37 +3175,37 @@ paths:
           schema:
             $ref: '#/definitions/model.LocationDto'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '403':
           description: The request Origin is not allowed by the configured browser origin policy.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '400':
           description: Invalid ID or title. The body uses apierror.Response; details identifies fields that failed validation.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '404':
           description: No location exists with this ID. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: Unexpected server failure. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
   /locations/admin:
     post:
       summary: Create a location
@@ -3260,49 +3236,49 @@ paths:
           schema:
             $ref: '#/definitions/model.LocationDto'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '400':
           description: Invalid ID or title. The body uses apierror.Response; details identifies fields that failed validation.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '401':
           description: Authentication is required. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '403':
           description: Administrator permission is required, or configured Origin/CSRF validation failed. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: The location ID already exists. The body uses apierror.Response with code CONFLICT.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: Unexpected server failure. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '503':
           description: Session or access-policy state could not be checked because a required dependency is unavailable.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
   /locations/admin/{id}:
     patch:
       summary: Rename a location
@@ -3338,49 +3314,49 @@ paths:
           schema:
             $ref: '#/definitions/model.LocationDto'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '400':
           description: Invalid ID or title. The body uses apierror.Response; details identifies fields that failed validation.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '401':
           description: Authentication is required. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '403':
           description: Administrator permission is required, or configured Origin/CSRF validation failed. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '404':
           description: No location exists with this ID. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: Unexpected server failure. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '503':
           description: Session or access-policy state could not be checked because a required dependency is unavailable.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
     delete:
       summary: Delete a location
       description: Administrator-only. Deletes an unused location. A location referenced by any match cannot be deleted; reassign or remove those matches first.
@@ -3403,55 +3379,55 @@ paths:
         '204':
           description: Location deleted; no response body.
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '400':
           description: Invalid location ID. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '401':
           description: Authentication is required. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '403':
           description: Administrator permission is required, or configured Origin/CSRF validation failed. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '404':
           description: No location exists with this ID. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: The location is assigned to one or more matches. The body uses apierror.Response with code LOCATION_IN_USE.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: Unexpected server failure. The body uses apierror.Response.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '503':
           description: Session or access-policy state could not be checked because a required dependency is unavailable.
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
   /matches:
     get:
       parameters:
@@ -3484,7 +3460,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '400':
           description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
             safe to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -3492,7 +3468,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -3506,7 +3482,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -3566,7 +3542,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -3579,7 +3555,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -3592,7 +3568,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -3606,7 +3582,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -3619,7 +3595,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -3676,7 +3652,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -3689,7 +3665,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -3702,7 +3678,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -3711,7 +3687,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -3724,7 +3700,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -3786,7 +3762,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '404':
           description: 'Not Found Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -3794,7 +3770,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -3803,7 +3779,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -3866,7 +3842,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -3879,7 +3855,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -3892,7 +3868,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -3905,7 +3881,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -3914,7 +3890,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -3927,7 +3903,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -3995,7 +3971,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -4008,7 +3984,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4021,7 +3997,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -4034,7 +4010,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'Conflict Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -4042,7 +4018,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -4051,7 +4027,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -4064,7 +4040,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -4130,7 +4106,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -4143,7 +4119,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4156,7 +4132,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -4169,7 +4145,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -4178,7 +4154,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -4191,7 +4167,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -4237,7 +4213,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '429':
           description: The client IP exceeded the API limit of 200 requests per minute.
           schema:
@@ -4285,7 +4261,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -4298,7 +4274,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4311,7 +4287,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '503':
           description: 'Session or access-policy state could not be checked because a required dependency
             is unavailable. Failure body follows apierror.Response: stable code, safe message, request_id,
@@ -4319,7 +4295,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -4376,7 +4352,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -4389,7 +4365,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4402,7 +4378,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -4415,7 +4391,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'Conflict Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -4423,7 +4399,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -4432,7 +4408,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -4445,7 +4421,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -4510,7 +4486,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -4523,7 +4499,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4536,7 +4512,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -4549,7 +4525,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'Conflict Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -4557,7 +4533,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -4566,7 +4542,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -4579,7 +4555,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -4624,7 +4600,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4637,7 +4613,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -4646,7 +4622,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -4659,7 +4635,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -4728,7 +4704,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -4741,7 +4717,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4754,7 +4730,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -4767,7 +4743,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'Conflict Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -4775,7 +4751,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '422':
           description: 'Unprocessable Entity Failure body follows apierror.Response; code is stable, message
             is safe to display, and request_id matches the X-Request-ID response header. Failure body
@@ -4783,7 +4759,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -4792,7 +4768,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -4805,7 +4781,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -4865,7 +4841,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -4878,7 +4854,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4892,7 +4868,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -4905,7 +4881,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -4950,7 +4926,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -4964,7 +4940,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -4977,7 +4953,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -5026,7 +5002,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5035,7 +5011,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -5081,7 +5057,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '400':
           description: 'Bad Request Failure body follows apierror.Response; code is stable, message is
             safe to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -5089,7 +5065,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -5102,7 +5078,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5111,7 +5087,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -5176,7 +5152,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -5189,7 +5165,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -5202,7 +5178,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -5215,7 +5191,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5224,7 +5200,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -5237,7 +5213,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -5290,7 +5266,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -5303,7 +5279,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -5316,7 +5292,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -5329,7 +5305,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '409':
           description: 'Conflict Failure body follows apierror.Response; code is stable, message is safe
             to display, and request_id matches the X-Request-ID response header. Failure body follows
@@ -5337,7 +5313,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5346,7 +5322,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -5359,7 +5335,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -5423,7 +5399,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -5436,7 +5412,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -5449,7 +5425,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -5462,7 +5438,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'Internal Server Error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5471,7 +5447,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -5484,7 +5460,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -5533,7 +5509,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -5545,7 +5521,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -5558,7 +5534,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -5609,14 +5585,14 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '401':
           description: 'The browser session is missing or expired. Failure body follows apierror.Response:
             stable code, safe message, request_id, and optional field details.'
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -5629,7 +5605,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -5694,7 +5670,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -5707,7 +5683,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -5721,7 +5697,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -5734,7 +5710,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'internal server error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5743,7 +5719,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -5756,7 +5732,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -5821,7 +5797,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -5834,7 +5810,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -5848,7 +5824,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -5861,7 +5837,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'internal server error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5870,7 +5846,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -5883,7 +5859,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -5944,7 +5920,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INVALID_REQUEST
@@ -5957,7 +5933,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: UNAUTHORIZED
@@ -5970,7 +5946,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: FORBIDDEN
@@ -5983,7 +5959,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
         '500':
           description: 'internal server error Failure body follows apierror.Response; code is stable,
             message is safe to display, and request_id matches the X-Request-ID response header. Failure
@@ -5992,7 +5968,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: INTERNAL_ERROR
@@ -6005,7 +5981,7 @@ paths:
           schema:
             $ref: '#/definitions/apierror.Response'
           headers:
-            X-Request-ID: *id001
+            X-Request-ID: {type: string, description: Correlation ID for this request.}
           examples:
             application/json:
               code: DEPENDENCY_UNAVAILABLE
@@ -6032,6 +6008,8 @@ paths:
 schemes:
 - http
 securityDefinitions:
+  OAuthClient:
+    type: basic
   CookieSession:
     description: Browser session cookie. The cookie is HttpOnly and is normally sent by the browser automatically.
       Production uses the __Host-session cookie name. Swagger 2.0 represents this as a Cookie header.

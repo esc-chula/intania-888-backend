@@ -36,12 +36,6 @@ func (s fakeAuthService) VerifyOAuthLogin(context.Context, string, string, strin
 
 func (s fakeAuthService) Logout(context.Context, string) error { return s.logoutErr }
 
-func (s fakeAuthService) IssueExternalToken(context.Context, string) (*IssuedExternalToken, error) {
-	return &IssuedExternalToken{Token: "token", ID: "id", ExpiresIn: 3600}, nil
-}
-
-func (s fakeAuthService) RevokeExternalToken(context.Context, string) error { return nil }
-
 func newHTTPConfig(env string) config.Config {
 	return authTestConfig{server: config.Server{Env: env}, oauth: config.OAuth{Registry: &config.AuthRegistry{Lifetimes: config.AuthLifetimes{Login: 600}}}}
 }
@@ -198,7 +192,7 @@ func (s logoutMiddlewareService) GetSession(context.Context, string) (*security.
 	return s.session, s.err
 }
 
-func (s logoutMiddlewareService) VerifyExternalToken(context.Context, string) (string, error) {
+func (s logoutMiddlewareService) VerifyScopedExternalToken(context.Context, string, string) (string, error) {
 	return "", nil
 }
 

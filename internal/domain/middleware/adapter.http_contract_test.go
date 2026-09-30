@@ -27,7 +27,7 @@ func (s *accountFailureService) GetSession(ctx context.Context, _ string) (*secu
 	return &security.Session{UserID: "user", CSRFToken: "csrf"}, nil
 }
 
-func (s *accountFailureService) VerifyExternalToken(ctx context.Context, _ string) (string, error) {
+func (s *accountFailureService) VerifyScopedExternalToken(ctx context.Context, _ string, _ string) (string, error) {
 	s.contexts = append(s.contexts, ctx)
 	return "user", nil
 }

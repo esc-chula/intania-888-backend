@@ -344,7 +344,7 @@ Development uses the HttpOnly `session` cookie and separate `oauth-tx-<state>` c
 
 A `401` on a protected browser route means authentication is missing or expired. A dependency `503` permits retry without discarding browser state. The browser does not use `/auth/refresh` or store bearer credentials.
 
-See [Application authentication](authentication-applications.md) for registration, backend delegation, configuration, and legacy retirement.
+See [Application authentication](authentication-applications.md) for registration, backend delegation, configuration, and credential requirements.
 
 ## External minigame backend
 
@@ -364,8 +364,6 @@ There is currently no external endpoint for submitting game results or crediting
 winnings. That part of the intended integration still needs a defined contract.
 
 Registered game backends use delegated OAuth credentials bound to a client, account, grant, and scopes. `GET /external/me` requires `profile.read`; `POST /external/deduct-coin` requires `coins.spend`. The browser authenticates to its game backend through that backend's own session cookie. Access and refresh credentials stay on the backend.
-
-Legacy administrator-issued, unscoped tokens are disabled by default. A migration window can be enabled with `legacy_external_tokens.accept_until` in the auth YAML. The value must be an RFC3339 timestamp. At the cutoff, issuance returns `410 LEGACY_AUTH_RETIRED` and legacy bearer authentication returns `401`. Issued token lifetimes use `lifetimes.access_token_seconds`, capped by the remaining migration window; `expires_in` reports the actual duration. Administrator revocation remains available after retirement.
 
 # API error contract and frontend handoff
 

@@ -62,7 +62,7 @@ type fakeMiddlewareService struct {
 func (s fakeMiddlewareService) GetSession(context.Context, string) (*security.Session, error) {
 	return s.session, s.sessionErr
 }
-func (s fakeMiddlewareService) VerifyExternalToken(context.Context, string) (string, error) {
+func (s fakeMiddlewareService) VerifyScopedExternalToken(context.Context, string, string) (string, error) {
 	return "user-id", nil
 }
 func (s fakeMiddlewareService) GetMe(context.Context, string) (*identity.Profile, error) {

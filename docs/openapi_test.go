@@ -30,9 +30,10 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 	wantOperations := map[string]struct{}{}
 	for _, operation := range []string{
 		"GET /auth/callback",
-		"POST /auth/external-tokens",
-		"DELETE /auth/external-tokens/{id}",
 		"GET /auth/login",
+		"GET /auth/authorize",
+		"POST /auth/token",
+		"POST /auth/revoke",
 		"POST /auth/logout",
 		"GET /auth/me",
 		"GET /auth/policies",
@@ -140,7 +141,7 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 
 			if method == "post" || method == "put" || method == "patch" || method == "delete" {
 				security, _ := operation["security"].([]any)
-				requiresCSRF := key != "POST /auth/logout"
+				requiresCSRF := key != "POST /auth/logout" && key != "POST /auth/token" && key != "POST /auth/revoke"
 				if len(security) > 0 && requiresCSRF && !hasRequiredHeader(operation, "X-CSRF-Token") {
 					t.Errorf("%s does not document its required session CSRF header", key)
 				}
@@ -158,8 +159,8 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 			t.Errorf("unexpected operation %q", operation)
 		}
 	}
-	if len(gotOperations) != 53 {
-		t.Errorf("documented operation count = %d, want 53", len(gotOperations))
+	if len(gotOperations) != 54 {
+		t.Errorf("documented operation count = %d, want 54", len(gotOperations))
 	}
 
 	definitions, ok := document["definitions"].(map[string]any)
@@ -194,8 +195,6 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 		t.Error("CookieSession security definition is missing")
 	}
 	for _, operation := range []string{
-		"POST /auth/external-tokens",
-		"DELETE /auth/external-tokens/{id}",
 		"PATCH /users/{id}",
 	} {
 		parts := strings.SplitN(operation, " ", 2)

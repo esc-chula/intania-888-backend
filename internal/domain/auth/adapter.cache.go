@@ -30,11 +30,6 @@ type sessionRecord struct {
 	CSRFToken string `json:"csrf_token"`
 }
 
-// externalTokenRecord is the Redis wire record binding an external JWT identifier to its subject.
-type externalTokenRecord struct {
-	SubjectID string `json:"subject_id"`
-}
-
 // StoreOAuthState persists a one-use PKCE verifier with its existing lifetime.
 func (r *RedisRepository) StoreOAuthState(ctx context.Context, key string, state OAuthState, ttl int) error {
 	return r.cache.SetValue(ctx, key, oauthStateRecord(state), ttl)
@@ -66,9 +61,4 @@ func (r *RedisRepository) RotateSession(ctx context.Context, userKey, key, previ
 // DeleteSession revokes a session; deletion is idempotent.
 func (r *RedisRepository) DeleteSession(ctx context.Context, key string) error {
 	return r.cache.DeleteSession(ctx, key)
-}
-
-// StoreExternalToken records the subject permitted to use an external JWT.
-func (r *RedisRepository) StoreExternalToken(ctx context.Context, key, subject string, ttl int) error {
-	return r.cache.SetValue(ctx, key, externalTokenRecord{SubjectID: subject}, ttl)
 }

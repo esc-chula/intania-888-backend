@@ -16,7 +16,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
-// HTTPHandler adapts browser OAuth/session requests and administrator external-token operations.
+// HTTPHandler adapts registered login, browser sessions, and delegated profiles.
 type HTTPHandler struct {
 	service      ServicePort
 	cfg          config.Config
@@ -35,8 +35,7 @@ func (h *HTTPHandler) sessionName() string {
 }
 
 // RegisterRoutes registers login, callback, logout, and authenticated profile routes.
-// External-token administration requires both authentication and administrator middleware.
-func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fiber.Handler) {
+func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Handler) {
 	router = router.Group("/auth")
 	if h.applications == nil {
 		panic("application authentication must be configured before registering routes")
@@ -50,10 +49,6 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fi
 	router.Post("/logout", h.Logout)
 	router.Get("/me", authenticate, h.GetMe)
 
-	// Legacy issuance is available only during an explicit migration window.
-	// Revocation remains available after retirement.
-	router.Post("/external-tokens", authenticate, admin, h.IssueExternalToken)
-	router.Delete("/external-tokens/:id", authenticate, admin, h.RevokeExternalToken)
 }
 
 // RegisterExternalRoutes registers the profile route behind scoped delegated authentication.
@@ -127,52 +122,6 @@ func (h *HTTPHandler) GetExternalMe(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(ExternalMeResponse{Profile: httpidentity.Response(profile)})
-}
-
-// IssueExternalToken returns the selected account credential and its actual lifetime.
-func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
-	setNoStoreHeaders(c)
-
-	var req externalTokenRequest
-	if err := apierror.BindJSON(c, &req); err != nil {
-		return err
-	}
-
-	issuer := httpidentity.GetProfile(c)
-	if issuer == nil {
-		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
-	}
-
-	issued, err := h.service.IssueExternalToken(c.UserContext(), req.UserID)
-	if errors.Is(err, ErrLegacyExternalTokensRetired) {
-		return apierror.Wrap(err, fiber.StatusGone, apierror.CodeLegacyAuthRetired, "Legacy external token issuance is retired; use application authorization")
-	}
-	if err != nil {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Token service is unavailable")
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(ExternalTokenResponse{
-		Token:     issued.Token,
-		ID:        issued.ID,
-		ExpiresIn: issued.ExpiresIn,
-	})
-}
-
-// RevokeExternalToken revokes the selected external JWT identifier and returns an empty success response.
-func (h *HTTPHandler) RevokeExternalToken(c *fiber.Ctx) error {
-	issuer := httpidentity.GetProfile(c)
-	if issuer == nil {
-		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
-	}
-
-	if strings.TrimSpace(c.Params("id")) == "" {
-		return apierror.Invalid(map[string]string{"id": "is required"})
-	}
-	if err := h.service.RevokeExternalToken(c.UserContext(), c.Params("id")); err != nil {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Token service is unavailable")
-	}
-
-	return c.SendStatus(204)
 }
 
 func (h *HTTPHandler) clearCookie(c *fiber.Ctx, name string, httpOnly bool) {

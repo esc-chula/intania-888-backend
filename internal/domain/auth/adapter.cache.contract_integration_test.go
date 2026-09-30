@@ -63,9 +63,9 @@ func TestTypedAuthCacheInteroperatesWithMiddlewareAndPreservesStoredFields(t *te
 	reader := middleware.NewRedisSessionStore(client)
 	prefix := "test:typed-auth:" + uuid.NewString()
 	userKey, sessionKey, previousKey := prefix+":user", prefix+":session", prefix+":previous"
-	stateKey, externalKey := prefix+":state", prefix+":external"
+	stateKey := prefix + ":state"
 	t.Cleanup(func() {
-		if err := raw.Del(context.Background(), userKey, sessionKey, previousKey, stateKey, externalKey).Err(); err != nil {
+		if err := raw.Del(context.Background(), userKey, sessionKey, previousKey, stateKey).Err(); err != nil {
 			t.Errorf("remove test authentication records: %v", err)
 		}
 	})
@@ -109,28 +109,10 @@ func TestTypedAuthCacheInteroperatesWithMiddlewareAndPreservesStoredFields(t *te
 		t.Fatalf("consumed state missing classification lost its cause: %v", err)
 	}
 
-	if err := writer.StoreExternalToken(ctx, externalKey, "user", 60); err != nil {
-		t.Fatal(err)
-	}
-	externalBytes, err := raw.Get(ctx, externalKey).Bytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(externalBytes) != `{"subject_id":"user"}` {
-		t.Fatalf("stored external token shape changed: %s", externalBytes)
-	}
-	subject, err := reader.GetExternalSubject(ctx, externalKey)
-	if err != nil || subject != "user" {
-		t.Fatalf("typed external token reader = %q, %v", subject, err)
-	}
-
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
 	if _, err := reader.ReadAndRenewSession(canceled, sessionKey, now, 30); !errors.Is(err, context.Canceled) || errors.Is(err, middleware.ErrSessionMissing) {
 		t.Fatalf("canceled session read was detached or misclassified: %v", err)
-	}
-	if _, err := reader.GetExternalSubject(canceled, externalKey); !errors.Is(err, context.Canceled) || errors.Is(err, middleware.ErrExternalMissing) {
-		t.Fatalf("canceled external token read was detached or misclassified: %v", err)
 	}
 	if _, err := writer.ConsumeOAuthState(canceled, stateKey); !errors.Is(err, context.Canceled) || errors.Is(err, auth.ErrInvalidOAuthState) {
 		t.Fatalf("canceled OAuth state read was detached or misclassified: %v", err)
@@ -141,8 +123,5 @@ func TestTypedAuthCacheInteroperatesWithMiddlewareAndPreservesStoredFields(t *te
 	}
 	if _, err := reader.ReadAndRenewSession(ctx, sessionKey, now, 30); !errors.Is(err, middleware.ErrSessionMissing) || !errors.Is(err, redis.Nil) {
 		t.Fatalf("revoked session missing classification lost its cause: %v", err)
-	}
-	if _, err := reader.GetExternalSubject(ctx, prefix+":missing"); !errors.Is(err, middleware.ErrExternalMissing) || !errors.Is(err, redis.Nil) {
-		t.Fatalf("missing external token classification lost its cause: %v", err)
 	}
 }
