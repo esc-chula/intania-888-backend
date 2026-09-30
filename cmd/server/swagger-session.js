@@ -226,6 +226,9 @@
 
     const signInButton = makeButton("Sign in with Google");
     signInButton.disabled = !script.dataset.loginClientId;
+    if (signInButton.disabled) {
+      signInButton.title = "Register a cookie application to enable sign-in.";
+    }
     signInButton.addEventListener("click", function () {
       session.csrfToken = null;
       const login = new URL(session.apiBaseURL + "/auth/login");
