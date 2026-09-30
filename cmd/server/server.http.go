@@ -314,7 +314,7 @@ func (s *FiberHTTPServer) registerSwagger() {
 		// Load the embedded helper after Swagger's bundles and before initialization.
 		marker := []byte("    <script>\n    window.onload = function() {")
 		injectedScript := fmt.Sprintf(
-			"    <script src=\"/swagger/swagger-session.js\" data-api-base=\"%s\"></script>\n%s",
+			"    <script src=\"/swagger/swagger-session.js\" data-api-base=\"%s\" data-login-client-id=\"888-web\"></script>\n%s",
 			template.HTMLEscapeString(s.swaggerAPIBaseURL),
 			marker,
 		)

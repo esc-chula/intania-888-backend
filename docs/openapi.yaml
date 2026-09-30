@@ -18,100 +18,57 @@ servers:
 paths:
   /auth/callback:
     get:
-      description: Google redirects the browser here with code and state. The handler checks the state against the
-        short-lived OAuth cookie, establishes the browser session, clears the OAuth cookie, and redirects to the configured
-        frontend. This is a browser redirect; the response is not JSON.
+      summary: Complete Google authentication and resume the application flow
+      description: Checks the transaction-specific browser binding and consumes Google state once. Sets the opaque
+        888 session and redirects to the cookie frontend or registered application callback with a one-use code. Validated
+        failures use the recorded application destination.
+      tags:
+      - Auth
       parameters:
-      - description: OAuth authorization code
+      - name: state
         in: query
-        name: code
+        description: One-use provider transaction state.
         required: true
         schema:
           type: string
-      - description: OAuth state nonce
+      - name: code
         in: query
-        name: state
-        required: true
+        description: Google authorization code, absent on provider denial.
+        required: false
+        schema:
+          type: string
+      - name: error
+        in: query
+        description: Google error on provider denial.
+        required: false
         schema:
           type: string
       responses:
-        '302':
-          content:
-            application/json:
+        '303':
+          description: Application continuation or trusted error redirect.
+          headers: &id001
+            X-Request-ID:
+              description: Correlation ID for this request.
               schema:
                 type: string
-          description: fixed frontend redirect
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+          content:
+            text/html:
               schema:
                 type: string
         '400':
+          description: Missing, expired, replayed or unbound transaction.
+          headers: *id001
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'invalid OAuth request Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'email is not allowed Failure body follows apierror.Response; code is stable, message is safe
-            to display, and request_id matches the X-Request-ID response header. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '429':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
-              schema:
-                type: string
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'post-login redirect is not configured Failure body follows apierror.Response; code is stable,
-            message is safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+            text/html:
               schema:
                 type: string
         '503':
+          description: Login storage unavailable.
+          headers: *id001
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'OAuth login or access policy unavailable Failure body follows apierror.Response; code is stable,
-            message is safe to display, and request_id matches the X-Request-ID response header. Failure body follows
-            apierror.Response: stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+            text/html:
               schema:
                 type: string
-      summary: Complete Google OAuth login
-      tags:
-      - Auth
   /auth/external-tokens:
     post:
       deprecated: true
@@ -309,65 +266,283 @@ paths:
       summary: Revoke an external JWT
       tags:
       - Auth
-  /auth/login:
+  /auth/authorize:
     get:
-      description: Starts Google OAuth and returns the authorization URL to open in the browser. It also sets a short-lived
-        HttpOnly state cookie that must return with the OAuth callback. The server controls the post-login destination;
-        redirect_to is not supported.
+      summary: Authorize a registered backend application
+      description: Uses the 888 browser session or Google login. Requires an exact registered redirect_uri, response_type=code,
+        client state, allowed scopes, and S256 PKCE. Only operator-registered first-party clients are supported.
+      tags:
+      - Auth
+      parameters:
+      - name: client_id
+        in: query
+        description: Registered backend application ID.
+        required: true
+        schema:
+          type: string
+      - name: redirect_uri
+        in: query
+        description: Exact registered backend callback.
+        required: true
+        schema:
+          type: string
+      - name: response_type
+        in: query
+        description: Must be code.
+        required: true
+        schema:
+          type: string
+      - name: state
+        in: query
+        description: Client browser-bound state.
+        required: true
+        schema:
+          type: string
+      - name: scope
+        in: query
+        description: Space-separated requested permissions.
+        required: true
+        schema:
+          type: string
+      - name: code_challenge
+        in: query
+        description: S256 PKCE challenge.
+        required: true
+        schema:
+          type: string
+      - name: code_challenge_method
+        in: query
+        description: Must be S256.
+        required: true
+        schema:
+          type: string
       responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties:
-                  type: string
-                type: object
-          description: authorization URL
-          headers:
+        '303':
+          description: Google login or registered callback with code/state or error/state.
+          headers: &id001
             X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            text/html:
               schema:
                 type: string
         '400':
+          description: Invalid client or callback; no redirect.
+          headers: *id001
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'redirect_to is not supported Failure body follows apierror.Response; code is stable, message
-            is safe to display, and request_id matches the X-Request-ID response header. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+            text/html:
               schema:
                 type: string
         '429':
+          description: Pending transaction or IP limit reached.
+          headers: *id001
           content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+            text/html:
               schema:
                 type: string
         '503':
+          description: Login storage unavailable.
+          headers: *id001
+          content:
+            text/html:
+              schema:
+                type: string
+  /auth/token:
+    post:
+      summary: Exchange a code or rotate a refresh credential
+      description: Server-to-server endpoint authenticated with client_secret_basic. Browser cookies and CSRF are
+        not used. Codes are one-use and bound to client, callback and PKCE. Refresh reuse revokes the entire delegation.
+      tags:
+      - Auth
+      security:
+      - OAuthClient: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+              - grant_type
+              properties:
+                grant_type:
+                  type: string
+                code:
+                  type: string
+                redirect_uri:
+                  type: string
+                code_verifier:
+                  type: string
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Bearer access_token, rotating refresh_token, token_type, expires_in, scope and user_id.
+          headers: *id001
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/apierror.Response'
-          description: 'OAuth login unavailable Failure body follows apierror.Response; code is stable, message is
-            safe to display, and request_id matches the X-Request-ID response header. Failure body follows apierror.Response:
-            stable code, safe message, request_id, and optional field details.'
-          headers:
-            X-Request-ID:
-              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+                type: object
+                required:
+                - access_token
+                - refresh_token
+                - token_type
+                - expires_in
+                - scope
+                - user_id
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  token_type:
+                    type: string
+                  expires_in:
+                    type: integer
+                  scope:
+                    type: string
+                  user_id:
+                    type: string
+        '400':
+          description: invalid_request, invalid_grant or unsupported_grant_type.
+          headers: *id001
+          content:
+            application/json:
               schema:
-                type: string
-      summary: Start Google OAuth login
+                type: object
+                properties:
+                  error:
+                    type: string
+        '401':
+          description: invalid_client.
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '503':
+          description: temporarily_unavailable.
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  /auth/revoke:
+    post:
+      summary: Revoke a client-owned delegation
+      description: Server-to-server client_secret_basic. Accepts a refresh or valid access credential. Unknown, already
+        revoked, and other-client credentials return success without revealing ownership.
       tags:
       - Auth
+      security:
+      - OAuthClient: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+              - token
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Revocation completed or credential unknown.
+          headers: *id001
+        '400':
+          description: invalid_request.
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '401':
+          description: invalid_client.
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '503':
+          description: temporarily_unavailable.
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  /auth/login:
+    get:
+      summary: Start registered cookie application login
+      description: Browser navigation. Requires client_id. Reuses a valid 888 session or starts Google login with
+        an independent transaction cookie. return_to is a validated relative frontend path. New accounts go to configured
+        onboarding.
+      tags:
+      - Auth
+      parameters:
+      - name: client_id
+        in: query
+        description: Registered cookie application ID.
+        required: true
+        schema:
+          type: string
+      - name: return_to
+        in: query
+        description: Relative frontend path; defaults to the registered path.
+        required: false
+        schema:
+          type: string
+      responses:
+        '303':
+          description: Google or application redirect.
+          headers: &id001
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+          content:
+            text/html:
+              schema:
+                type: string
+        '400':
+          description: Invalid application or return path.
+          headers: *id001
+          content:
+            text/html:
+              schema:
+                type: string
+        '429':
+          description: Pending transaction or IP limit reached.
+          headers: *id001
+          content:
+            text/html:
+              schema:
+                type: string
+        '503':
+          description: Login storage unavailable.
+          headers: *id001
+          content:
+            text/html:
+              schema:
+                type: string
   /auth/logout:
     post:
       description: Revokes the active server-side browser session and expires its cookie. If there is no active
@@ -6367,6 +6542,10 @@ components:
           type: string
       type: object
   securitySchemes:
+    OAuthClient:
+      type: http
+      scheme: basic
+      description: Backend client ID and secret; never supply from frontend JavaScript.
     CookieSession:
       description: Development browser session cookie named session. The browser sends this HttpOnly cookie automatically.
         Do not paste a cookie into Swagger's Authorize dialog. Swagger reads the CSRF token from GET /auth/me and

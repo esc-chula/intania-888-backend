@@ -225,45 +225,15 @@
     panel.appendChild(instructions);
 
     const signInButton = makeButton("Sign in with Google");
-    signInButton.addEventListener("click", async function () {
-      const popup = window.open("about:blank", "_blank");
+    signInButton.disabled = !script.dataset.loginClientId;
+    signInButton.addEventListener("click", function () {
       session.csrfToken = null;
-      session.setStatus("Starting Google sign-in...");
-      try {
-        const response = await window.fetch(
-          session.apiBaseURL + "/auth/login",
-          {
-            credentials: "include",
-            headers: { Accept: "application/json" },
-          },
-        );
-        session.recordRequestID(response.headers.get("X-Request-ID"));
-        if (!response.ok) {
-          throw new Error(
-            "Sign-in could not start (HTTP " + response.status + ").",
-          );
-        }
-
-        const login = await response.json();
-        if (!login.url) {
-          throw new Error("The sign-in response did not include a URL.");
-        }
-
-        session.setStatus(
-          "Sign-in opened in another tab. After returning to the app, refresh the session here.",
-        );
-        if (popup) {
-          popup.opener = null;
-          popup.location.href = login.url;
-        } else {
-          window.location.assign(login.url);
-        }
-      } catch (error) {
-        if (popup) {
-          popup.close();
-        }
-        session.setStatus(error.message);
-      }
+      const login = new URL(session.apiBaseURL + "/auth/login");
+      login.searchParams.set("client_id", script.dataset.loginClientId);
+      window.open(login.toString(), "_blank", "noopener");
+      session.setStatus(
+        "Sign-in opened in another tab. After returning to the app, refresh the session here.",
+      );
     });
     panel.appendChild(signInButton);
 
