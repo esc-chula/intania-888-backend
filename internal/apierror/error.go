@@ -15,6 +15,9 @@ const RequestIDHeader = "X-Request-ID"
 
 // Public error codes form the stable API failure contract.
 const (
+	// CodeLegacyAuthRetired identifies a closed legacy authentication migration window.
+	CodeLegacyAuthRetired = "LEGACY_AUTH_RETIRED"
+
 	// CodeInvalidRequest identifies invalid request input.
 	CodeInvalidRequest = "INVALID_REQUEST"
 

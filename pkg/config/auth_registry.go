@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 	"unicode"
 
 	"gopkg.in/yaml.v3"
@@ -38,8 +39,25 @@ type AuthRegistry struct {
 	Google  struct {
 		CallbackURI string `yaml:"callback_uri"`
 	} `yaml:"google"`
-	Lifetimes    AuthLifetimes     `yaml:"lifetimes"`
-	Applications []AuthApplication `yaml:"applications"`
+	LegacyExternalTokens LegacyExternalTokens `yaml:"legacy_external_tokens"`
+	Lifetimes            AuthLifetimes        `yaml:"lifetimes"`
+	Applications         []AuthApplication    `yaml:"applications"`
+}
+
+// LegacyExternalTokens defines a bounded migration window for unscoped credentials.
+// An empty or elapsed cutoff disables both issuance and authentication.
+type LegacyExternalTokens struct {
+	AcceptUntil string `yaml:"accept_until"`
+}
+
+// AcceptsLegacyExternalTokens reports whether the explicitly configured migration window is open.
+func (r *AuthRegistry) AcceptsLegacyExternalTokens(now time.Time) bool {
+	if r == nil || r.LegacyExternalTokens.AcceptUntil == "" {
+		return false
+	}
+
+	cutoff, err := time.Parse(time.RFC3339, r.LegacyExternalTokens.AcceptUntil)
+	return err == nil && now.Before(cutoff)
 }
 
 // AuthLifetimes defines protocol and delegation durations in seconds.
@@ -151,6 +169,12 @@ func (r *AuthRegistry) Validate(environment, cors string) error {
 	production := environment == "production"
 	if r.Version != authRegistryVersion || len(r.Applications) == 0 {
 		return fmt.Errorf("auth registry requires version %d and applications", authRegistryVersion)
+	}
+
+	if r.LegacyExternalTokens.AcceptUntil != "" {
+		if _, err := time.Parse(time.RFC3339, r.LegacyExternalTokens.AcceptUntil); err != nil {
+			return fmt.Errorf("legacy_external_tokens.accept_until must be an RFC3339 timestamp: %w", err)
+		}
 	}
 
 	t := r.Lifetimes

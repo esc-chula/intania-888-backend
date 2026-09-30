@@ -50,16 +50,14 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fi
 	router.Post("/logout", h.Logout)
 	router.Get("/me", authenticate, h.GetMe)
 
-	// Deprecated: external-token management remains available only while the
-	// external integration and its consumers are investigated.
+	// Legacy issuance is available only during an explicit migration window.
+	// Revocation remains available after retirement.
 	router.Post("/external-tokens", authenticate, admin, h.IssueExternalToken)
 	router.Delete("/external-tokens/:id", authenticate, admin, h.RevokeExternalToken)
 }
 
-// RegisterExternalRoutes registers the legacy profile route behind external bearer authentication.
-//
-// Deprecated: external API consumers have not been confirmed; keep this route
-// available until the original integration is understood.
+// RegisterExternalRoutes registers the profile route behind scoped delegated authentication.
+// Legacy bearer credentials require an explicitly configured migration window.
 func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, authenticate fiber.Handler) {
 	router.Get("/me", authenticate, h.GetExternalMe)
 }
@@ -146,6 +144,9 @@ func (h *HTTPHandler) IssueExternalToken(c *fiber.Ctx) error {
 	}
 
 	issued, err := h.service.IssueExternalToken(c.UserContext(), req.UserID)
+	if errors.Is(err, ErrLegacyExternalTokensRetired) {
+		return apierror.Wrap(err, fiber.StatusGone, apierror.CodeLegacyAuthRetired, "Legacy external token issuance is retired; use application authorization")
+	}
 	if err != nil {
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Token service is unavailable")
 	}

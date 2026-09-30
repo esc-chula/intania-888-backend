@@ -246,7 +246,8 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*Service, *memoryAuthRep
 		},
 		oauth: config.OAuth{
 			Registry: &config.AuthRegistry{
-				Lifetimes: config.AuthLifetimes{Login: 120, Access: 3600},
+				LegacyExternalTokens: config.LegacyExternalTokens{AcceptUntil: time.Now().Add(time.Hour).UTC().Format(time.RFC3339)},
+				Lifetimes:            config.AuthLifetimes{Login: 120, Access: 3600},
 			},
 		},
 	}

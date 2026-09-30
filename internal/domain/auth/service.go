@@ -214,6 +214,10 @@ func (s *Service) Logout(ctx context.Context, sessionID string) error {
 // IssueExternalToken signs a JWT using the registry access-token lifetime and records its active subject binding.
 // Its result carries the same lifetime used for JWT expiry and the Redis binding.
 func (s *Service) IssueExternalToken(ctx context.Context, subjectID string) (*IssuedExternalToken, error) {
+	if !s.cfg.GetOAuth().Registry.AcceptsLegacyExternalTokens(time.Now()) {
+		return nil, ErrLegacyExternalTokensRetired
+	}
+
 	subject, err := s.userRepo.GetByID(ctx, subjectID)
 	if err != nil {
 		return nil, err
@@ -227,7 +231,15 @@ func (s *Service) IssueExternalToken(ctx context.Context, subjectID string) (*Is
 		return nil, errors.New("access token lifetime is not configured")
 	}
 
-	tokenSeconds := registry.Lifetimes.Access
+	cutoff, err := time.Parse(time.RFC3339, registry.LegacyExternalTokens.AcceptUntil)
+	if err != nil {
+		return nil, ErrLegacyExternalTokensRetired
+	}
+
+	tokenSeconds := min(registry.Lifetimes.Access, int(time.Until(cutoff)/time.Second))
+	if tokenSeconds <= 0 {
+		return nil, ErrLegacyExternalTokensRetired
+	}
 
 	jti, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
 	if err != nil {

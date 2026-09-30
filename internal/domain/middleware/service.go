@@ -51,6 +51,10 @@ func (s *Service) GetSession(ctx context.Context, id string) (*security.Session,
 
 // VerifyExternalToken checks JWT claims and the active subject binding used for revocation.
 func (s *Service) VerifyExternalToken(ctx context.Context, token string) (string, error) {
+	if !s.cfg.GetOAuth().Registry.AcceptsLegacyExternalTokens(time.Now()) {
+		return "", ErrExternalMissing
+	}
+
 	subject, jti, err := security.JWTParseExternalToken(
 		token,
 		s.cfg.GetJWT().AccessTokenSecret,
@@ -101,6 +105,10 @@ var ErrExternalScope = errors.New("external scope missing")
 func (s *Service) VerifyScopedExternalToken(ctx context.Context, token, scope string) (string, error) {
 	claims, err := security.ParseDelegatedToken(token, s.cfg.GetJWT().AccessTokenSecret, s.cfg.GetServer().Name)
 	if err != nil {
+		if !s.cfg.GetOAuth().Registry.AcceptsLegacyExternalTokens(time.Now()) {
+			return "", ErrExternalMissing
+		}
+
 		return s.VerifyExternalToken(ctx, token)
 	}
 	if s.grants == nil {
