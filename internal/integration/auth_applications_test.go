@@ -1,6 +1,6 @@
 //go:build integration
 
-package auth
+package integration
 
 import (
 	"context"
@@ -21,14 +21,103 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
 
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/domain/auth"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	oauthpkg "github.com/esc-chula/intania-888-backend/pkg/oauth"
 )
 
+type applicationAuthConfig struct {
+	server config.Server
+	jwt    config.JWT
+	oauth  config.OAuth
+}
+
+func (c applicationAuthConfig) GetServer() config.Server { return c.server }
+func (c applicationAuthConfig) GetDB() config.DB         { return config.DB{} }
+func (c applicationAuthConfig) GetJWT() config.JWT       { return c.jwt }
+func (c applicationAuthConfig) GetOAuth() config.OAuth   { return c.oauth }
+func (c applicationAuthConfig) GetSession() config.Session {
+	return config.Session{
+		IdleTTLSeconds:     config.DefaultSessionIdleTTLSeconds,
+		AbsoluteTTLSeconds: config.DefaultSessionAbsoluteTTLSeconds,
+	}
+}
+func (c applicationAuthConfig) GetSwagger() config.Swagger         { return config.Swagger{} }
+func (c applicationAuthConfig) GetCORS() config.CORS               { return config.CORS{} }
+func (c applicationAuthConfig) GetDailyReward() config.DailyReward { return config.DailyReward{} }
+
+type applicationUsers struct {
+	mu    sync.Mutex
+	users map[string]identity.User
+}
+
+func newApplicationUsers() *applicationUsers {
+	return &applicationUsers{users: make(map[string]identity.User)}
+}
+
+func (r *applicationUsers) Create(_ context.Context, user *identity.User) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.users[user.ID] = *user
+	return nil
+}
+
+func (r *applicationUsers) GetByID(_ context.Context, id string) (*identity.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	user, ok := r.users[id]
+	if !ok {
+		return nil, identity.ErrUserNotFound
+	}
+	return &user, nil
+}
+
+func (r *applicationUsers) GetByEmail(_ context.Context, email string) (*identity.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, user := range r.users {
+		if user.Email == email {
+			return &user, nil
+		}
+	}
+	return nil, identity.ErrUserNotFound
+}
+
+type applicationGoogleClient struct {
+	config *oauth2.Config
+	info   *oauthpkg.GoogleUserInfo
+}
+
+func (c applicationGoogleClient) GetUserInfo(context.Context, string, string) (*oauthpkg.GoogleUserInfo, error) {
+	return c.info, nil
+}
+
+func (c applicationGoogleClient) OAuthConfig() *oauth2.Config { return c.config }
+
+type applicationPolicyChecker struct{}
+
+func (applicationPolicyChecker) EvaluateLogin(context.Context, string, string, string) (security.PolicyDecision, error) {
+	return security.PolicyDecision{Allowed: true}, nil
+}
+
+func (applicationPolicyChecker) IsBlacklisted(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+// applicationTokens decodes the public token response without importing HTTP implementation types.
+type applicationTokens struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	UserID       string `json:"user_id"`
+}
+
 type applicationTestConfig struct {
-	authTestConfig
+	applicationAuthConfig
 	redis config.Cache
 }
 
@@ -49,12 +138,12 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	}
 
 	t.Setenv("INTANIA_GAMES_CLIENT_SECRET", strings.Repeat("s", 32))
-	registry, err := config.LoadAuthRegistry("../../../config/auth.development.yaml", "development", "http://localhost:3001", os.Getenv)
+	registry, err := config.LoadAuthRegistry("../../config/auth.development.yaml", "development", "http://localhost:3001", os.Getenv)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cfg := applicationTestConfig{
-		authTestConfig: authTestConfig{
+		applicationAuthConfig: applicationAuthConfig{
 			server: config.Server{Name: "integration-888", Env: "development"},
 			jwt:    config.JWT{AccessTokenSecret: strings.Repeat("j", 32)},
 			oauth:  config.OAuth{Registry: registry},
@@ -67,17 +156,17 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	users := newMemoryUserRepository()
-	google := fakeGoogleOAuthClient{
+	users := newApplicationUsers()
+	google := applicationGoogleClient{
 		config: &oauth2.Config{ClientID: "google", RedirectURL: registry.Google.CallbackURI, Endpoint: oauth2.Endpoint{AuthURL: "https://accounts.example.test/authorize"}},
 		info:   &oauthpkg.GoogleUserInfo{ID: "integration-player", Email: "player@student.chula.ac.th", Name: "Player", VerifiedEmail: true},
 	}
-	policy := testPolicyChecker{}
-	service := NewService(NewRedisRepository(client), users, cfg, google, policy)
+	policy := applicationPolicyChecker{}
+	service := auth.NewService(auth.NewRedisRepository(client), users, cfg, google, policy)
 	mid := middleware.NewHTTPHandler(middleware.NewService(users, middleware.NewRedisSessionStore(client), cfg, policy), false, cfg.GetSession().IdleTTLSeconds)
-	h := NewHTTPHandler(service, mid, cfg, false)
+	h := auth.NewHTTPHandler(service, mid, cfg, false)
 	h.ConfigureApplications(service, client)
-	app := newFiberTestApp()
+	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
 	router := app.Group("/api/v1")
 	h.RegisterRoutes(router, mid.AuthMiddleware)
 	h.RegisterExternalRoutes(router.Group("/external"), mid.ExternalAPIMiddleware)
@@ -161,7 +250,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	}
 	exchange.Set("code_verifier", verifier)
 	response := call("POST", "/api/v1/auth/token", exchange.Encode(), "", "")
-	var tokens tokenResponse
+	var tokens applicationTokens
 	if err := json.NewDecoder(response.Body).Decode(&tokens); err != nil || response.StatusCode != 200 || tokens.UserID != "integration-player" {
 		t.Fatalf("exchange: %d, %v", response.StatusCode, err)
 	}
@@ -177,7 +266,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 
 	refresh := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tokens.RefreshToken}}
 	refreshed := call("POST", "/api/v1/auth/token", refresh.Encode(), "", "")
-	var renewed tokenResponse
+	var renewed applicationTokens
 	if err := json.NewDecoder(refreshed.Body).Decode(&renewed); err != nil || refreshed.StatusCode != 200 || renewed.RefreshToken == tokens.RefreshToken {
 		t.Fatal("refresh did not rotate")
 	}
