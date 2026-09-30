@@ -34,22 +34,29 @@ func (c securityValidationConfig) GetDailyReward() DailyReward {
 }
 
 func validSecurityConfig(env string) securityValidationConfig {
+	registry := &AuthRegistry{
+		Version:      1,
+		Lifetimes:    AuthLifetimes{Login: 600, Code: 60, Access: 3600, Idle: 604800, Absolute: 2592000},
+		Applications: []AuthApplication{{ID: "web", Mode: CookieApplication, FrontendOrigin: "http://localhost:3001", DefaultReturnPath: "/", OnboardingPath: "/register", LoginErrorPath: "/login-error"}},
+	}
+	registry.Google.CallbackURI = "http://localhost:8080/api/v1/auth/callback"
+
 	return securityValidationConfig{
 		server: configServer{Name: "intania", Env: env, URL: "http://api.example.test/api/v1"},
 		jwt: JWT{
 			AccessTokenSecret: strings.Repeat("a", 32),
 		},
 		oauth: OAuth{
-			ClientID:        "client-id",
-			ClientSecret:    "client-secret",
-			RedirectURL:     "http://api.example.test/api/v1/auth/callback",
-			StateExpiration: 600,
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURL:  "http://localhost:8080/api/v1/auth/callback",
+			Registry:     registry,
 		},
 		session: Session{
 			IdleTTLSeconds:     DefaultSessionIdleTTLSeconds,
 			AbsoluteTTLSeconds: DefaultSessionAbsoluteTTLSeconds,
 		},
-		cors: CORS{AllowOrigins: "http://frontend.example.test"},
+		cors: CORS{AllowOrigins: "http://localhost:3001"},
 	}
 }
 
@@ -68,6 +75,8 @@ func TestValidateSecurityRejectsProductionInsecureConfiguration(t *testing.T) {
 	cfg = validSecurityConfig("production")
 	cfg.server.URL = "https://api.example.test/api/v1"
 	cfg.oauth.RedirectURL = "https://api.example.test/api/v1/auth/callback"
+	cfg.oauth.Registry.Google.CallbackURI = cfg.oauth.RedirectURL
+	cfg.oauth.Registry.Applications[0].FrontendOrigin = "https://frontend.example.test"
 	cfg.cors.AllowOrigins = "https://frontend.example.test"
 	if err := ValidateSecurity(cfg); err != nil {
 		t.Fatalf("ValidateSecurity() rejected valid production configuration: %v", err)

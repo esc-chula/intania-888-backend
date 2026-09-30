@@ -82,7 +82,6 @@ func NewViperConfig() *viperConfig {
 		}
 		cfg.Registry = registry
 		cfg.RedirectURL = registry.Google.CallbackURI
-		cfg.StateExpiration = registry.Lifetimes.Login
 
 		instance = cfg
 	})

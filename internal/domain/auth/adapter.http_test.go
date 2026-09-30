@@ -43,7 +43,7 @@ func (s fakeAuthService) IssueExternalToken(context.Context, string) (*IssuedExt
 func (s fakeAuthService) RevokeExternalToken(context.Context, string) error { return nil }
 
 func newHTTPConfig(env string) config.Config {
-	return authTestConfig{server: config.Server{Env: env}, oauth: config.OAuth{StateExpiration: 600}}
+	return authTestConfig{server: config.Server{Env: env}, oauth: config.OAuth{Registry: &config.AuthRegistry{Lifetimes: config.AuthLifetimes{Login: 600}}}}
 }
 
 func TestLoginAndCallbackCookiePolicy(t *testing.T) {

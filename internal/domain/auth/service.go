@@ -73,10 +73,12 @@ func (s *Service) StartOAuthLogin(ctx context.Context) (*OAuthLogin, error) {
 		return nil, err
 	}
 
-	ttl := s.cfg.GetOAuth().StateExpiration
-	if ttl <= 0 {
-		ttl = 600
+	registry := s.cfg.GetOAuth().Registry
+	if registry == nil || registry.Lifetimes.Login <= 0 {
+		return nil, errors.New("login transaction lifetime is not configured")
 	}
+
+	ttl := registry.Lifetimes.Login
 
 	if err = s.authRepo.StoreOAuthState(
 		ctx,

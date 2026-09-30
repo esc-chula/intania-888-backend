@@ -69,13 +69,11 @@ type JWT struct {
 }
 
 // OAuth contains Google client credentials and fixed login redirect destinations.
-// StateExpiration is measured in seconds.
 type OAuth struct {
-	ClientID        string        `mapstructure:"oauth_client_id"`
-	ClientSecret    string        `mapstructure:"oauth_client_secret"`
-	RedirectURL     string        `mapstructure:"-"`
-	StateExpiration int           `mapstructure:"-"`
-	Registry        *AuthRegistry `mapstructure:"-"`
+	ClientID     string        `mapstructure:"oauth_client_id"`
+	ClientSecret string        `mapstructure:"oauth_client_secret"`
+	RedirectURL  string        `mapstructure:"-"`
+	Registry     *AuthRegistry `mapstructure:"-"`
 }
 
 // Session contains browser session lifetimes measured in seconds.

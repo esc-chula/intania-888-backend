@@ -57,7 +57,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 		authTestConfig: authTestConfig{
 			server: config.Server{Name: "integration-888", Env: "development"},
 			jwt:    config.JWT{AccessTokenSecret: strings.Repeat("j", 32)},
-			oauth:  config.OAuth{Registry: registry, StateExpiration: registry.Lifetimes.Login},
+			oauth:  config.OAuth{Registry: registry},
 		},
 		redis: config.Cache{Host: host, Port: port, Password: os.Getenv("INTANIA888_TEST_REDIS_PASSWORD")},
 	}

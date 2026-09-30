@@ -33,8 +33,8 @@ func ValidateSecurity(cfg Config) error {
 	if strings.TrimSpace(oauth.ClientID) == "" || strings.TrimSpace(oauth.ClientSecret) == "" {
 		return fmt.Errorf("OAuth client ID and secret are required")
 	}
-	if oauth.StateExpiration <= 0 {
-		return fmt.Errorf("OAUTH_STATE_EXPIRATION must be positive")
+	if oauth.Registry == nil {
+		return fmt.Errorf("auth registry is required")
 	}
 	if session.IdleTTLSeconds <= 0 {
 		return fmt.Errorf("SESSION_IDLE_TTL_SECONDS must be positive")

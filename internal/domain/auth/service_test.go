@@ -246,9 +246,8 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*Service, *memoryAuthRep
 		},
 		oauth: config.OAuth{
 			Registry: &config.AuthRegistry{
-				Lifetimes: config.AuthLifetimes{Access: 3600},
+				Lifetimes: config.AuthLifetimes{Login: 120, Access: 3600},
 			},
-			StateExpiration: 120,
 		},
 	}
 	verifier := new(string)
