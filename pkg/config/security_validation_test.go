@@ -40,11 +40,10 @@ func validSecurityConfig(env string) securityValidationConfig {
 			AccessTokenSecret: strings.Repeat("a", 32),
 		},
 		oauth: OAuth{
-			ClientID:             "client-id",
-			ClientSecret:         "client-secret",
-			RedirectURL:          "http://api.example.test/api/v1/auth/callback",
-			PostLoginRedirectURL: "http://frontend.example.test/app",
-			StateExpiration:      600,
+			ClientID:        "client-id",
+			ClientSecret:    "client-secret",
+			RedirectURL:     "http://api.example.test/api/v1/auth/callback",
+			StateExpiration: 600,
 		},
 		session: Session{
 			IdleTTLSeconds:     DefaultSessionIdleTTLSeconds,
@@ -69,7 +68,6 @@ func TestValidateSecurityRejectsProductionInsecureConfiguration(t *testing.T) {
 	cfg = validSecurityConfig("production")
 	cfg.server.URL = "https://api.example.test/api/v1"
 	cfg.oauth.RedirectURL = "https://api.example.test/api/v1/auth/callback"
-	cfg.oauth.PostLoginRedirectURL = "https://frontend.example.test/app"
 	cfg.cors.AllowOrigins = "https://frontend.example.test"
 	if err := ValidateSecurity(cfg); err != nil {
 		t.Fatalf("ValidateSecurity() rejected valid production configuration: %v", err)
@@ -90,9 +88,14 @@ func TestValidateSecurityRejectsWildcardAndNonExactOrigins(t *testing.T) {
 	}
 }
 
-func TestValidateSecurityRequiresFixedPostLoginRedirectOrigin(t *testing.T) {
+func TestValidateSecurityRequiresRegisteredFrontendOrigin(t *testing.T) {
 	cfg := validSecurityConfig("development")
-	cfg.oauth.PostLoginRedirectURL = "http://other-frontend.example.test/app"
+	cfg.oauth.Registry = &AuthRegistry{
+		Version:      1,
+		Lifetimes:    AuthLifetimes{Login: 600, Code: 60, Access: 3600, Idle: 604800, Absolute: 2592000},
+		Applications: []AuthApplication{{ID: "web", Mode: CookieApplication, FrontendOrigin: "http://other-frontend.example.test", DefaultReturnPath: "/", OnboardingPath: "/register", LoginErrorPath: "/login-error"}},
+	}
+	cfg.oauth.Registry.Google.CallbackURI = "http://localhost:8080/api/v1/auth/callback"
 	if err := ValidateSecurity(cfg); err == nil {
 		t.Fatal("ValidateSecurity() accepted a frontend origin not present in CORS_ALLOW_ORIGINS")
 	}

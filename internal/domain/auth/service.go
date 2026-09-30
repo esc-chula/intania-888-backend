@@ -209,11 +209,6 @@ func (s *Service) Logout(ctx context.Context, sessionID string) error {
 	return s.authRepo.DeleteSession(ctx, security.ToSessionCacheKey(sessionID))
 }
 
-// GetPostLoginRedirectURL returns the configured frontend destination without accepting a caller-supplied redirect.
-func (s *Service) GetPostLoginRedirectURL() string {
-	return s.cfg.GetOAuth().PostLoginRedirectURL
-}
-
 // IssueExternalToken signs a JWT using the registry access-token lifetime and records its active subject binding.
 // Its result carries the same lifetime used for JWT expiry and the Redis binding.
 func (s *Service) IssueExternalToken(ctx context.Context, subjectID string) (*IssuedExternalToken, error) {

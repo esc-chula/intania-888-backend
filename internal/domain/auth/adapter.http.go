@@ -3,7 +3,6 @@ package auth
 import (
 	"crypto/subtle"
 	"errors"
-	"net/url"
 	"strings"
 	"time"
 
@@ -35,24 +34,19 @@ func (h *HTTPHandler) sessionName() string {
 	return security.SessionCookieName(h.production)
 }
 
-func (h *HTTPHandler) oauthName() string {
-	return security.OAuthCookieName(h.production)
-}
-
 // RegisterRoutes registers login, callback, logout, and authenticated profile routes.
 // External-token administration requires both authentication and administrator middleware.
 func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fiber.Handler) {
 	router = router.Group("/auth")
-	if h.applications != nil {
-		router.Get("/login", h.applications.Login)
-		router.Get("/callback", h.applications.Callback)
-		router.Get("/authorize", h.applications.Authorize)
-		router.Post("/token", h.applications.Token)
-		router.Post("/revoke", h.applications.Revoke)
-	} else {
-		router.Get("/login", h.Login)
-		router.Get("/callback", h.OAuthCallback)
+	if h.applications == nil {
+		panic("application authentication must be configured before registering routes")
 	}
+
+	router.Get("/login", h.applications.Login)
+	router.Get("/callback", h.applications.Callback)
+	router.Get("/authorize", h.applications.Authorize)
+	router.Post("/token", h.applications.Token)
+	router.Post("/revoke", h.applications.Revoke)
 	router.Post("/logout", h.Logout)
 	router.Get("/me", authenticate, h.GetMe)
 
@@ -68,75 +62,6 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fi
 // available until the original integration is understood.
 func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, authenticate fiber.Handler) {
 	router.Get("/me", authenticate, h.GetExternalMe)
-}
-
-// Login returns the authorization URL and binds its state to a short-lived HttpOnly cookie.
-func (h *HTTPHandler) Login(c *fiber.Ctx) error {
-	setNoStoreHeaders(c)
-
-	if _, ok := c.Queries()["redirect_to"]; ok {
-		return apierror.New(fiber.StatusBadRequest, apierror.CodeInvalidRequest, "redirect_to is not supported")
-	}
-
-	login, err := h.service.StartOAuthLogin(c.UserContext())
-	if err != nil || login == nil || login.URL == "" || login.State == "" {
-		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "OAuth login is unavailable")
-	}
-
-	ttl := 600
-	if h.cfg != nil && h.cfg.GetOAuth().StateExpiration > 0 {
-		ttl = h.cfg.GetOAuth().StateExpiration
-	}
-
-	c.Cookie(&fiber.Cookie{
-		Name:     h.oauthName(),
-		Value:    login.State,
-		Path:     "/",
-		MaxAge:   ttl,
-		HTTPOnly: true,
-		Secure:   h.production,
-		SameSite: fiber.CookieSameSiteLaxMode,
-	})
-
-	return c.JSON(LoginResponse{URL: login.URL})
-}
-
-// OAuthCallback exchanges the browser-bound login request, sets the session cookie, and redirects to the fixed frontend URL.
-func (h *HTTPHandler) OAuthCallback(c *fiber.Ctx) error {
-	setNoStoreHeaders(c)
-
-	credentials, err := h.service.VerifyOAuthLogin(
-		c.UserContext(),
-		c.Query("code"),
-		c.Query("state"),
-		c.Cookies(h.oauthName()),
-		c.Cookies(h.sessionName()),
-	)
-	if err != nil {
-		return mapAuthError(err)
-	}
-
-	if credentials == nil || credentials.SessionID == "" {
-		return apierror.New(fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
-	}
-
-	redirect, err := h.postLoginRedirect(credentials.IsNewUser)
-	if err != nil {
-		return apierror.Wrap(err, fiber.StatusInternalServerError, apierror.CodeInternalError, "Post-login redirect is not configured")
-	}
-
-	c.Cookie(&fiber.Cookie{
-		Name:     h.sessionName(),
-		Value:    credentials.SessionID,
-		Path:     "/",
-		MaxAge:   h.cfg.GetSession().IdleTTLSeconds,
-		HTTPOnly: true,
-		Secure:   h.production,
-		SameSite: fiber.CookieSameSiteLaxMode,
-	})
-	h.clearCookie(c, h.oauthName(), true)
-
-	return c.Redirect(redirect)
 }
 
 // Logout checks CSRF for an active browser session, revokes it, and clears its cookie.
@@ -259,27 +184,6 @@ func (h *HTTPHandler) clearCookie(c *fiber.Ctx, name string, httpOnly bool) {
 		Secure:   strings.HasPrefix(name, "__Host-"),
 		SameSite: fiber.CookieSameSiteLaxMode,
 	})
-}
-
-func (h *HTTPHandler) postLoginRedirect(isNew bool) (string, error) {
-	raw := strings.TrimSpace(h.service.GetPostLoginRedirectURL())
-	parsed, err := url.Parse(raw)
-
-	if err != nil || parsed.Host == "" ||
-		(parsed.Scheme != "http" && parsed.Scheme != "https") ||
-		parsed.User != nil || parsed.Fragment != "" {
-		return "", errors.New("invalid post-login redirect")
-	}
-
-	q := parsed.Query()
-	q.Del("is_new_user")
-	if isNew {
-		q.Set("is_new_user", "true")
-	}
-
-	parsed.RawQuery = q.Encode()
-
-	return parsed.String(), nil
 }
 
 func setNoStoreHeaders(c *fiber.Ctx) {

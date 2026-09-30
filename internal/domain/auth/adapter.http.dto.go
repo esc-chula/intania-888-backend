@@ -6,11 +6,6 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
 )
 
-// LoginResponse returns the browser-bound OAuth authorization URL.
-type LoginResponse struct {
-	URL string `json:"url"`
-}
-
 // ExternalMeResponse returns the profile authenticated by an external Bearer token.
 type ExternalMeResponse struct {
 	Profile *httpidentity.ProfileResponse `json:"profile"`

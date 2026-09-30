@@ -248,8 +248,7 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*Service, *memoryAuthRep
 			Registry: &config.AuthRegistry{
 				Lifetimes: config.AuthLifetimes{Access: 3600},
 			},
-			StateExpiration:      120,
-			PostLoginRedirectURL: "https://frontend.example.test/after-login?source=oauth",
+			StateExpiration: 120,
 		},
 	}
 	verifier := new(string)

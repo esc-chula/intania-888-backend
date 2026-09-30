@@ -15,8 +15,6 @@ type ServicePort interface {
 	VerifyOAuthLogin(context.Context, string, string, string, string) (*SessionCredentials, error)
 	// Logout revokes the session identified by its opaque ID; absent sessions already count as logged out.
 	Logout(context.Context, string) error
-	// GetPostLoginRedirectURL returns the configured fixed frontend destination.
-	GetPostLoginRedirectURL() string
 	// IssueExternalToken returns a JWT, revocation ID, and configured lifetime for an existing subject.
 	IssueExternalToken(context.Context, string) (*IssuedExternalToken, error)
 	// RevokeExternalToken removes the active subject binding for a token identifier.

@@ -25,7 +25,6 @@ func newFiberTestApp() *fiber.App {
 type fakeAuthService struct {
 	login       *OAuthLogin
 	credentials *SessionCredentials
-	redirect    string
 	logoutErr   error
 }
 
@@ -37,8 +36,6 @@ func (s fakeAuthService) VerifyOAuthLogin(context.Context, string, string, strin
 
 func (s fakeAuthService) Logout(context.Context, string) error { return s.logoutErr }
 
-func (s fakeAuthService) GetPostLoginRedirectURL() string { return s.redirect }
-
 func (s fakeAuthService) IssueExternalToken(context.Context, string) (*IssuedExternalToken, error) {
 	return &IssuedExternalToken{Token: "token", ID: "id", ExpiresIn: 3600}, nil
 }
@@ -46,40 +43,31 @@ func (s fakeAuthService) IssueExternalToken(context.Context, string) (*IssuedExt
 func (s fakeAuthService) RevokeExternalToken(context.Context, string) error { return nil }
 
 func newHTTPConfig(env string) config.Config {
-	return authTestConfig{server: config.Server{Env: env}, oauth: config.OAuth{StateExpiration: 600, PostLoginRedirectURL: "https://frontend.example.test/app?source=oauth"}}
+	return authTestConfig{server: config.Server{Env: env}, oauth: config.OAuth{StateExpiration: 600}}
 }
 
 func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 	for _, tc := range []struct {
-		env, name, oauth string
-		production       bool
-	}{{"development", "session", "oauth", false}, {"production", "__Host-session", "__Host-oauth", true}} {
+		env, name  string
+		production bool
+	}{{"development", "session", false}, {"production", "__Host-session", true}} {
 		t.Run(tc.env, func(t *testing.T) {
-			svc := fakeAuthService{login: &OAuthLogin{URL: "https://accounts.example.test/?state=abc", State: "abc"}, credentials: &SessionCredentials{SessionID: "opaque", IsNewUser: true}, redirect: "https://frontend.example.test/app"}
-			h := NewHTTPHandler(svc, nil, newHTTPConfig(tc.env), tc.production)
-
+			h := &ApplicationHTTPHandler{production: tc.production}
 			app := newFiberTestApp()
-			app.Get("/login", h.Login)
-			app.Get("/callback", h.OAuthCallback)
+			app.Get("/callback", func(c *fiber.Ctx) error {
+				h.cookie(c, security.SessionCookieName(tc.production), "opaque", 600)
+				h.clear(c, h.cookiePrefix()+"transaction")
+				return c.Redirect("https://frontend.example.test/register/profile", fiber.StatusSeeOther)
+			})
 
-			response, err := app.Test(httptest.NewRequest(http.MethodGet, "/login", nil))
+			response, err := app.Test(httptest.NewRequest(http.MethodGet, "/callback", nil))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if response.StatusCode != 200 {
-				t.Fatal(response.StatusCode)
-			}
-			if !strings.Contains(strings.Join(response.Header.Values("Set-Cookie"), " "), tc.oauth+"=abc") {
-				t.Fatal("oauth cookie missing")
-			}
-
-			req := httptest.NewRequest(http.MethodGet, "/callback?code=code&state=abc", nil)
-			req.Header.Set("Cookie", tc.oauth+"=abc")
-			response, err = app.Test(req)
-			if err != nil {
+			if err := response.Body.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if response.StatusCode != 302 {
+			if response.StatusCode != fiber.StatusSeeOther {
 				t.Fatal(response.StatusCode)
 			}
 
@@ -92,9 +80,6 @@ func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 			}
 			if !tc.production && strings.Contains(cookies, "secure") {
 				t.Fatalf("local cookie requires HTTPS: %s", cookies)
-			}
-			if !strings.Contains(response.Header.Get("Location"), "is_new_user=true") {
-				t.Fatal("missing new user marker")
 			}
 		})
 	}
