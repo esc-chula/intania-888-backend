@@ -84,7 +84,7 @@ func TestColorHTTPPreservesRowsEmptyListsFiltersAndContext(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if response.StatusCode != 200 || string(body) != test.want {
+			if response.StatusCode != fiber.StatusOK || string(body) != test.want {
 				t.Fatalf("status/body = %d %s, want 200 %s", response.StatusCode, body, test.want)
 			}
 			if service.context != ctx || service.invocations != 1 {

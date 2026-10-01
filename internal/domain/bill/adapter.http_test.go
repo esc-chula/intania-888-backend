@@ -135,7 +135,7 @@ func TestCreateBillStrictMoneyContract(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if res.StatusCode != 400 {
+		if res.StatusCode != fiber.StatusBadRequest {
 			t.Fatalf("body %s returned %d", body, res.StatusCode)
 		}
 	}
@@ -151,7 +151,7 @@ func TestCreateBillStrictMoneyContract(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if res.StatusCode != 201 {
+	if res.StatusCode != fiber.StatusCreated {
 		t.Fatalf("status=%d", res.StatusCode)
 	}
 

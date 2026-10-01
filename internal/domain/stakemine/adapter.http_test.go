@@ -120,7 +120,7 @@ func TestHistoryPreservesLimitClampAndEmptyArray(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 200 || service.limit != 100 || service.offset != 2 || body.Data == nil || body.Limit != 100 || body.Offset != 2 {
+	if response.StatusCode != fiber.StatusOK || service.limit != 100 || service.offset != 2 || body.Data == nil || body.Limit != 100 || body.Offset != 2 {
 		t.Fatalf("pagination/empty shape changed: service=%+v body=%+v", service, body)
 	}
 }

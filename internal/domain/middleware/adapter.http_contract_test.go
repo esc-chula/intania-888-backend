@@ -68,7 +68,7 @@ func TestAccountFailuresPreserveBrowserAndExternalAuthenticationContract(t *test
 			}
 			app.Get("/private", authenticate, func(c *fiber.Ctx) error {
 				t.Error("account lookup failure reached the downstream handler")
-				return c.SendStatus(204)
+				return c.SendStatus(fiber.StatusNoContent)
 			})
 			request := httptest.NewRequest("GET", "/private", nil)
 			if test.external {

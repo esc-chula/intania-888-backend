@@ -170,7 +170,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	router := app.Group("/api/v1")
 	h.RegisterRoutes(router, mid.AuthMiddleware)
 	h.RegisterExternalRoutes(router.Group("/external"), mid.RequireExternalScope)
-	router.Post("/external/deduct-coin", mid.RequireExternalScope(config.ScopeCoinsSpend), func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	router.Post("/external/deduct-coin", mid.RequireExternalScope(config.ScopeCoinsSpend), func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
 
 	call := func(method, path, body, cookie, bearer string) *http.Response {
 		t.Helper()
@@ -195,7 +195,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 
 	first := call("GET", "/api/v1/auth/login?client_id=intania-888-web&return_to=%2Fbills", "", "", "")
 	second := call("GET", "/api/v1/auth/login?client_id=intania-888-web", "", "", "")
-	if first.StatusCode != 303 || second.StatusCode != 303 {
+	if first.StatusCode != fiber.StatusSeeOther || second.StatusCode != fiber.StatusSeeOther {
 		t.Fatal("login did not redirect")
 	}
 	firstURL, _ := url.Parse(first.Header.Get("Location"))
@@ -207,11 +207,11 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	state := firstURL.Query().Get("state")
 	callback := "/api/v1/auth/callback?code=google-code&state=" + state
 	wrongBrowser := call("GET", callback, "", "", "")
-	if wrongBrowser.StatusCode != 400 {
+	if wrongBrowser.StatusCode != fiber.StatusBadRequest {
 		t.Fatal("accepted callback without browser binding")
 	}
 	completed := call("GET", callback, "", first.Cookies()[0].String(), "")
-	if completed.StatusCode != 303 || !strings.Contains(completed.Header.Get("Location"), "/register/profile?return_to=%2Fbills") {
+	if completed.StatusCode != fiber.StatusSeeOther || !strings.Contains(completed.Header.Get("Location"), "/register/profile?return_to=%2Fbills") {
 		t.Fatalf("new user destination: %d %s", completed.StatusCode, completed.Header.Get("Location"))
 	}
 	var sessionCookie string
@@ -223,7 +223,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	if sessionCookie == "" {
 		t.Fatal("session missing")
 	}
-	if replay := call("GET", callback, "", first.Cookies()[0].String(), ""); replay.StatusCode != 400 {
+	if replay := call("GET", callback, "", first.Cookies()[0].String(), ""); replay.StatusCode != fiber.StatusBadRequest {
 		t.Fatal("callback replay accepted")
 	}
 
@@ -238,42 +238,42 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 		t.Helper()
 		response := call("GET", "/api/v1/auth/authorize?"+parameters.Encode(), "", sessionCookie, "")
 		location, _ := url.Parse(response.Header.Get("Location"))
-		if response.StatusCode != 303 || location.Host != "localhost:3002" || location.Query().Get("state") != "game-state" || location.Query().Get("code") == "" {
+		if response.StatusCode != fiber.StatusSeeOther || location.Host != "localhost:3002" || location.Query().Get("state") != "game-state" || location.Query().Get("code") == "" {
 			t.Fatalf("authorize: %d %s", response.StatusCode, location)
 		}
 		return location.Query().Get("code")
 	}
 	code := authorize()
 	exchange := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {"http://localhost:3002/auth/callback"}, "code_verifier": {strings.Repeat("x", 43)}}
-	if response := call("POST", "/api/v1/auth/token", exchange.Encode(), "", ""); response.StatusCode != 400 {
+	if response := call("POST", "/api/v1/auth/token", exchange.Encode(), "", ""); response.StatusCode != fiber.StatusBadRequest {
 		t.Fatal("wrong verifier accepted")
 	}
 	exchange.Set("code_verifier", verifier)
 	response := call("POST", "/api/v1/auth/token", exchange.Encode(), "", "")
 	var tokens applicationTokens
-	if err := json.NewDecoder(response.Body).Decode(&tokens); err != nil || response.StatusCode != 200 || tokens.UserID != "integration-player" {
+	if err := json.NewDecoder(response.Body).Decode(&tokens); err != nil || response.StatusCode != fiber.StatusOK || tokens.UserID != "integration-player" {
 		t.Fatalf("exchange: %d, %v", response.StatusCode, err)
 	}
-	if replay := call("POST", "/api/v1/auth/token", exchange.Encode(), "", ""); replay.StatusCode != 400 {
+	if replay := call("POST", "/api/v1/auth/token", exchange.Encode(), "", ""); replay.StatusCode != fiber.StatusBadRequest {
 		t.Fatal("code replay accepted")
 	}
-	if me := call("GET", "/api/v1/external/me", "", "", tokens.AccessToken); me.StatusCode != 200 {
+	if me := call("GET", "/api/v1/external/me", "", "", tokens.AccessToken); me.StatusCode != fiber.StatusOK {
 		t.Fatalf("profile: %d", me.StatusCode)
 	}
-	if spend := call("POST", "/api/v1/external/deduct-coin", "", "", tokens.AccessToken); spend.StatusCode != 403 {
+	if spend := call("POST", "/api/v1/external/deduct-coin", "", "", tokens.AccessToken); spend.StatusCode != fiber.StatusForbidden {
 		t.Fatalf("missing spend scope: %d", spend.StatusCode)
 	}
 
 	refresh := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tokens.RefreshToken}}
 	refreshed := call("POST", "/api/v1/auth/token", refresh.Encode(), "", "")
 	var renewed applicationTokens
-	if err := json.NewDecoder(refreshed.Body).Decode(&renewed); err != nil || refreshed.StatusCode != 200 || renewed.RefreshToken == tokens.RefreshToken {
+	if err := json.NewDecoder(refreshed.Body).Decode(&renewed); err != nil || refreshed.StatusCode != fiber.StatusOK || renewed.RefreshToken == tokens.RefreshToken {
 		t.Fatal("refresh did not rotate")
 	}
-	if replay := call("POST", "/api/v1/auth/token", refresh.Encode(), "", ""); replay.StatusCode != 400 {
+	if replay := call("POST", "/api/v1/auth/token", refresh.Encode(), "", ""); replay.StatusCode != fiber.StatusBadRequest {
 		t.Fatal("refresh replay accepted")
 	}
-	if me := call("GET", "/api/v1/external/me", "", "", renewed.AccessToken); me.StatusCode != 401 {
+	if me := call("GET", "/api/v1/external/me", "", "", renewed.AccessToken); me.StatusCode != fiber.StatusUnauthorized {
 		t.Fatal("refresh replay did not revoke grant")
 	}
 
@@ -321,13 +321,13 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	revoked := call("POST", "/api/v1/auth/revoke", url.Values{"token": {tokens.RefreshToken}}.Encode(), "", "")
-	if revoked.StatusCode != 200 {
+	if revoked.StatusCode != fiber.StatusOK {
 		t.Fatal("revocation failed")
 	}
-	if me := call("GET", "/api/v1/external/me", "", "", tokens.AccessToken); me.StatusCode != 401 {
+	if me := call("GET", "/api/v1/external/me", "", "", tokens.AccessToken); me.StatusCode != fiber.StatusUnauthorized {
 		t.Fatal("revoked token accepted")
 	}
-	if browser := call("GET", "/api/v1/auth/me", "", sessionCookie, ""); browser.StatusCode != 200 {
+	if browser := call("GET", "/api/v1/auth/me", "", sessionCookie, ""); browser.StatusCode != fiber.StatusOK {
 		t.Fatal("delegation revocation revoked browser session")
 	}
 

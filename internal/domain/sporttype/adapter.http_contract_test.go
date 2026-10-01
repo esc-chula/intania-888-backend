@@ -61,7 +61,7 @@ func TestSportTypeHTTPPreservesCatalogueEmptyListsAndContext(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if response.StatusCode != 200 || string(body) != test.want || service.context != ctx {
+			if response.StatusCode != fiber.StatusOK || string(body) != test.want || service.context != ctx {
 				t.Fatalf("status/body/context = %d %s %v", response.StatusCode, body, service.context)
 			}
 		})
@@ -86,7 +86,7 @@ func TestSportTypeHTTPRedactsDependencyErrorsAndCorrelatesRequest(t *testing.T) 
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 500 || body.Code != "INTERNAL_ERROR" || strings.Contains(body.Message, "database secret") || body.RequestID == "" || body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
+	if response.StatusCode != fiber.StatusInternalServerError || body.Code != "INTERNAL_ERROR" || strings.Contains(body.Message, "database secret") || body.RequestID == "" || body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
 		t.Fatalf("unsafe or changed error response: status=%d body=%+v", response.StatusCode, body)
 	}
 }

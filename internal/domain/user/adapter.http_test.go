@@ -102,7 +102,7 @@ func TestDeprecatedUpdateUserDelegatesToOwnProfileAndPreservesWireShape(t *testi
 	if service.actorID != "actor" || service.input.Name == nil || *service.input.Name != "Updated" {
 		t.Fatalf("profile update was not delegated for the authenticated actor: actor=%q input=%+v", service.actorID, service.input)
 	}
-	if response.StatusCode != 200 || body["remaining_coin"] != "123.45" || body["nick_name"] != nil || body["group_id"] != nil || body["created_at"] != "0001-01-01T00:00:00Z" || len(body) != 8 {
+	if response.StatusCode != fiber.StatusOK || body["remaining_coin"] != "123.45" || body["nick_name"] != nil || body["group_id"] != nil || body["created_at"] != "0001-01-01T00:00:00Z" || len(body) != 8 {
 		t.Fatalf("wire shape changed: status=%d body=%+v", response.StatusCode, body)
 	}
 }

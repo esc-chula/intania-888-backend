@@ -64,7 +64,7 @@ func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 	id := c.Cookies(h.sessionName())
 	if id == "" {
 		h.clearCookie(c, h.sessionName(), true)
-		return c.SendStatus(204)
+		return c.SendStatus(fiber.StatusNoContent)
 	}
 
 	if h.sessions == nil {
@@ -76,7 +76,7 @@ func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 		if errors.Is(err, middleware.ErrSessionMissing) {
 			h.clearCookie(c, h.sessionName(), true)
 
-			return c.SendStatus(204)
+			return c.SendStatus(fiber.StatusNoContent)
 		}
 
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
@@ -93,7 +93,7 @@ func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 
 	h.clearCookie(c, h.sessionName(), true)
 
-	return c.SendStatus(204)
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // GetMe returns the authenticated browser profile and its session-bound CSRF token.

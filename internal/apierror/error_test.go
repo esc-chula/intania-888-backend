@@ -26,13 +26,13 @@ func TestErrorHandlerMapsWrappedAndUnknownErrors(t *testing.T) {
 	}{
 		{
 			name:   "wrapped typed conflict",
-			err:    fmtError(apierror.Wrap(errors.New("database detail"), 409, "DAILY_REWARD_ALREADY_CLAIMED", "Daily reward already claimed")),
-			status: 409, code: "DAILY_REWARD_ALREADY_CLAIMED", message: "Daily reward already claimed", mustHide: "database detail",
+			err:    fmtError(apierror.Wrap(errors.New("database detail"), fiber.StatusConflict, "DAILY_REWARD_ALREADY_CLAIMED", "Daily reward already claimed")),
+			status: fiber.StatusConflict, code: "DAILY_REWARD_ALREADY_CLAIMED", message: "Daily reward already claimed", mustHide: "database detail",
 		},
 		{
 			name:   "unknown error is redacted",
 			err:    errors.New("private database password"),
-			status: 500, code: "INTERNAL_ERROR", message: "Internal server error", mustHide: "private database password",
+			status: fiber.StatusInternalServerError, code: "INTERNAL_ERROR", message: "Internal server error", mustHide: "private database password",
 		},
 	}
 

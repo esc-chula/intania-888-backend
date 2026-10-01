@@ -51,7 +51,7 @@ func (h *HTTPHandler) CreateBill(c *fiber.Ctx) error {
 		return mapBillError(err)
 	}
 
-	return c.Status(201).JSON(billResultDTO(v))
+	return c.Status(fiber.StatusCreated).JSON(billResultDTO(v))
 }
 
 // GetBill returns one bill belonging to the authenticated actor.

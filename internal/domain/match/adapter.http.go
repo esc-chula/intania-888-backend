@@ -52,7 +52,7 @@ func (h *HTTPHandler) CreateMatch(c *fiber.Ctx) error {
 		return mapMatchError(e)
 	}
 
-	return c.Status(201).JSON(fiber.Map{"message": "Created match successful"})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Created match successful"})
 }
 
 // GetMatch returns one fixture with its current authoritative betting rates.

@@ -41,7 +41,7 @@ func TestGetUserInfoPropagatesContextAndPKCE(t *testing.T) {
 		} else if r.Header.Get("Authorization") != "Bearer access" {
 			t.Fatal("userinfo access token absent")
 		}
-		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 	})
 	httpClient := &http.Client{Transport: transport}
 	previous := http.DefaultClient

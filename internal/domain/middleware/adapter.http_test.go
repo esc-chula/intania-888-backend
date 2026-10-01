@@ -27,7 +27,7 @@ func TestDependencyFailureUsesSharedErrorContractAndRequestID(t *testing.T) {
 	service := fakeMiddlewareService{sessionErr: errors.New("redis unavailable")}
 	mid := NewHTTPHandler(service, false, config.DefaultSessionIdleTTLSeconds)
 	app := newFiberTestApp()
-	app.Get("/private", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	app.Get("/private", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
 
 	request := httptest.NewRequest(http.MethodGet, "/private", nil)
 	request.AddCookie(&http.Cookie{Name: mid.CookieName(), Value: "opaque"})
@@ -75,14 +75,14 @@ func TestBrowserSessionAndCSRF(t *testing.T) {
 	service := fakeMiddlewareService{session: &security.Session{UserID: "user-id", CSRFToken: "secret"}, user: &identity.Profile{ID: "user-id", Email: "u@example.test"}}
 	mid := NewHTTPHandler(service, false, config.DefaultSessionIdleTTLSeconds)
 	app := newFiberTestApp()
-	app.Post("/update", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	app.Post("/update", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
 	req := httptest.NewRequest(http.MethodPost, "/update", nil)
 	req.Header.Set("Authorization", "Bearer token")
 	response, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 401 {
+	if response.StatusCode != fiber.StatusUnauthorized {
 		t.Fatal(response.StatusCode)
 	}
 	req = httptest.NewRequest(http.MethodPost, "/update", nil)
@@ -91,7 +91,7 @@ func TestBrowserSessionAndCSRF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 403 {
+	if response.StatusCode != fiber.StatusForbidden {
 		t.Fatal(response.StatusCode)
 	}
 	req.Header.Set("X-CSRF-Token", "secret")
@@ -99,20 +99,20 @@ func TestBrowserSessionAndCSRF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 204 {
+	if response.StatusCode != fiber.StatusNoContent {
 		t.Fatal(response.StatusCode)
 	}
 	service.sessionErr = errors.New("redis down")
 	mid = NewHTTPHandler(service, false, config.DefaultSessionIdleTTLSeconds)
 	app = newFiberTestApp()
-	app.Get("/read", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	app.Get("/read", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
 	req = httptest.NewRequest(http.MethodGet, "/read", nil)
 	req.Header.Set("Cookie", "session=opaque")
 	response, err = app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 503 || len(response.Header.Values("Set-Cookie")) != 0 {
+	if response.StatusCode != fiber.StatusServiceUnavailable || len(response.Header.Values("Set-Cookie")) != 0 {
 		t.Fatal("uncertain session should preserve cookie")
 	}
 }
@@ -120,14 +120,14 @@ func TestExternalIgnoresBrowserCookie(t *testing.T) {
 	service := fakeMiddlewareService{user: &identity.Profile{ID: "user-id", Email: "u@example.test"}}
 	mid := NewHTTPHandler(service, false, config.DefaultSessionIdleTTLSeconds)
 	app := newFiberTestApp()
-	app.Get("/external", mid.RequireExternalScope(config.ScopeProfileRead), func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	app.Get("/external", mid.RequireExternalScope(config.ScopeProfileRead), func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
 	req := httptest.NewRequest(http.MethodGet, "/external", nil)
 	req.Header.Set("Cookie", "session=opaque")
 	response, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 401 {
+	if response.StatusCode != fiber.StatusUnauthorized {
 		t.Fatal(response.StatusCode)
 	}
 	req.Header.Set("Authorization", "Bearer external")
@@ -135,7 +135,7 @@ func TestExternalIgnoresBrowserCookie(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 204 {
+	if response.StatusCode != fiber.StatusNoContent {
 		t.Fatal(response.StatusCode)
 	}
 }
@@ -144,14 +144,14 @@ func TestMissingStoredSessionClearsCookie(t *testing.T) {
 	service := fakeMiddlewareService{sessionErr: ErrSessionMissing}
 	mid := NewHTTPHandler(service, false, config.DefaultSessionIdleTTLSeconds)
 	app := newFiberTestApp()
-	app.Get("/read", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(204) })
+	app.Get("/read", mid.AuthMiddleware, func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
 	req := httptest.NewRequest(http.MethodGet, "/read", nil)
 	req.Header.Set("Cookie", "session=opaque")
 	response, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != 401 || len(response.Header.Values("Set-Cookie")) == 0 {
+	if response.StatusCode != fiber.StatusUnauthorized || len(response.Header.Values("Set-Cookie")) == 0 {
 		t.Fatal("stale session did not return 401 and clear cookie")
 	}
 }
