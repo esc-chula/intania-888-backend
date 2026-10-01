@@ -170,8 +170,8 @@ type SportType struct {
 type Location struct {
 	ID        string    `gorm:"primaryKey;type:varchar(100)"`
 	Title     string    `gorm:"type:varchar(100);not null"`
-	CreatedAt time.Time `
-	UpdatedAt time.Time `
+	CreatedAt time.Time ``
+	UpdatedAt time.Time ``
 
 	Matches []Match `gorm:"foreignKey:LocationID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 }

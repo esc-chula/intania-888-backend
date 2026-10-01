@@ -1,3 +1,4 @@
+// Package docs embeds the manually maintained OpenAPI contract.
 package docs
 
 import "embed"
