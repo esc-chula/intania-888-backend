@@ -18,6 +18,7 @@ servers:
 paths:
   /auth/callback:
     get:
+      operationId: completeGoogleAuthentication
       summary: Complete Google authentication and resume the application flow
       description: Checks the transaction-specific browser binding and consumes Google state once. Sets the opaque
         888 session and redirects to the cookie frontend or registered application callback with a one-use code. Validated
@@ -83,6 +84,7 @@ paths:
                 $ref: '#/components/schemas/apierror.Response'
   /auth/authorize:
     get:
+      operationId: authorizeApplication
       summary: Authorize a registered backend application
       description: Uses the 888 browser session or Google login. Requires an exact registered redirect_uri, response_type=code,
         client state, allowed scopes, and S256 PKCE. Only operator-registered first-party clients are supported.
@@ -166,6 +168,7 @@ paths:
                 type: string
   /auth/token:
     post:
+      operationId: exchangeApplicationToken
       summary: Exchange a code or rotate a refresh credential
       description: Server-to-server endpoint authenticated with client_secret_basic. Browser cookies and CSRF are
         not used. Codes are one-use and bound to client, callback and PKCE. Refresh reuse revokes the entire delegation.
@@ -227,6 +230,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                - error
                 properties:
                   error:
                     type: string
@@ -237,6 +242,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                - error
                 properties:
                   error:
                     type: string
@@ -247,6 +254,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                - error
                 properties:
                   error:
                     type: string
@@ -263,6 +272,7 @@ paths:
                 $ref: '#/components/schemas/apierror.Response'
   /auth/revoke:
     post:
+      operationId: revokeApplicationToken
       summary: Revoke a client-owned delegation
       description: Server-to-server client_secret_basic. Accepts a refresh or valid access credential. Unknown, already
         revoked, and other-client credentials return success without revealing ownership.
@@ -296,6 +306,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                - error
                 properties:
                   error:
                     type: string
@@ -306,6 +318,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                - error
                 properties:
                   error:
                     type: string
@@ -316,6 +330,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                - error
                 properties:
                   error:
                     type: string
@@ -332,6 +348,7 @@ paths:
                 $ref: '#/components/schemas/apierror.Response'
   /auth/login:
     get:
+      operationId: startBrowserLogin
       summary: Start registered cookie application login
       description: Browser navigation. Requires client_id. Reuses a valid 888 session or starts Google login with
         an independent transaction cookie. return_to is a validated relative frontend path. New accounts go to configured
@@ -386,6 +403,7 @@ paths:
                 type: string
   /auth/logout:
     post:
+      operationId: logoutBrowserSession
       description: Revokes the active server-side browser session and expires its cookie. If there is no active
         session, logout succeeds idempotently. When a session is active, send the session-bound X-CSRF-Token from
         GET /auth/me.
@@ -449,6 +467,7 @@ paths:
       - Auth
   /auth/me:
     get:
+      operationId: getBrowserSession
       description: Returns the profile for the current browser session and a session-bound csrf_token. Keep the
         token in memory and send it in X-CSRF-Token on browser mutations; do not persist it in local storage.
       responses:
@@ -508,6 +527,7 @@ paths:
       - Auth
   /auth/policies:
     get:
+      operationId: listAccessPolicies
       description: Administrator-only. Lists access policies. Optional filters select kind, identity category, and
         active/inactive/all state. Pages contain up to 200 records and use an opaque next_cursor.
       parameters:
@@ -644,6 +664,7 @@ paths:
       tags:
       - Auth Policy
     post:
+      operationId: createAccessPolicy
       description: Administrator-only. Creates an allowlist or blacklist policy for an email address or Google subject.
         The identity is normalized by the server; duplicate active policy identities conflict.
       parameters:
@@ -769,6 +790,7 @@ paths:
       - Auth Policy
   /auth/policies/{id}:
     delete:
+      operationId: disableAccessPolicy
       description: Administrator-only. Disables a policy while retaining its audit history. It does not physically
         delete the policy record.
       parameters:
@@ -874,6 +896,7 @@ paths:
       tags:
       - Auth Policy
     patch:
+      operationId: updateAccessPolicy
       description: Administrator-only. Changes the policy reason, expiry, or enabled state. The policy ID, kind,
         principal type, and principal are immutable.
       parameters:
@@ -1005,6 +1028,7 @@ paths:
       - Auth Policy
   /bills:
     get:
+      operationId: listOwnBills
       description: Returns the authenticated account’s bills in the server’s existing order. Each bill includes
         its lines, status, exact-decimal total, and any settlement or void details.
       responses:
@@ -1063,6 +1087,7 @@ paths:
       tags:
       - Bill
     post:
+      operationId: createBill
       description: Places a bill for the authenticated account. Supply a positive total and at least one line with
         a match ID and selection. The server validates the match and selection and calculates the applicable rates;
         clients must not submit rates.
@@ -1215,6 +1240,7 @@ paths:
       - Bill
   /bills/{id}:
     get:
+      operationId: getBill
       description: Returns one bill only when it belongs to the authenticated account. The response includes line
         selections, server-calculated rates, settlement status, and exact-decimal amounts.
       parameters:
@@ -1306,6 +1332,7 @@ paths:
       - Bill
   /bills/admin/{id}/void:
     put:
+      operationId: voidBill
       description: Administrator-only. Voids a pending bill and refunds its stake. A bill that has already been
         settled or voided cannot be refunded again. Supply an audit reason in the request body.
       parameters:
@@ -1450,6 +1477,7 @@ paths:
       - Bill
   /bills/admin/all:
     get:
+      operationId: listAllBills
       description: Administrator-only. Returns all bills across accounts for administrative review.
       responses:
         '200':
@@ -1520,6 +1548,7 @@ paths:
       - Bill
   /colors/group-stage:
     get:
+      operationId: getColorGroupStage
       description: Returns standings for the selected group and optional sport type, calculated from completed match
         results. Omit either UUID filter to include all groups or sport types for that dimension. No session is
         required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use
@@ -1604,6 +1633,7 @@ paths:
       - Color
   /colors/leaderboards:
     get:
+      operationId: getColorLeaderboards
       description: Returns color standings calculated from completed matches. An optional sport-type ID limits the
         results to one sport. No session is required. Account allowlist and blacklist checks do not apply. Browser
         requests with an Origin must use one configured on the server.
@@ -1681,6 +1711,7 @@ paths:
       - Color
   /events/daily-rewards:
     get:
+      operationId: getDailyRewardSchedule
       description: Administrator-only. Returns the configured default daily reward and the date-specific overrides
         currently in effect.
       responses:
@@ -1765,6 +1796,7 @@ paths:
       - Event
   /events/daily-rewards/{date}:
     delete:
+      operationId: deleteDailyRewardOverride
       description: Administrator-only. Removes the override for the supplied DD-MM-YYYY date so the configured default
         reward applies again.
       parameters:
@@ -1890,6 +1922,7 @@ paths:
       tags:
       - Event
     put:
+      operationId: setDailyRewardOverride
       description: Administrator-only. Creates or replaces the reward override for a DD-MM-YYYY date. Repeating
         the same request is safe.
       parameters:
@@ -2011,6 +2044,7 @@ paths:
       - Event
   /events/redeem/daily:
     get:
+      operationId: redeemDailyReward
       description: Claims the configured daily reward for the authenticated account. Each account can claim once
         per reward day; a repeated claim returns a conflict.
       responses:
@@ -2110,6 +2144,7 @@ paths:
       - Event
   /events/spin/slot:
     post:
+      operationId: spinSlot
       description: Spends one supported stake amount (50.00, 100.00, or 500.00) on a slot-machine spin. The server
         checks the account balance and returns the committed reward, slot result, and any token granted.
       parameters:
@@ -2245,6 +2280,7 @@ paths:
       - Event
   /events/use-steal-token:
     post:
+      operationId: useStealToken
       description: Uses an eligible steal token against the selected candidate. The server validates token ownership
         and availability, applies the transfer atomically, and returns the result and updated balances.
       parameters:
@@ -2396,6 +2432,7 @@ paths:
       - Event
   /locations:
     get:
+      operationId: listLocations
       description: Returns the configured venue catalogue. Each item contains the stable location ID and its current
         display title. No session is required. Account allowlist and blacklist checks do not apply. Browser requests
         with an Origin must use one configured on the server.
@@ -2451,6 +2488,7 @@ paths:
       - Location
   /locations/{id}:
     get:
+      operationId: getLocation
       description: Returns one configured venue by its stable ID. No session is required. Account allowlist and
         blacklist checks do not apply. Browser requests with an Origin must use one configured on the server.
       parameters:
@@ -2533,6 +2571,7 @@ paths:
       - Location
   /locations/admin:
     post:
+      operationId: createLocation
       description: Administrator-only. Adds a location with an immutable ID and a trimmed display title. Duplicate
         IDs return 409; duplicate titles are allowed.
       parameters:
@@ -2649,6 +2688,7 @@ paths:
       - Location
   /locations/admin/{id}:
     delete:
+      operationId: deleteLocation
       description: Administrator-only. Deletes an unused location. A location referenced by any match cannot be
         deleted; reassign or remove those matches first.
       parameters:
@@ -2769,6 +2809,7 @@ paths:
       tags:
       - Location
     patch:
+      operationId: updateLocation
       description: Administrator-only. Changes the display title while keeping the location ID stable. Existing
         matches continue to reference the renamed location.
       parameters:
@@ -2891,6 +2932,7 @@ paths:
       - Location
   /matches:
     get:
+      operationId: listMatches
       description: Lists fixtures grouped by start date and sport type. Every match includes its assigned location
         object ({id, title}). Optionally filter by sport-type ID and choose schedule or result grouping. No session
         is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use
@@ -2975,6 +3017,7 @@ paths:
       tags:
       - Match
     post:
+      operationId: createMatch
       description: Administrator-only. Creates a fixture with two team IDs, a sport-type ID, a required location_id
         from GET /locations, and start/end timestamps. The end time must be later than the start time.
       parameters:
@@ -3089,6 +3132,7 @@ paths:
       - Match
   /matches/{id}:
     delete:
+      operationId: deleteMatch
       description: Administrator-only. Deletes the selected fixture when domain constraints allow it. A missing
         match returns 404.
       parameters:
@@ -3200,6 +3244,7 @@ paths:
       tags:
       - Match
     get:
+      operationId: getMatch
       description: Returns one fixture with its schedule, scores, outcome, current server-calculated rates, and
         its assigned location object ({id, title}). No session is required. Account allowlist and blacklist checks
         do not apply. Browser requests with an Origin must use one configured on the server.
@@ -3274,6 +3319,7 @@ paths:
       tags:
       - Match
     put:
+      operationId: updateMatch
       description: Administrator-only. Partially updates fixture details. Include at least one supported field;
         omitted fields remain unchanged. If both timestamps are present, end_time must be later than start_time.
       parameters:
@@ -3407,6 +3453,7 @@ paths:
       - Match
   /matches/{id}/result:
     put:
+      operationId: setMatchResult
       description: Administrator-only. Sets the terminal outcome to winner or draw. For winner, supply winner_id
         with the winning team ID; omit it for draw. Bill settlement runs atomically. Repeating the same result is
         idempotent; a conflicting result returns 409.
@@ -3554,6 +3601,7 @@ paths:
       - Match
   /matches/{id}/score:
     patch:
+      operationId: updateMatchScore
       description: Administrator-only. Updates both team scores. Scores must be nonnegative integers; zero is valid.
       parameters:
       - description: Match ID
@@ -3686,6 +3734,7 @@ paths:
       - Match
   /matches/current/time:
     get:
+      operationId: getCurrentMatchTime
       description: Returns the backend’s current UTC time for clients that need to compare or display match schedules.
         No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin
         must use one configured on the server.
@@ -3730,6 +3779,7 @@ paths:
       - Match
   /mines/{id}:
     get:
+      operationId: getMineGame
       description: Returns the selected Stake Mines game only when it belongs to the authenticated account, including
         its state, tiles, wager, and current payout where applicable.
       parameters:
@@ -3821,6 +3871,7 @@ paths:
       - StakeMines
   /mines/{id}/cashout:
     post:
+      operationId: cashOutMineGame
       description: Cashes out an active game owned by the authenticated account. The server locks the game, credits
         the final payout, and returns the settled game and balance values.
       parameters:
@@ -3957,6 +4008,7 @@ paths:
       - StakeMines
   /mines/{id}/reveal:
     post:
+      operationId: revealMineTile
       description: Reveals the requested tile in an active game owned by the authenticated account. A mine ends
         the game; a safe tile updates the current payout and multiplier.
       parameters:
@@ -4101,6 +4153,7 @@ paths:
       - StakeMines
   /mines/active:
     get:
+      operationId: getActiveMineGame
       description: Returns the authenticated account’s active game. Returns 404 when no active game exists.
       responses:
         '200':
@@ -4184,6 +4237,7 @@ paths:
       - StakeMines
   /mines/create:
     post:
+      operationId: createMineGame
       description: Starts a Stake Mines game using a wager from 1.00 through 1000000.00 and one supported risk level
         (low, medium, or high). The stake is deducted atomically; insufficient balance or an existing active game
         is rejected.
@@ -4336,6 +4390,7 @@ paths:
       - StakeMines
   /mines/history:
     get:
+      operationId: listMineGameHistory
       description: Returns the authenticated account’s newest-first game history. Use limit and offset to page through
         results.
       parameters:
@@ -4436,6 +4491,7 @@ paths:
       - StakeMines
   /mines/stats:
     get:
+      operationId: getMineGameStats
       description: Returns the authenticated account’s realized totals, win rate, and current active exposure.
       responses:
         '200':
@@ -4506,6 +4562,7 @@ paths:
       - StakeMines
   /sport-types:
     get:
+      operationId: listSportTypes
       description: Returns the sport-type catalogue. IDs are stable keys; titles are mutable and may be duplicated.
         No session is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin
         must use one configured on the server.
@@ -4563,6 +4620,7 @@ paths:
       - SportType
   /sport-types/{id}:
     get:
+      operationId: getSportType
       description: Returns one sport type by its stable ID. No session is required. Account allowlist and blacklist
         checks do not apply. Browser requests with an Origin must use one configured on the server.
       parameters:
@@ -4650,6 +4708,7 @@ paths:
       - SportType
   /sport-types/admin:
     post:
+      operationId: createSportType
       description: Administrator-only. Creates a sport type. IDs and trimmed titles must each contain 1–100 characters;
         IDs accept ASCII letters, digits, underscores, and hyphens. Duplicate titles are allowed.
       parameters:
@@ -4776,6 +4835,7 @@ paths:
       - SportType
   /sport-types/admin/{id}:
     delete:
+      operationId: deleteSportType
       description: Administrator-only. Deletes an unused sport type. If matches, tournament groups, or stages still
         reference it, the server returns 409 SPORT_TYPE_IN_USE and preserves the records.
       parameters:
@@ -4908,6 +4968,7 @@ paths:
       tags:
       - SportType
     patch:
+      operationId: updateSportType
       description: Administrator-only. Renames a sport type without changing its stable ID. Only title is accepted;
         trim it to 1–100 characters. Duplicate titles are allowed.
       parameters:
@@ -5040,6 +5101,7 @@ paths:
       - SportType
   /users:
     get:
+      operationId: listUsers
       description: Returns account profiles visible to the authenticated caller, including the fields used by catalogue
         and leaderboard screens.
       responses:
@@ -5112,6 +5174,7 @@ paths:
       - User
   /users/{id}:
     get:
+      operationId: getUser
       description: Returns one account profile by ID.
       parameters:
       - description: User ID
@@ -5187,6 +5250,7 @@ paths:
       tags:
       - User
     patch:
+      operationId: updateUserLegacy
       deprecated: true
       description: Deprecated compatibility alias for PATCH /users/me. The path ID must match the authenticated
         account; use /users/me for new clients.
@@ -5319,6 +5383,7 @@ paths:
       - User
   /users/admin/{id}:
     patch:
+      operationId: adminUpdateUser
       description: Administrator-only. Updates administrator-editable profile fields and coin balance. Role changes
         use the operator database workflow.
       parameters:
@@ -5450,6 +5515,7 @@ paths:
       - User
   /users/me:
     patch:
+      operationId: updateOwnProfile
       description: Updates the authenticated account’s supplied name, nick_name, and group_id fields. Omitted fields
         remain unchanged; nullable nick_name or group_id can be cleared with null.
       parameters:
@@ -5575,6 +5641,7 @@ paths:
       - User
   /external/me:
     get:
+      operationId: getDelegatedProfile
       tags:
       - External
       summary: Read the delegated account profile
@@ -5653,6 +5720,7 @@ paths:
                 $ref: '#/components/schemas/apierror.Response'
   /external/deduct-coin:
     post:
+      operationId: deductDelegatedCoins
       tags:
       - External
       summary: Deduct coins from the delegated account
@@ -5795,6 +5863,10 @@ components:
         request_id:
           description: Server-generated ID for tracing this request; also returned in X-Request-ID.
           type: string
+      required:
+      - code
+      - message
+      - request_id
       type: object
     auth.MeResponse:
       properties:
@@ -5802,6 +5874,9 @@ components:
           type: string
         profile:
           $ref: '#/components/schemas/model.UserDto'
+      required:
+      - csrf_token
+      - profile
       type: object
     event.SpinResponse:
       properties:
@@ -5818,15 +5893,20 @@ components:
           type: array
         stealToken:
           $ref: '#/components/schemas/model.StealTokenDto'
+      required:
+      - reward
+      - slots
       type: object
     model.AdminUpdateUserDto:
       properties:
         group_id:
+          nullable: true
           description: Identifier of the associated resource.
           type: string
         name:
           type: string
         nick_name:
+          nullable: true
           type: string
         remaining_coin:
           description: New account balance as a decimal JSON string; the handler writes 0.00 when this field is
@@ -5848,9 +5928,11 @@ components:
             $ref: '#/components/schemas/model.BillLineDto'
           type: array
         payout:
+          nullable: true
           description: Settlement payout as an exact-decimal string; absent until settled.
           type: string
         settled_at:
+          nullable: true
           description: Settlement timestamp in RFC 3339 format when settled.
           type: string
         status:
@@ -5864,8 +5946,18 @@ components:
           description: Identifier of the associated resource.
           type: string
         voided_at:
+          nullable: true
           description: Void timestamp in RFC 3339 format when voided.
           type: string
+      required:
+      - id
+      - lines
+      - payout
+      - settled_at
+      - status
+      - total
+      - user_id
+      - voided_at
       type: object
     model.BillLineDto:
       description: BillLineDto representation used by this API.
@@ -5885,10 +5977,17 @@ components:
           description: Server-calculated rate as a JSON string with six fractional digits.
           example: '2.000000'
           type: string
+      required:
+      - betting_on
+      - bill_id
+      - match
+      - match_id
+      - rate
       type: object
     model.CandidatePreviewDto:
       properties:
         group_id:
+          nullable: true
           description: Identifier of the associated resource.
           type: string
         index:
@@ -5898,6 +5997,11 @@ components:
         role_id:
           description: Identifier of the associated resource.
           type: string
+      required:
+      - group_id
+      - index
+      - name
+      - role_id
       type: object
     model.ColorDto:
       properties:
@@ -5914,6 +6018,12 @@ components:
           type: integer
         won:
           type: integer
+      required:
+      - drawn
+      - id
+      - lost
+      - total_matches
+      - won
       type: object
     model.CreateBillLineRequest:
       description: CreateBillLineRequest representation used by this API.
@@ -6040,6 +6150,9 @@ components:
         date:
           description: Reward date in DD-MM-YYYY format.
           type: string
+      required:
+      - amount
+      - date
       type: object
     model.DailyRewardScheduleResponse:
       properties:
@@ -6050,6 +6163,9 @@ components:
           items:
             $ref: '#/components/schemas/model.DailyRewardScheduleItem'
           type: array
+      required:
+      - default_amount
+      - overrides
       type: object
     model.LocationDto:
       description: A configured venue available for match scheduling.
@@ -6091,6 +6207,7 @@ components:
           example: '1.750000'
           type: string
         team_a_score:
+          nullable: true
           type: integer
         team_b:
           type: string
@@ -6099,6 +6216,7 @@ components:
           example: '2.500000'
           type: string
         team_b_score:
+          nullable: true
           type: integer
         type:
           type: string
@@ -6106,7 +6224,19 @@ components:
           description: Winning team ID, or empty when no winner is set.
           type: string
       required:
+      - end_time
+      - id
+      - is_draw
       - location
+      - start_time
+      - team_a
+      - team_a_rate
+      - team_a_score
+      - team_b
+      - team_b_rate
+      - team_b_score
+      - type
+      - winner
       type: object
     model.MatchResultRequest:
       description: Request to set a match to a winner or draw and settle affected bills.
@@ -6118,6 +6248,7 @@ components:
           - draw
           type: string
         winner_id:
+          nullable: true
           description: Winning team ID; required when outcome is winner and omitted for draw.
           type: string
       required:
@@ -6133,6 +6264,9 @@ components:
           items:
             $ref: '#/components/schemas/model.MatchesByType'
           type: array
+      required:
+      - date
+      - types
       type: object
     model.MatchesByType:
       properties:
@@ -6142,6 +6276,9 @@ components:
           type: array
         sportType:
           type: string
+      required:
+      - matches
+      - sportType
       type: object
     model.MineGameDto:
       description: MineGameDto representation used by this API.
@@ -6181,6 +6318,17 @@ components:
         user_id:
           description: Identifier of the associated resource.
           type: string
+      required:
+      - bet_amount
+      - created_at
+      - current_payout
+      - grid
+      - id
+      - multiplier
+      - revealed_count
+      - risk_level
+      - status
+      - user_id
       type: object
     model.MineGameHistoryDto:
       properties:
@@ -6209,14 +6357,25 @@ components:
           type: string
         status:
           type: string
+      required:
+      - bet_amount
+      - created_at
+      - final_payout
+      - game_id
+      - multiplier
+      - revealed_count
+      - risk_level
+      - status
       type: object
     model.MineGameStatsDto:
       description: MineGameStatsDto representation used by this API.
       properties:
         active_current_payout:
+          nullable: true
           description: Exact-decimal amount represented as a JSON string with two fractional digits in responses.
           type: string
         active_wagered:
+          nullable: true
           description: Exact-decimal amount represented as a JSON string with two fractional digits in responses.
           type: string
         games_cashed_out:
@@ -6240,6 +6399,17 @@ components:
           description: Percentage of completed games won.
           example: 33.333333
           type: number
+      required:
+      - active_current_payout
+      - active_wagered
+      - games_cashed_out
+      - games_lost
+      - games_won
+      - net_profit
+      - total_games
+      - total_wagered
+      - total_winnings
+      - win_rate
       type: object
     model.MineTileDto:
       properties:
@@ -6250,6 +6420,10 @@ components:
         type:
           description: diamond, bomb, hidden
           type: string
+      required:
+      - index
+      - revealed
+      - type
       type: object
     model.RevealMineTileRequest:
       properties:
@@ -6290,6 +6464,9 @@ components:
         title:
           description: Display title. Titles are not unique.
           type: string
+      required:
+      - id
+      - title
       type: object
     model.StealTokenDto:
       properties:
@@ -6303,6 +6480,11 @@ components:
           type: string
         victim_count:
           type: integer
+      required:
+      - expires_at
+      - message
+      - token
+      - victim_count
       type: object
     model.UpdateLocationRequest:
       description: Rename an existing location without changing its stable ID.
@@ -6320,23 +6502,29 @@ components:
       description: Partial match update; include at least one supported field.
       properties:
         end_time:
+          nullable: true
           description: Optional RFC 3339 timestamp.
           type: string
         location_id:
+          nullable: true
           description: Optional ID of an existing location. Omit the field to keep the current venue; an empty value
             is rejected.
           example: INDOOR_STADIUM_1
           type: string
         start_time:
+          nullable: true
           description: Optional RFC 3339 timestamp.
           type: string
         team_a:
+          nullable: true
           description: Optional ID of the first team.
           type: string
         team_b:
+          nullable: true
           description: Optional ID of the second team.
           type: string
         type:
+          nullable: true
           description: Optional stable sport-type ID.
           type: string
       type: object
@@ -6377,6 +6565,11 @@ components:
         total_stolen:
           description: Exact-decimal amount represented as a JSON string with two fractional digits in responses.
           type: string
+      required:
+      - all_candidates
+      - message
+      - raider_new_balance
+      - total_stolen
       type: object
     model.UserDto:
       description: UserDto representation used by this API.
@@ -6407,6 +6600,15 @@ components:
         role_id:
           description: Identifier of the associated resource.
           type: string
+      required:
+      - created_at
+      - email
+      - group_id
+      - id
+      - name
+      - nick_name
+      - remaining_coin
+      - role_id
       type: object
     model.VictimDetailDto:
       properties:
@@ -6417,6 +6619,7 @@ components:
           description: Exact-decimal amount represented as a JSON string with two fractional digits in responses.
           type: string
         group_id:
+          nullable: true
           description: Identifier of the associated resource.
           type: string
         index:
@@ -6431,6 +6634,15 @@ components:
           type: string
         was_chosen:
           type: boolean
+      required:
+      - amount_stolen
+      - balance_before
+      - group_id
+      - index
+      - name
+      - role_id
+      - user_id
+      - was_chosen
       type: object
     model.VoidBillRequest:
       properties:
@@ -6450,6 +6662,7 @@ components:
           description: Whether this policy currently participates in account access checks.
           type: boolean
         expires_at:
+          nullable: true
           description: Optional expiration timestamp in RFC 3339 format.
           type: string
         id:
@@ -6470,10 +6683,21 @@ components:
           description: Timestamp in RFC 3339 format.
           format: date-time
           type: string
+      required:
+      - created_at
+      - enabled
+      - expires_at
+      - id
+      - kind
+      - principal
+      - principal_type
+      - reason
+      - updated_at
       type: object
     policy.CreatePolicyRequest:
       properties:
         expires_at:
+          nullable: true
           description: Timestamp in RFC 3339 format.
           format: date-time
           type: string
@@ -6504,23 +6728,31 @@ components:
       description: PolicyListResponse representation used by this API.
       properties:
         items:
+          nullable: true
           items:
             $ref: '#/components/schemas/policy.AccessPolicy'
           type: array
         next_cursor:
+          nullable: true
           description: Opaque cursor for the next page; absent when there are no more results.
           type: string
+      required:
+      - items
+      - next_cursor
       type: object
     policy.UpdatePolicyRequest:
       properties:
         enabled:
+          nullable: true
           description: Optional enabled state; false disables the rule without deleting its audit history.
           type: boolean
         expires_at:
+          nullable: true
           description: Optional RFC 3339 timestamp. Send null to remove the expiry.
           format: date-time
           type: string
         reason:
+          nullable: true
           type: string
       type: object
     stakemine.CashOutResponse:
@@ -6529,6 +6761,9 @@ components:
           $ref: '#/components/schemas/model.MineGameDto'
         message:
           type: string
+      required:
+      - game
+      - message
       type: object
     stakemine.HistoryListResponse:
       properties:
@@ -6540,6 +6775,10 @@ components:
           type: integer
         offset:
           type: integer
+      required:
+      - data
+      - limit
+      - offset
       type: object
     stakemine.RevealTileResponse:
       properties:
@@ -6547,6 +6786,9 @@ components:
           $ref: '#/components/schemas/model.MineGameDto'
         message:
           type: string
+      required:
+      - game
+      - message
       type: object
     user.UpdateOwnProfileRequest:
       description: UpdateOwnProfileRequest representation used by this API.
