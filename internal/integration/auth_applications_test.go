@@ -186,7 +186,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	registry, err := config.LoadAuthRegistry(
 		"../../config/auth.development.yaml",
 		"development",
-		"http://localhost:3000",
+		"http://localhost:3000,http://localhost:8080",
 		os.Getenv,
 	)
 	if err != nil {
@@ -345,6 +345,12 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	}
 	if sessionCookie == "" {
 		t.Fatal("session missing")
+	}
+
+	swaggerLogin := call("GET", "/api/v1/auth/login?client_id=intania-888-swagger", "", sessionCookie, "")
+	if swaggerLogin.StatusCode != fiber.StatusSeeOther ||
+		swaggerLogin.Header.Get("Location") != "http://localhost:8080/swagger/index.html" {
+		t.Fatalf("Swagger login destination: %d %s", swaggerLogin.StatusCode, swaggerLogin.Header.Get("Location"))
 	}
 
 	if replay := call(

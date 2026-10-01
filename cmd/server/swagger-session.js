@@ -221,7 +221,7 @@
 
     const instructions = document.createElement("span");
     instructions.textContent =
-      "The browser sends its HttpOnly API cookie. Sign in here; Swagger reads /auth/me and adds CSRF to mutations.";
+      "Sign in with Google to return here with an API session. Refresh the session to enable protected mutations.";
     panel.appendChild(instructions);
 
     const signInButton = makeButton("Sign in with Google");
@@ -233,10 +233,7 @@
       session.csrfToken = null;
       const login = new URL(session.apiBaseURL + "/auth/login");
       login.searchParams.set("client_id", script.dataset.loginClientId);
-      window.open(login.toString(), "_blank", "noopener");
-      session.setStatus(
-        "Sign-in opened in another tab. After returning to the app, refresh the session here.",
-      );
+      window.location.assign(login.toString());
     });
     panel.appendChild(signInButton);
 

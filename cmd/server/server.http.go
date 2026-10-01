@@ -313,10 +313,7 @@ func (s *FiberHTTPServer) registerSwagger() {
 		responseBody := c.Response().Body()
 		// Load the embedded helper after Swagger's bundles and before initialization.
 		marker := []byte("    <script>\n    window.onload = function() {")
-		loginClientID := ""
-		if registry, ok := any(s.cfg.GetOAuth()).(interface{ CookieApplicationID() string }); ok {
-			loginClientID = registry.CookieApplicationID()
-		}
+		loginClientID := s.cfg.GetOAuth().SwaggerApplicationID(s.swaggerAPIOrigin)
 
 		injectedScript := fmt.Sprintf(
 			"    <script src=\"/swagger/swagger-session.js\" data-api-base=\"%s\" data-login-client-id=\"%s\"></script>\n%s",

@@ -21,6 +21,7 @@ type swaggerTestConfig struct {
 	server  config.Server
 	swagger config.Swagger
 	cors    config.CORS
+	oauth   config.OAuth
 }
 
 func (c swaggerTestConfig) GetServer() config.Server {
@@ -48,7 +49,7 @@ func (c swaggerTestConfig) GetJWT() config.JWT {
 }
 
 func (c swaggerTestConfig) GetOAuth() config.OAuth {
-	return config.OAuth{}
+	return c.oauth
 }
 
 func (c swaggerTestConfig) GetSession() config.Session {
@@ -66,6 +67,11 @@ func newSwaggerTestServer(t *testing.T, swaggerConfig config.Swagger) *FiberHTTP
 		server:  config.Server{URL: "http://localhost:8080/api/v1"},
 		swagger: swaggerConfig,
 		cors:    config.CORS{AllowOrigins: "http://localhost:3000"},
+		oauth: config.OAuth{Registry: &config.AuthRegistry{Applications: []config.AuthApplication{{
+			ID: "intania-888-swagger", Mode: config.CookieApplication,
+			FrontendOrigin: "http://localhost:8080", DefaultReturnPath: "/swagger/index.html",
+			OnboardingPath: "/swagger/index.html", LoginErrorPath: "/swagger/index.html",
+		}}}},
 	}, zap.NewNop())
 	if err != nil {
 		t.Fatalf("NewFiberHTTPServer() error = %v", err)
@@ -97,6 +103,9 @@ func TestSwaggerDevelopmentDoesNotRequireAuthenticationOrOrigin(t *testing.T) {
 	}
 	if !strings.Contains(string(indexBody), `data-api-base="http://localhost:8080/api/v1"`) {
 		t.Fatal("Swagger index does not include the configured API base URL")
+	}
+	if !strings.Contains(string(indexBody), `data-login-client-id="intania-888-swagger"`) {
+		t.Fatal("Swagger index does not select the registered Swagger application")
 	}
 
 	scriptResponse, err := httpServer.app.Test(

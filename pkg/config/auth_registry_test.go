@@ -35,7 +35,7 @@ func TestRegistryRejectsUnknownFieldsSecretsAndDuplicateClients(t *testing.T) {
 		if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
 			t.Fatal(err)
 		}
-		_, err := LoadAuthRegistry(path, "development", "http://localhost:3000", os.Getenv)
+		_, err := LoadAuthRegistry(path, "development", "http://localhost:3000,http://localhost:8080", os.Getenv)
 
 		return err
 	}
@@ -61,5 +61,20 @@ func TestRegistryRejectsUnknownFieldsSecretsAndDuplicateClients(t *testing.T) {
 	t.Setenv("INTANIA_GAMES_CLIENT_SECRET", "")
 	if err := load(string(contents)); err == nil {
 		t.Fatal("accepted missing client secret")
+	}
+}
+
+func TestSwaggerApplicationUsesAPIOrigin(t *testing.T) {
+	registry := &AuthRegistry{Applications: []AuthApplication{
+		{ID: "intania-888-web", Mode: CookieApplication, FrontendOrigin: "http://localhost:3000", DefaultReturnPath: "/"},
+		{ID: "intania-888-swagger", Mode: CookieApplication, FrontendOrigin: "http://localhost:8080", DefaultReturnPath: "/swagger/index.html", OnboardingPath: "/swagger/index.html", LoginErrorPath: "/swagger/index.html"},
+	}}
+	oauth := OAuth{Registry: registry}
+
+	if got := oauth.SwaggerApplicationID("http://localhost:8080"); got != "intania-888-swagger" {
+		t.Fatalf("Swagger application = %q, want intania-888-swagger", got)
+	}
+	if got := oauth.SwaggerApplicationID("http://127.0.0.1:8080"); got != "" {
+		t.Fatalf("accepted Swagger application for a different API origin: %q", got)
 	}
 }

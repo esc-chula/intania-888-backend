@@ -52,6 +52,13 @@ applications:
     onboarding_path: /register/profile
     login_error_path: /login-error
 
+  - id: intania-888-swagger
+    mode: cookie_session
+    frontend_origin: http://localhost:8080
+    default_return_path: /swagger/index.html
+    onboarding_path: /swagger/index.html
+    login_error_path: /swagger/index.html
+
   - id: intania-games
     mode: authorization_code
     redirect_uris:
@@ -74,7 +81,8 @@ Unknown YAML fields are rejected. Cookie applications cannot have delegated
 settings, and delegated applications cannot have cookie destination settings.
 Callback URLs match exactly, including path and query; production requires
 HTTPS. A cookie application's exact `frontend_origin` must appear in
-`CORS_ALLOW_ORIGINS`.
+`CORS_ALLOW_ORIGINS`. The Swagger application's origin must match the API
+origin in `SERVER_URL`; its Google callback still uses `google.callback_uri`.
 
 The displayed lifetime values are local configuration, not fixed protocol
 constants. Each must be positive. Delegation absolute lifetime must cover its

@@ -188,6 +188,11 @@ the origin check. The browser helper is maintained in
 [`cmd/server/swagger-session.js`](../cmd/server/swagger-session.js) and embedded
 in the server binary.
 
+Swagger sign-in uses its own registered cookie application and returns the
+current tab to `/swagger/index.html` after Google login. Select **Refresh
+session** there before trying protected routes. The `intania-888-web`
+application still returns to the frontend on port 3000 in development.
+
 Protected browser routes use the session cookie; their mutations also require
 the CSRF header and an allowed Origin. Public shared reads do not require a
 session. The separate backend integration's Bearer flow is described under

@@ -36,7 +36,9 @@ migrations.
 
    The default 888 frontend origin is `http://localhost:3000`. Keep it in
    `CORS_ALLOW_ORIGINS` and in the `intania-888-web` registration in
-   `config/auth.development.yaml`. Set `AUTH_CONFIG_FILE` to that registry.
+   `config/auth.development.yaml`. The Swagger login registration uses
+   `http://localhost:8080`; keep that origin in `CORS_ALLOW_ORIGINS` too. Set
+   `AUTH_CONFIG_FILE` to that registry.
    Google uses `google.callback_uri`; each application has its own frontend
    or backend callback registration. Set `INTANIA_GAMES_CLIENT_SECRET` to a
    random secret of at least 32 characters when using the Games registration,

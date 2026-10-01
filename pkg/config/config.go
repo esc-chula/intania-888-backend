@@ -95,16 +95,19 @@ type Swagger struct {
 	Password    string `mapstructure:"swagger_password"`
 }
 
-// CookieApplicationID identifies the first registered browser application for documentation login.
-// An empty result means browser login is unavailable to the documentation UI.
-func (o OAuth) CookieApplicationID() string {
-	if o.Registry != nil {
-		for _, application := range o.Registry.Applications {
-			if application.Mode == CookieApplication {
-				return application.ID
-			}
-		}
+// SwaggerApplicationID returns the cookie application registered for this API origin.
+func (o OAuth) SwaggerApplicationID(apiOrigin string) string {
+	if o.Registry == nil {
+		return ""
 	}
 
-	return ""
+	app, ok := o.Registry.Application("intania-888-swagger")
+	if !ok || app.Mode != CookieApplication || app.FrontendOrigin != apiOrigin ||
+		app.DefaultReturnPath != "/swagger/index.html" ||
+		app.OnboardingPath != "/swagger/index.html" ||
+		app.LoginErrorPath != "/swagger/index.html" {
+		return ""
+	}
+
+	return app.ID
 }
