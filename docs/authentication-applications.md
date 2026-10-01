@@ -88,6 +88,30 @@ The registry is loaded at startup; restart 888 after changing registrations,
 secrets, callback URLs, or lifetimes. Removing a client or required scope also
 makes credentials fail their current-registration checks.
 
+## Cloud Run deployment
+
+The deployment workflow requires the GitHub Actions secret `AUTH_REGISTRY_YAML`
+to contain the complete production registry. Start from the production example,
+replace every destination with its deployed HTTPS URL, and ensure each cookie
+application's frontend origin appears in the deployment's `CORS_ALLOW_ORIGINS`.
+The Google callback must match the authorized redirect URI configured in Google.
+Only register backend applications that are ready to deploy.
+
+Before building the image, the workflow writes that registry to
+`config/auth.production.yaml`. The Docker runtime copies `config` to `/config`,
+and Cloud Run receives `AUTH_CONFIG_FILE=/config/auth.production.yaml`. A missing
+registry secret fails the workflow before the image build instead of producing a
+revision that cannot start. Registry contents must contain secret **references**,
+not client secret values.
+
+For the `intania-games` registration, provision the GitHub Actions secret
+`INTANIA_GAMES_CLIENT_SECRET`; the workflow passes it to the 888 runtime, and the
+same value must be configured on the Games backend. If a registry references
+other client-secret environment variables, add those variables to the deployment
+as well. Local registries and example domains are not production fallbacks.
+The older `OAUTH_REDIRECT_URI` and `OAUTH_POST_LOGIN_REDIRECT_URL` deployment
+variables do not configure the registry's Google callback or application paths.
+
 ## Direct browser login
 
 Navigate to:
