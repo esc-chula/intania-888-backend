@@ -8,14 +8,21 @@ func scheduleToResponse(schedule *DailyRewardSchedule) *DailyRewardScheduleRespo
 	for i, item := range schedule.Overrides {
 		overrides[i] = DailyRewardScheduleItemResponse(item)
 	}
-	return &DailyRewardScheduleResponse{DefaultAmount: schedule.DefaultAmount, Overrides: overrides}
+
+	return &DailyRewardScheduleResponse{
+		DefaultAmount: schedule.DefaultAmount,
+		Overrides:     overrides,
+	}
 }
 
 func spinToResponse(result *SpinResult) *SpinResponse {
 	if result == nil {
 		return nil
 	}
-	response := &SpinResponse{Slots: result.Slots, Reward: result.Reward}
+	response := &SpinResponse{
+		Slots:  result.Slots,
+		Reward: result.Reward,
+	}
 	if result.StealToken != nil {
 		token := result.StealToken
 		response.StealToken = &StealTokenResponse{
@@ -29,6 +36,7 @@ func spinToResponse(result *SpinResult) *SpinResponse {
 			response.Candidates[i] = CandidatePreviewResponse(candidate)
 		}
 	}
+
 	return response
 }
 
@@ -40,6 +48,11 @@ func stealToResponse(result *StealResult) *UseStealTokenResponse {
 	for i, candidate := range result.AllCandidates {
 		candidates[i] = VictimDetailResponse(candidate)
 	}
-	return &UseStealTokenResponse{TotalStolen: result.TotalStolen, RaiderNewBalance: result.RaiderNewBalance,
-		AllCandidates: candidates, Message: result.Message}
+
+	return &UseStealTokenResponse{
+		TotalStolen:      result.TotalStolen,
+		RaiderNewBalance: result.RaiderNewBalance,
+		AllCandidates:    candidates,
+		Message:          result.Message,
+	}
 }

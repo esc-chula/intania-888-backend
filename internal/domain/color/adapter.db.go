@@ -62,6 +62,7 @@ func (r *GORMRepository) GetAllLeaderboards(ctx context.Context, typeID string) 
 			TotalMatches: int64(color.TotalMatches),
 		}
 	}
+
 	return rows, nil
 }
 
@@ -115,5 +116,6 @@ func (r *GORMRepository) GetGroupStageTable(ctx context.Context, typeID, groupID
 			TotalMatches: int64(color.TotalMatches),
 		}
 	}
+
 	return rows, nil
 }

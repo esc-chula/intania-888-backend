@@ -8,6 +8,7 @@ func gameResponse(game *GameResult) *GameResponse {
 	for i, tile := range game.Grid {
 		tiles[i] = TileResponse(tile)
 	}
+
 	return &GameResponse{
 		ID:            game.ID,
 		UserID:        game.UserID,
@@ -28,6 +29,7 @@ func historyResponses(history []HistoryResult) []HistoryResponse {
 	for i, game := range history {
 		result[i] = HistoryResponse(game)
 	}
+
 	return result
 }
 
@@ -35,6 +37,7 @@ func statsResponse(stats *StatsResult) *StatsResponse {
 	if stats == nil {
 		return nil
 	}
+
 	return &StatsResponse{
 		TotalGames:          stats.TotalGames,
 		GamesWon:            stats.GamesWon,

@@ -17,7 +17,12 @@ func mapSportTypeError(err error) error {
 	case errors.Is(err, ErrSportTypeConflict):
 		return apierror.Wrap(err, fiber.StatusConflict, "CONFLICT", "Sport type ID already exists")
 	case errors.Is(err, ErrSportTypeInUse):
-		return apierror.Wrap(err, fiber.StatusConflict, "SPORT_TYPE_IN_USE", "Sport type is referenced by matches, tournament groups, or stages")
+		return apierror.Wrap(
+			err,
+			fiber.StatusConflict,
+			"SPORT_TYPE_IN_USE",
+			"Sport type is referenced by matches, tournament groups, or stages",
+		)
 	default:
 		return err
 	}

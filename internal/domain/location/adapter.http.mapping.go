@@ -14,5 +14,8 @@ func response(row *Location) *Response {
 		return nil
 	}
 
-	return &Response{ID: row.ID, Title: row.Title}
+	return &Response{
+		ID:    row.ID,
+		Title: row.Title,
+	}
 }

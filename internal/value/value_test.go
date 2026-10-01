@@ -11,9 +11,18 @@ func TestMoneyJSONAndParsing(t *testing.T) {
 		input string
 		want  string
 	}{
-		{input: "0", want: "0.00"},
-		{input: "1.2", want: "1.20"},
-		{input: "888.88", want: "888.88"},
+		{
+			input: "0",
+			want:  "0.00",
+		},
+		{
+			input: "1.2",
+			want:  "1.20",
+		},
+		{
+			input: "888.88",
+			want:  "888.88",
+		},
 	}
 
 	for _, tc := range tests {

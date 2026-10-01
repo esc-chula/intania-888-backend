@@ -23,15 +23,26 @@ type errorEventService struct {
 	scheduleErr error
 }
 
-func (s errorEventService) RedeemDailyReward(context.Context, string) error { return s.redeemErr }
+func (s errorEventService) RedeemDailyReward(context.Context, string) error {
+	return s.redeemErr
+}
+
 func (s errorEventService) GetDailyRewardSchedule(context.Context) (*DailyRewardSchedule, error) {
 	return nil, s.scheduleErr
 }
+
 func (s errorEventService) SpinSlotMachine(context.Context, identity.Profile, value.Money) (*SpinResult, error) {
 	return nil, s.spinErr
 }
-func (s errorEventService) SetDailyReward(context.Context, string, value.Money) error { return nil }
-func (s errorEventService) DeleteDailyReward(context.Context, string) error           { return s.deleteErr }
+
+func (s errorEventService) SetDailyReward(context.Context, string, value.Money) error {
+	return nil
+}
+
+func (s errorEventService) DeleteDailyReward(context.Context, string) error {
+	return s.deleteErr
+}
+
 func (s errorEventService) UseStealToken(context.Context, string, string, int) (*StealResult, error) {
 	return nil, nil
 }
@@ -46,24 +57,36 @@ func TestEventFailuresUseSharedContract(t *testing.T) {
 		wantCode   string
 	}{
 		{
-			name: "daily claim conflict", method: "GET", path: "/events/redeem/daily",
+			name:       "daily claim conflict",
+			method:     "GET",
+			path:       "/events/redeem/daily",
 			service:    errorEventService{redeemErr: ErrDailyRewardAlreadyClaimed},
-			wantStatus: fiber.StatusConflict, wantCode: "DAILY_REWARD_ALREADY_CLAIMED",
+			wantStatus: fiber.StatusConflict,
+			wantCode:   "DAILY_REWARD_ALREADY_CLAIMED",
 		},
 		{
-			name: "missing reward override", method: "DELETE", path: "/events/daily-rewards/25-09-2026",
+			name:       "missing reward override",
+			method:     "DELETE",
+			path:       "/events/daily-rewards/25-09-2026",
 			service:    errorEventService{deleteErr: ErrDailyRewardOverrideNotFound},
-			wantStatus: fiber.StatusNotFound, wantCode: "RESOURCE_NOT_FOUND",
+			wantStatus: fiber.StatusNotFound,
+			wantCode:   "RESOURCE_NOT_FOUND",
 		},
 		{
-			name: "insufficient balance", method: "POST", path: "/events/spin/slot?spendAmount=50.00",
+			name:       "insufficient balance",
+			method:     "POST",
+			path:       "/events/spin/slot?spendAmount=50.00",
 			service:    errorEventService{spinErr: ErrInsufficientBalance},
-			wantStatus: fiber.StatusUnprocessableEntity, wantCode: "INSUFFICIENT_BALANCE",
+			wantStatus: fiber.StatusUnprocessableEntity,
+			wantCode:   "INSUFFICIENT_BALANCE",
 		},
 		{
-			name: "storage failure redacted", method: "GET", path: "/events/daily-rewards",
+			name:       "storage failure redacted",
+			method:     "GET",
+			path:       "/events/daily-rewards",
 			service:    errorEventService{scheduleErr: errors.New("database secret")},
-			wantStatus: fiber.StatusInternalServerError, wantCode: "INTERNAL_ERROR",
+			wantStatus: fiber.StatusInternalServerError,
+			wantCode:   "INTERNAL_ERROR",
 		},
 	}
 
@@ -74,11 +97,13 @@ func TestEventFailuresUseSharedContract(t *testing.T) {
 			app.Use(apierror.RequestID())
 			app.Get("/events/redeem/daily", func(c *fiber.Ctx) error {
 				c.Locals("user", &identity.Profile{ID: "user"})
+
 				return handler.RedeemDailyReward(c)
 			})
 			app.Delete("/events/daily-rewards/:date", handler.DeleteDailyReward)
 			app.Post("/events/spin/slot", func(c *fiber.Ctx) error {
 				c.Locals("user", &identity.Profile{ID: "user"})
+
 				return handler.SpinSlotMachine(c)
 			})
 			app.Get("/events/daily-rewards", handler.GetDailyRewardSchedule)
@@ -87,6 +112,7 @@ func TestEventFailuresUseSharedContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer func() {
 				if err := response.Body.Close(); err != nil {
 					t.Error(err)
@@ -150,12 +176,26 @@ func TestEventMoneyAndIndexPresenceValidation(t *testing.T) {
 
 func TestSlotResponsePreservesConditionalFields(t *testing.T) {
 	for _, token := range []bool{false, true} {
-		t.Run(map[bool]string{false: "coin reward", true: "token reward"}[token], func(t *testing.T) {
-			result := &SpinResult{Slots: []string{"a", "b", "c"}, Reward: value.MustMoneyFromMinor(75_00)}
+		t.Run(map[bool]string{
+			false: "coin reward",
+			true:  "token reward",
+		}[token], func(t *testing.T) {
+			result := &SpinResult{
+				Slots:  []string{"a", "b", "c"},
+				Reward: value.MustMoneyFromMinor(75_00),
+			}
 			if token {
 				result.Reward = value.Money{}
-				result.StealToken = &TokenReward{Token: "token", VictimCount: 3, Message: "message"}
-				result.Candidates = []CandidatePreview{{Index: 0, Name: "victim", RoleID: "USER"}}
+				result.StealToken = &TokenReward{
+					Token:       "token",
+					VictimCount: 3,
+					Message:     "message",
+				}
+				result.Candidates = []CandidatePreview{{
+					Index:  0,
+					Name:   "victim",
+					RoleID: "USER",
+				}}
 			}
 			encoded, err := json.Marshal(spinToResponse(result))
 			if err != nil {

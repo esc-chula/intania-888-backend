@@ -18,6 +18,7 @@ func (r CreateRequest) ValidateRequest() map[string]string {
 	if !validID(r.ID) {
 		details["id"] = "must contain 1–100 ASCII letters, digits, underscores, or hyphens"
 	}
+
 	return details
 }
 
@@ -27,12 +28,15 @@ type UpdateRequest struct {
 }
 
 // ValidateRequest requires a title with 1–100 characters after trimming.
-func (r UpdateRequest) ValidateRequest() map[string]string { return titleDetails(r.Title) }
+func (r UpdateRequest) ValidateRequest() map[string]string {
+	return titleDetails(r.Title)
+}
 
 func titleDetails(title string) map[string]string {
 	details := make(map[string]string)
 	if _, err := normalizeTitle(title); err != nil {
 		details["title"] = "must contain 1–100 characters after trimming"
 	}
+
 	return details
 }

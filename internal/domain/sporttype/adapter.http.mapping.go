@@ -5,9 +5,13 @@ func responses(rows []*SportType) []*Response {
 	for i, row := range rows {
 		result[i] = response(row)
 	}
+
 	return result
 }
 
 func response(row *SportType) *Response {
-	return &Response{ID: row.ID, Title: row.Title}
+	return &Response{
+		ID:    row.ID,
+		Title: row.Title,
+	}
 }

@@ -74,7 +74,10 @@ func (h *HTTPHandler) RevealTile(c *fiber.Ctx) error {
 		return mapStakeMineError(err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(RevealTileResponse{Message: message, Game: gameResponse(game)})
+	return c.Status(fiber.StatusOK).JSON(RevealTileResponse{
+		Message: message,
+		Game:    gameResponse(game),
+	})
 }
 
 // CashOut cashes out an authenticated game.
@@ -93,7 +96,10 @@ func (h *HTTPHandler) CashOut(c *fiber.Ctx) error {
 		return mapStakeMineError(err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(CashOutResponse{Message: "Successfully cashed out!", Game: gameResponse(game)})
+	return c.Status(fiber.StatusOK).JSON(CashOutResponse{
+		Message: "Successfully cashed out!",
+		Game:    gameResponse(game),
+	})
 }
 
 // GetGame serves an owned game.
@@ -155,7 +161,11 @@ func (h *HTTPHandler) GetHistory(c *fiber.Ctx) error {
 		return err
 	}
 
-	return c.Status(fiber.StatusOK).JSON(HistoryListResponse{Data: historyResponses(history), Limit: limit, Offset: offset})
+	return c.Status(fiber.StatusOK).JSON(HistoryListResponse{
+		Data:   historyResponses(history),
+		Limit:  limit,
+		Offset: offset,
+	})
 }
 
 // GetStats serves realized game totals and active exposure.

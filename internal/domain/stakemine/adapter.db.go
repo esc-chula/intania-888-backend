@@ -33,6 +33,7 @@ func (r *gormRepository) LockUserBalance(ctx context.Context, userID string) (in
 		Where("id = ?", userID).First(&user).Error; err != nil {
 		return 0, fmt.Errorf("lock game account: %w", mapUserLookupError(err))
 	}
+
 	return user.RemainingCoin, nil
 }
 
@@ -43,6 +44,7 @@ func (r *gormRepository) CountActiveGames(ctx context.Context, userID string) (i
 		Where("user_id = ? AND status = ?", userID, "active").Count(&count).Error; err != nil {
 		return 0, fmt.Errorf("count active games: %w", err)
 	}
+
 	return count, nil
 }
 
@@ -53,6 +55,7 @@ func (r *gormRepository) LockGame(ctx context.Context, gameID string) (*Game, er
 		Where("id = ?", gameID).First(&row).Error; err != nil {
 		return nil, fmt.Errorf("lock game: %w", mapGameLookupError(err, ErrGameNotFound))
 	}
+
 	return gameSnapshot(&row, true)
 }
 
@@ -67,6 +70,7 @@ func (r *gormRepository) CreateGame(ctx context.Context, game *Game) error {
 	}
 	game.CreatedAt = row.CreatedAt
 	game.UpdatedAt = row.UpdatedAt
+
 	return nil
 }
 
@@ -80,6 +84,7 @@ func (r *gormRepository) SaveGame(ctx context.Context, game *Game) error {
 		return fmt.Errorf("persist game update: %w", err)
 	}
 	game.UpdatedAt = row.UpdatedAt
+
 	return nil
 }
 
@@ -90,6 +95,7 @@ func (r *gormRepository) AdjustBalance(ctx context.Context, userID string, delta
 		Update("remaining_coin", gorm.Expr("remaining_coin + ?", delta)).Error; err != nil {
 		return fmt.Errorf("adjust game balance: %w", err)
 	}
+
 	return nil
 }
 
@@ -107,6 +113,7 @@ func (r *gormRepository) CreateHistory(ctx context.Context, history *History) er
 	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
 		return fmt.Errorf("create game history: %w", err)
 	}
+
 	return nil
 }
 
@@ -116,6 +123,7 @@ func (r *gormRepository) FindByID(ctx context.Context, gameID string) (*Game, er
 	if err := r.db.WithContext(ctx).Where("id = ?", gameID).First(&row).Error; err != nil {
 		return nil, fmt.Errorf("find game: %w", mapGameLookupError(err, ErrGameNotFound))
 	}
+
 	return gameSnapshot(&row, true)
 }
 
@@ -125,6 +133,7 @@ func (r *gormRepository) FindActiveByUserID(ctx context.Context, userID string) 
 	if err := r.db.WithContext(ctx).Where("user_id = ? AND status = ?", userID, "active").First(&row).Error; err != nil {
 		return nil, fmt.Errorf("find active game: %w", mapGameLookupError(err, ErrNoActiveGame))
 	}
+
 	return gameSnapshot(&row, true)
 }
 
@@ -145,6 +154,7 @@ func (r *gormRepository) FindByUserID(ctx context.Context, userID string, limit,
 		}
 		games[i] = *game
 	}
+
 	return games, nil
 }
 
@@ -229,6 +239,7 @@ func mapUserLookupError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return errors.Join(ErrUserNotFound, err)
 	}
+
 	return err
 }
 
@@ -236,5 +247,6 @@ func mapGameLookupError(err, missing error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return errors.Join(missing, err)
 	}
+
 	return err
 }

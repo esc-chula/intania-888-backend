@@ -36,6 +36,7 @@ func TestRegistryRejectsUnknownFieldsSecretsAndDuplicateClients(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err := LoadAuthRegistry(path, "development", "http://localhost:3000", os.Getenv)
+
 		return err
 	}
 

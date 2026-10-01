@@ -27,6 +27,7 @@ func (r *GORMRepository) ListActive(ctx context.Context, now time.Time) ([]*Acce
 		Where("expires_at IS NULL OR expires_at > ?", now).
 		Order("created_at DESC, id DESC").
 		Find(&policies).Error
+
 	return policiesFromRows(policies), err
 }
 
@@ -59,6 +60,7 @@ func (r *GORMRepository) List(ctx context.Context, filter ListFilter) (ListResul
 		result.HasMore = true
 		result.Items = result.Items[:limit]
 	}
+
 	return result, nil
 }
 
@@ -68,6 +70,7 @@ func (r *GORMRepository) FindByID(ctx context.Context, id string) (*AccessPolicy
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&policy).Error; err != nil {
 		return nil, translateStorageError(err)
 	}
+
 	return policyFromRow(&policy), nil
 }
 
@@ -77,6 +80,7 @@ func (r *GORMRepository) FindByIdentity(ctx context.Context, kind, principalType
 	if err := r.db.WithContext(ctx).Where("kind = ? AND principal_type = ? AND principal = ?", kind, principalType, principal).First(&policy).Error; err != nil {
 		return nil, translateStorageError(err)
 	}
+
 	return policyFromRow(&policy), nil
 }
 
@@ -87,6 +91,7 @@ func (r *GORMRepository) Create(ctx context.Context, policy *AccessPolicy) error
 		return translateStorageError(err)
 	}
 	*policy = *policyFromRow(row)
+
 	return nil
 }
 
@@ -114,21 +119,40 @@ type accessPolicyRow struct {
 }
 
 // TableName preserves the established access-policy table.
-func (accessPolicyRow) TableName() string { return "auth_access_policies" }
+func (accessPolicyRow) TableName() string {
+	return "auth_access_policies"
+}
 
 func policyToRow(policy *AccessPolicy) *accessPolicyRow {
-	return &accessPolicyRow{ID: policy.ID, Kind: policy.Kind, PrincipalType: policy.PrincipalType,
-		Principal: policy.Principal, Reason: policy.Reason, Enabled: policy.Enabled,
-		ExpiresAt: policy.ExpiresAt, CreatedAt: policy.CreatedAt, UpdatedAt: policy.UpdatedAt}
+	return &accessPolicyRow{
+		ID:            policy.ID,
+		Kind:          policy.Kind,
+		PrincipalType: policy.PrincipalType,
+		Principal:     policy.Principal,
+		Reason:        policy.Reason,
+		Enabled:       policy.Enabled,
+		ExpiresAt:     policy.ExpiresAt,
+		CreatedAt:     policy.CreatedAt,
+		UpdatedAt:     policy.UpdatedAt,
+	}
 }
 
 func policyFromRow(row *accessPolicyRow) *AccessPolicy {
 	if row == nil {
 		return nil
 	}
-	return &AccessPolicy{ID: row.ID, Kind: row.Kind, PrincipalType: row.PrincipalType,
-		Principal: row.Principal, Reason: row.Reason, Enabled: row.Enabled,
-		ExpiresAt: row.ExpiresAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+
+	return &AccessPolicy{
+		ID:            row.ID,
+		Kind:          row.Kind,
+		PrincipalType: row.PrincipalType,
+		Principal:     row.Principal,
+		Reason:        row.Reason,
+		Enabled:       row.Enabled,
+		ExpiresAt:     row.ExpiresAt,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
+	}
 }
 
 func policiesFromRows(rows []*accessPolicyRow) []*AccessPolicy {
@@ -139,6 +163,7 @@ func policiesFromRows(rows []*accessPolicyRow) []*AccessPolicy {
 	for i, row := range rows {
 		policies[i] = policyFromRow(row)
 	}
+
 	return policies
 }
 
@@ -150,5 +175,6 @@ func translateStorageError(err error) error {
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return ErrPolicyConflict
 	}
+
 	return err
 }

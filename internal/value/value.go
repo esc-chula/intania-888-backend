@@ -63,13 +63,19 @@ func ParseMoney(s string) (Money, error) {
 }
 
 // MinorUnits returns the exact number of hundredth units.
-func (m Money) MinorUnits() int64 { return m.minor }
+func (m Money) MinorUnits() int64 {
+	return m.minor
+}
 
 // IsZero reports whether the amount is zero.
-func (m Money) IsZero() bool { return m.minor == 0 }
+func (m Money) IsZero() bool {
+	return m.minor == 0
+}
 
 // String returns the canonical decimal amount with exactly two fractional digits.
-func (m Money) String() string { return formatFixed(m.minor, 2) }
+func (m Money) String() string {
+	return formatFixed(m.minor, 2)
+}
 
 // Compare returns -1, 0, or 1 when m is less than, equal to, or greater than other.
 func (m Money) Compare(other Money) int {
@@ -85,10 +91,14 @@ func (m Money) Compare(other Money) int {
 }
 
 // Greater reports whether m exceeds other.
-func (m Money) Greater(other Money) bool { return m.minor > other.minor }
+func (m Money) Greater(other Money) bool {
+	return m.minor > other.minor
+}
 
 // Lesser reports whether m is below other.
-func (m Money) Lesser(other Money) bool { return m.minor < other.minor }
+func (m Money) Lesser(other Money) bool {
+	return m.minor < other.minor
+}
 
 // Add returns the exact sum, or ErrOverflow if it exceeds int64 minor units.
 func (m Money) Add(other Money) (Money, error) {
@@ -118,7 +128,9 @@ func (m Money) Mul(rate Rate) (Money, error) {
 }
 
 // MarshalJSON encodes Money as a quoted decimal with two fractional digits.
-func (m Money) MarshalJSON() ([]byte, error) { return json.Marshal(m.String()) }
+func (m Money) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m.String())
+}
 
 // UnmarshalJSON accepts a decimal JSON string using ParseMoney.
 // Numeric tokens and null are rejected, and failures leave the receiver unchanged.
@@ -151,7 +163,9 @@ type SignedMoney struct {
 }
 
 // NewSignedMoneyFromMinor constructs a signed delta from hundredth units.
-func NewSignedMoneyFromMinor(minor int64) SignedMoney { return SignedMoney{minor: minor} }
+func NewSignedMoneyFromMinor(minor int64) SignedMoney {
+	return SignedMoney{minor: minor}
+}
 
 // ParseSignedMoney accepts a decimal with an optional minus and at most two
 // fractional digits. Invalid syntax or amounts outside int64 minor units return
@@ -167,13 +181,19 @@ func ParseSignedMoney(s string) (SignedMoney, error) {
 }
 
 // MinorUnits returns the exact signed number of hundredth units.
-func (m SignedMoney) MinorUnits() int64 { return m.minor }
+func (m SignedMoney) MinorUnits() int64 {
+	return m.minor
+}
 
 // String returns the signed decimal with exactly two fractional digits.
-func (m SignedMoney) String() string { return formatFixed(m.minor, 2) }
+func (m SignedMoney) String() string {
+	return formatFixed(m.minor, 2)
+}
 
 // MarshalJSON encodes the signed amount as a quoted decimal string.
-func (m SignedMoney) MarshalJSON() ([]byte, error) { return json.Marshal(m.String()) }
+func (m SignedMoney) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m.String())
+}
 
 // Add returns the exact signed sum, or ErrOverflow outside the int64 range.
 func (m SignedMoney) Add(other SignedMoney) (SignedMoney, error) {
@@ -263,13 +283,19 @@ func ParseRate(s string) (Rate, error) {
 }
 
 // MicroUnits returns the exact number of millionth units.
-func (r Rate) MicroUnits() int64 { return r.micro }
+func (r Rate) MicroUnits() int64 {
+	return r.micro
+}
 
 // String returns the canonical rate with exactly six fractional digits.
-func (r Rate) String() string { return formatFixed(r.micro, 6) }
+func (r Rate) String() string {
+	return formatFixed(r.micro, 6)
+}
 
 // MarshalJSON encodes Rate as a quoted decimal with six fractional digits.
-func (r Rate) MarshalJSON() ([]byte, error) { return json.Marshal(r.String()) }
+func (r Rate) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.String())
+}
 
 // UnmarshalJSON accepts a decimal JSON string using ParseRate.
 // Numeric tokens and null are rejected, and failures leave the receiver unchanged.
@@ -346,7 +372,12 @@ func parseFixed(s string, scale int, signed bool) (int64, error) {
 	}
 
 	parts := strings.Split(s, ".")
-	if len(parts) > 2 || parts[0] == "" || (len(parts) == 2 && parts[1] == "") || len(parts) == 2 && len(parts[1]) > scale {
+	if len(parts) > 2 ||
+		parts[0] == "" ||
+		(len(parts) == 2 &&
+			parts[1] == "") ||
+		len(parts) == 2 &&
+			len(parts[1]) > scale {
 		return 0, errors.New("invalid fixed-point value")
 	}
 
@@ -418,7 +449,11 @@ func formatFixed(v int64, scale int) string {
 }
 
 // GoString returns the Money representation used by the %#v format verb.
-func (m Money) GoString() string { return fmt.Sprintf("Money(%s)", m.String()) }
+func (m Money) GoString() string {
+	return fmt.Sprintf("Money(%s)", m.String())
+}
 
 // GoString returns the SignedMoney representation used by the %#v format verb.
-func (m SignedMoney) GoString() string { return fmt.Sprintf("SignedMoney(%s)", m.String()) }
+func (m SignedMoney) GoString() string {
+	return fmt.Sprintf("SignedMoney(%s)", m.String())
+}

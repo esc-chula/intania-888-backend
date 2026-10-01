@@ -30,6 +30,7 @@ func (r *fakeAccountRepository) GetByID(ctx context.Context, _ string) (*identit
 		return nil, r.lookupError
 	}
 	copy := *r.user
+
 	return &copy, nil
 }
 
@@ -46,6 +47,7 @@ func (r *fakeAccountRepository) PatchProfile(ctx context.Context, actorID string
 	if input.GroupIDSet {
 		r.user.GroupID = input.GroupID
 	}
+
 	return nil
 }
 
@@ -55,9 +57,11 @@ func (r *fakeAccountRepository) WithinTransaction(ctx context.Context, fn func(T
 	err := fn(r)
 	if err != nil {
 		r.calls = append(r.calls, "rollback")
+
 		return err
 	}
 	r.calls = append(r.calls, "commit")
+
 	return nil
 }
 
@@ -68,12 +72,14 @@ func (r *fakeAccountRepository) LockByID(ctx context.Context, _ string) (*identi
 		return nil, r.lookupError
 	}
 	copy := *r.user
+
 	return &copy, nil
 }
 
 func (r *fakeAccountRepository) DeductBalance(ctx context.Context, _ string, _ int64) error {
 	r.seenContext = ctx
 	r.calls = append(r.calls, "deduct")
+
 	return r.deductError
 }
 
@@ -89,17 +95,45 @@ func TestDeductCoinUsesTransactionAndPreservesContextAndFailures(t *testing.T) {
 		wantCalls     []string
 		wantRemaining int64
 	}{
-		{name: "exact balance", balance: 10000, deduction: 10000, wantRemaining: 0, wantCalls: []string{"begin", "lock", "deduct", "commit"}},
-		{name: "insufficient balance", balance: 9999, deduction: 10000, wantError: ErrInsufficientBalance, wantCalls: []string{"begin", "lock", "rollback"}},
-		{name: "missing user", lookupError: ErrUserNotFound, deduction: 10000, wantError: ErrUserNotFound, wantCalls: []string{"begin", "lock", "rollback"}},
-		{name: "write failure", balance: 20000, deduction: 10000, deductError: storageError, wantError: storageError, wantCalls: []string{"begin", "lock", "deduct", "rollback"}},
+		{
+			name:          "exact balance",
+			balance:       10000,
+			deduction:     10000,
+			wantRemaining: 0,
+			wantCalls:     []string{"begin", "lock", "deduct", "commit"},
+		},
+		{
+			name:      "insufficient balance",
+			balance:   9999,
+			deduction: 10000,
+			wantError: ErrInsufficientBalance,
+			wantCalls: []string{"begin", "lock", "rollback"},
+		},
+		{
+			name:        "missing user",
+			lookupError: ErrUserNotFound,
+			deduction:   10000,
+			wantError:   ErrUserNotFound,
+			wantCalls:   []string{"begin", "lock", "rollback"},
+		},
+		{
+			name:        "write failure",
+			balance:     20000,
+			deduction:   10000,
+			deductError: storageError,
+			wantError:   storageError,
+			wantCalls:   []string{"begin", "lock", "deduct", "rollback"},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			repo := &fakeAccountRepository{
-				user:        &identity.User{ID: "user", RemainingCoin: test.balance},
+				user: &identity.User{
+					ID:            "user",
+					RemainingCoin: test.balance,
+				},
 				lookupError: test.lookupError,
 				deductError: test.deductError,
 			}
@@ -121,7 +155,11 @@ func TestDeductCoinUsesTransactionAndPreservesContextAndFailures(t *testing.T) {
 }
 
 func TestUpdateOwnProfilePreservesBalanceAndResponseTimestamp(t *testing.T) {
-	repo := &fakeAccountRepository{user: &identity.User{ID: "actor", RemainingCoin: 12345, CreatedAt: time.Now()}}
+	repo := &fakeAccountRepository{user: &identity.User{
+		ID:            "actor",
+		RemainingCoin: 12345,
+		CreatedAt:     time.Now(),
+	}}
 	ctx := context.Background()
 	name := "Updated"
 	result, err := NewService(repo, zap.NewNop()).UpdateOwnProfile(ctx, "actor", ProfilePatch{Name: &name})

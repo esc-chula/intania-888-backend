@@ -81,7 +81,12 @@ func (r *AuthRegistry) Application(id string) (AuthApplication, bool) {
 // ResolveReturnPath accepts browser paths, never caller-selected authorities.
 func ResolveReturnPath(origin, path string) (string, error) {
 	decoded, err := url.PathUnescape(path)
-	if err != nil || !strings.HasPrefix(decoded, "/") || strings.HasPrefix(decoded, "//") || strings.Contains(decoded, "\\") || strings.Contains(decoded, "#") || strings.IndexFunc(decoded, unicode.IsControl) >= 0 {
+	if err != nil ||
+		!strings.HasPrefix(decoded, "/") ||
+		strings.HasPrefix(decoded, "//") ||
+		strings.Contains(decoded, "\\") ||
+		strings.Contains(decoded, "#") ||
+		strings.IndexFunc(decoded, unicode.IsControl) >= 0 {
 		return "", fmt.Errorf("invalid return path")
 	}
 
@@ -188,7 +193,9 @@ func (r *AuthRegistry) Validate(environment, cors string) error {
 	seen := make(map[string]bool)
 	for i := range r.Applications {
 		app := &r.Applications[i]
-		if app.ID == "" || strings.IndexFunc(app.ID, func(c rune) bool { return (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' }) >= 0 || seen[app.ID] {
+		if app.ID == "" || strings.IndexFunc(app.ID, func(c rune) bool {
+			return (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-'
+		}) >= 0 || seen[app.ID] {
 			return fmt.Errorf("invalid or duplicate application ID")
 		}
 		seen[app.ID] = true
@@ -211,7 +218,10 @@ func (r *AuthRegistry) Validate(environment, cors string) error {
 			}
 
 		case CodeApplication:
-			if app.FrontendOrigin != "" || app.DefaultReturnPath != "" || app.OnboardingPath != "" || app.LoginErrorPath != "" {
+			if app.FrontendOrigin != "" ||
+				app.DefaultReturnPath != "" ||
+				app.OnboardingPath != "" ||
+				app.LoginErrorPath != "" {
 				return fmt.Errorf("code application %s has cookie settings", app.ID)
 			}
 			if len(app.RedirectURIs) == 0 || len(app.AllowedScopes) == 0 || app.ClientSecretEnv == "" {
@@ -247,11 +257,22 @@ func (r *AuthRegistry) Validate(environment, cors string) error {
 
 func authURL(raw string, production, origin bool) error {
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Host == "" || strings.Contains(parsed.Host, "*") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || strings.Contains(raw, "\\") {
+	if err != nil ||
+		parsed.Host == "" ||
+		strings.Contains(parsed.Host, "*") ||
+		parsed.User != nil ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" ||
+		strings.Contains(raw, "\\") {
 		return fmt.Errorf("invalid absolute URL")
 	}
 
-	if parsed.Scheme != "https" && (production || parsed.Scheme != "http" || (parsed.Hostname() != "localhost" && parsed.Hostname() != "127.0.0.1" && parsed.Hostname() != "::1")) {
+	if parsed.Scheme != "https" &&
+		(production ||
+			parsed.Scheme != "http" ||
+			(parsed.Hostname() != "localhost" &&
+				parsed.Hostname() != "127.0.0.1" &&
+				parsed.Hostname() != "::1")) {
 		return fmt.Errorf("HTTPS required except local development")
 	}
 

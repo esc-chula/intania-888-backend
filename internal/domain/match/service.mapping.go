@@ -20,6 +20,7 @@ func snapshotFromInput(input *Input) *Snapshot {
 	if input.WinnerID != "" {
 		item.WinnerID = &input.WinnerID
 	}
+
 	return item
 }
 
@@ -44,5 +45,6 @@ func resultFromSnapshot(item Snapshot) *Result {
 	if item.WinnerID != nil {
 		result.WinnerID = *item.WinnerID
 	}
+
 	return result
 }

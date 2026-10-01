@@ -200,7 +200,11 @@ func (s *Service) VerifyOAuthLogin(
 		return nil, err
 	}
 
-	return &SessionCredentials{SessionID: id, UserID: existing.ID, IsNewUser: isNew}, nil
+	return &SessionCredentials{
+		SessionID: id,
+		UserID:    existing.ID,
+		IsNewUser: isNew,
+	}, nil
 }
 
 // Logout revokes a browser session. An empty ID or already absent session succeeds.
@@ -208,5 +212,6 @@ func (s *Service) Logout(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
 		return nil
 	}
+
 	return s.authRepo.DeleteSession(ctx, security.ToSessionCacheKey(sessionID))
 }

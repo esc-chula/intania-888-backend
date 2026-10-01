@@ -23,14 +23,38 @@ type swaggerTestConfig struct {
 	cors    config.CORS
 }
 
-func (c swaggerTestConfig) GetServer() config.Server   { return c.server }
-func (c swaggerTestConfig) GetSwagger() config.Swagger { return c.swagger }
-func (c swaggerTestConfig) GetCORS() config.CORS       { return c.cors }
-func (c swaggerTestConfig) GetDB() config.DB           { return config.DB{} }
-func (c swaggerTestConfig) GetCache() config.Cache     { return config.Cache{} }
-func (c swaggerTestConfig) GetJWT() config.JWT         { return config.JWT{} }
-func (c swaggerTestConfig) GetOAuth() config.OAuth     { return config.OAuth{} }
-func (c swaggerTestConfig) GetSession() config.Session { return config.Session{} }
+func (c swaggerTestConfig) GetServer() config.Server {
+	return c.server
+}
+
+func (c swaggerTestConfig) GetSwagger() config.Swagger {
+	return c.swagger
+}
+
+func (c swaggerTestConfig) GetCORS() config.CORS {
+	return c.cors
+}
+
+func (c swaggerTestConfig) GetDB() config.DB {
+	return config.DB{}
+}
+
+func (c swaggerTestConfig) GetCache() config.Cache {
+	return config.Cache{}
+}
+
+func (c swaggerTestConfig) GetJWT() config.JWT {
+	return config.JWT{}
+}
+
+func (c swaggerTestConfig) GetOAuth() config.OAuth {
+	return config.OAuth{}
+}
+
+func (c swaggerTestConfig) GetSession() config.Session {
+	return config.Session{}
+}
+
 func (c swaggerTestConfig) GetDailyReward() config.DailyReward {
 	return config.DailyReward{}
 }
@@ -48,6 +72,7 @@ func newSwaggerTestServer(t *testing.T, swaggerConfig config.Swagger) *FiberHTTP
 	}
 
 	httpServer.InitHTTPServer()
+
 	return httpServer
 }
 
@@ -86,6 +111,7 @@ func TestSwaggerProductionRequiresBasicAuthentication(t *testing.T) {
 
 	for _, path := range []string{"/swagger/openapi.yaml", "/swagger/doc.json"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
+
 		response, err := httpServer.app.Test(request)
 		if err != nil {
 			t.Fatalf("unauthenticated %s request error = %v", path, err)
@@ -97,6 +123,7 @@ func TestSwaggerProductionRequiresBasicAuthentication(t *testing.T) {
 
 	wrongCredentials := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
 	wrongCredentials.SetBasicAuth("swagger-user", "wrong-password")
+
 	wrongResponse, err := httpServer.app.Test(wrongCredentials)
 	if err != nil {
 		t.Fatalf("wrong-credentials app.Test() error = %v", err)
@@ -107,6 +134,7 @@ func TestSwaggerProductionRequiresBasicAuthentication(t *testing.T) {
 
 	correctCredentials := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
 	correctCredentials.SetBasicAuth("swagger-user", "swagger-password")
+
 	correctResponse, err := httpServer.app.Test(correctCredentials)
 	if err != nil {
 		t.Fatalf("correct-credentials app.Test() error = %v", err)
@@ -121,6 +149,7 @@ func TestSwaggerIsNotServedUnderAPIPrefix(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/swagger/index.html", nil)
 	request.Header.Set("Origin", "http://localhost:3000")
+
 	response, err := httpServer.app.Test(request)
 	if err != nil {
 		t.Fatalf("app.Test() error = %v", err)
@@ -198,6 +227,7 @@ func TestSwaggerUsesConfiguredServerURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Swagger UI request error = %v", err)
 	}
+
 	uiContents, err := io.ReadAll(uiResponse.Body)
 	if err != nil {
 		t.Fatalf("read Swagger UI response: %v", err)
@@ -210,8 +240,13 @@ func TestSwaggerUsesConfiguredServerURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("legacy Swagger document request error = %v", err)
 	}
-	if redirect.StatusCode != http.StatusMovedPermanently || redirect.Header.Get("Location") != "/swagger/openapi.yaml" {
-		t.Errorf("legacy document response = %d %q, want redirect to /swagger/openapi.yaml", redirect.StatusCode, redirect.Header.Get("Location"))
+	if redirect.StatusCode != http.StatusMovedPermanently ||
+		redirect.Header.Get("Location") != "/swagger/openapi.yaml" {
+		t.Errorf(
+			"legacy document response = %d %q, want redirect to /swagger/openapi.yaml",
+			redirect.StatusCode,
+			redirect.Header.Get("Location"),
+		)
 	}
 }
 
@@ -245,13 +280,18 @@ func newOriginGuardTestServer(t *testing.T) (*FiberHTTPServer, fiber.Router) {
 	if err != nil {
 		t.Fatalf("NewFiberHTTPServer() error = %v", err)
 	}
+
 	return httpServer, httpServer.InitHTTPServer()
 }
 
 func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t *testing.T) {
 	httpServer, router := newOriginGuardTestServer(t)
-	router.Get("/safe", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
-	router.Post("/mutate", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+	router.Get("/safe", func(c *fiber.Ctx) error {
+		return c.SendStatus(http.StatusNoContent)
+	})
+	router.Post("/mutate", func(c *fiber.Ctx) error {
+		return c.SendStatus(http.StatusNoContent)
+	})
 
 	withoutOrigin, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/safe", nil))
 	if err != nil {
@@ -263,6 +303,7 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 
 	exactOrigin := httptest.NewRequest(http.MethodGet, "/api/v1/safe", nil)
 	exactOrigin.Header.Set("Origin", "https://frontend.example.test:8443")
+
 	response, err := httpServer.app.Test(exactOrigin)
 	if err != nil {
 		t.Fatalf("exact-origin request error = %v", err)
@@ -277,6 +318,7 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 
 	unknownOrigin := httptest.NewRequest(http.MethodGet, "/api/v1/safe", nil)
 	unknownOrigin.Header.Set("Origin", "https://frontend.example.test")
+
 	response, err = httpServer.app.Test(unknownOrigin)
 	if err != nil {
 		t.Fatalf("unknown-origin request error = %v", err)
@@ -296,6 +338,7 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 	}
 
 	missingOrigin := httptest.NewRequest(http.MethodPost, "/api/v1/mutate", nil)
+
 	response, err = httpServer.app.Test(missingOrigin)
 	if err != nil {
 		t.Fatalf("missing-origin request error = %v", err)
@@ -307,7 +350,9 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 
 func TestRateLimitAppliesToPublicAPIReads(t *testing.T) {
 	httpServer, router := newOriginGuardTestServer(t)
-	router.Get("/public-read", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+	router.Get("/public-read", func(c *fiber.Ctx) error {
+		return c.SendStatus(http.StatusNoContent)
+	})
 
 	for requestNumber := 1; requestNumber <= 201; requestNumber++ {
 		response, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/public-read", nil))
@@ -336,6 +381,7 @@ func TestUnmatchedAPIPathUsesSharedErrorContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if closeErr := response.Body.Close(); closeErr != nil {
 			t.Error(closeErr)
@@ -348,15 +394,21 @@ func TestUnmatchedAPIPathUsesSharedErrorContract(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if body.Code != "RESOURCE_NOT_FOUND" || body.RequestID == "" || body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
+	if body.Code != "RESOURCE_NOT_FOUND" ||
+		body.RequestID == "" ||
+		body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
 		t.Fatalf("unmatched route error = %#v; header=%q", body, response.Header.Get(apierror.RequestIDHeader))
 	}
 }
 
 func TestExternalAndOAuthCallbackPathsAreOriginAndCSRFExempt(t *testing.T) {
 	httpServer, router := newOriginGuardTestServer(t)
-	router.Post("/external/test", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
-	router.Get("/auth/callback", func(c *fiber.Ctx) error { return c.SendStatus(http.StatusNoContent) })
+	router.Post("/external/test", func(c *fiber.Ctx) error {
+		return c.SendStatus(http.StatusNoContent)
+	})
+	router.Get("/auth/callback", func(c *fiber.Ctx) error {
+		return c.SendStatus(http.StatusNoContent)
+	})
 
 	external, err := httpServer.app.Test(httptest.NewRequest(http.MethodPost, "/api/v1/external/test", nil))
 	if err != nil {

@@ -40,6 +40,7 @@ func (r *UpdateOwnProfileRequest) UnmarshalJSON(data []byte) error {
 	_, r.nameSet = fields["name"]
 	_, r.nickNameSet = fields["nick_name"]
 	_, r.groupIDSet = fields["group_id"]
+
 	return nil
 }
 
@@ -76,6 +77,7 @@ func (r UpdateOwnProfileRequest) ValidateRequest() map[string]string {
 	if r.groupIDSet && r.GroupID != nil && strings.TrimSpace(*r.GroupID) == "" {
 		details["group_id"] = "must be a nonempty group ID or null"
 	}
+
 	return details
 }
 
@@ -84,6 +86,7 @@ func (r AdminUpdateUserRequest) ValidateRequest() map[string]string {
 	if strings.TrimSpace(r.Name) == "" {
 		return map[string]string{"name": "is required"}
 	}
+
 	return nil
 }
 
@@ -92,5 +95,6 @@ func (r DeductCoinRequest) ValidateRequest() map[string]string {
 	if r.Amount.MinorUnits() < 100 || r.Amount.MinorUnits() > 100_000_000 {
 		return map[string]string{"amount": "must be between 1 and 1000000"}
 	}
+
 	return nil
 }

@@ -26,7 +26,12 @@ func NewService(repo Repository, cache SnapshotCache, log *zap.Logger) *Service 
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Service{repo: repo, cache: cache, log: log}
+
+	return &Service{
+		repo:  repo,
+		cache: cache,
+		log:   log,
+	}
 }
 
 // EvaluateLogin checks blacklist rules before student, admin, and allowlist access.
@@ -42,6 +47,7 @@ func (s *Service) EvaluateLogin(ctx context.Context, email, googleSubject, role 
 		return security.PolicyDecision{Blacklisted: true}, nil
 	}
 	allowed := security.IsStudentEmail(email) || security.IsAdminRole(role) || matchesAllowlist(policies, email)
+
 	return security.PolicyDecision{Allowed: allowed}, nil
 }
 
@@ -51,6 +57,7 @@ func (s *Service) IsBlacklisted(ctx context.Context, email, userID string) (bool
 	if err != nil {
 		return false, err
 	}
+
 	return matchesBlacklist(policies, security.NormalizeEmail(email), security.NormalizeGoogleSubject(userID)), nil
 }
 
@@ -65,7 +72,9 @@ func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, erro
 	if filter.Kind != "" && filter.Kind != KindAllowlist && filter.Kind != KindBlacklist {
 		return ListResult{}, ErrInvalidPolicy
 	}
-	if filter.PrincipalType != "" && filter.PrincipalType != PrincipalEmail && filter.PrincipalType != PrincipalGoogleSubject {
+	if filter.PrincipalType != "" &&
+		filter.PrincipalType != PrincipalEmail &&
+		filter.PrincipalType != PrincipalGoogleSubject {
 		return ListResult{}, ErrInvalidPolicy
 	}
 	if filter.Limit <= 0 || filter.Limit > 200 {
@@ -74,6 +83,7 @@ func (s *Service) List(ctx context.Context, filter ListFilter) (ListResult, erro
 	if filter.Offset < 0 {
 		return ListResult{}, ErrInvalidPolicy
 	}
+
 	return s.repo.List(ctx, filter)
 }
 
@@ -83,7 +93,8 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*AccessPolicy,
 	if err != nil {
 		return nil, err
 	}
-	if existing, findErr := s.repo.FindByIdentity(ctx, normalized.Kind, normalized.PrincipalType, normalized.Principal); findErr == nil && existing != nil {
+	if existing, findErr := s.repo.FindByIdentity(ctx, normalized.Kind, normalized.PrincipalType, normalized.Principal); findErr == nil &&
+		existing != nil {
 		return nil, ErrPolicyConflict
 	} else if findErr != nil && !errors.Is(findErr, ErrPolicyNotFound) {
 		return nil, findErr
@@ -104,6 +115,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*AccessPolicy,
 		return nil, err
 	}
 	s.refreshCacheBestEffort(ctx, "create")
+
 	return policy, nil
 }
 
@@ -139,6 +151,7 @@ func (s *Service) Update(ctx context.Context, id string, input UpdateInput) (*Ac
 		return nil, err
 	}
 	s.refreshCacheBestEffort(ctx, "update")
+
 	return policy, nil
 }
 
@@ -160,6 +173,7 @@ func (s *Service) Disable(ctx context.Context, id string) (*AccessPolicy, error)
 		return nil, err
 	}
 	s.refreshCacheBestEffort(ctx, "disable")
+
 	return policy, nil
 }
 
@@ -182,14 +196,17 @@ func (s *Service) RefreshCache(ctx context.Context) error {
 		if cleanupErr := s.cache.Delete(ctx); cleanupErr != nil {
 			s.log.Warn("Unable to invalidate access policy cache", zap.Error(cleanupErr))
 		}
+
 		return fmt.Errorf("%w: refresh policy snapshot: %w", security.ErrPolicyUnavailable, err)
 	}
 	if err := s.cache.Store(ctx, policies); err != nil {
 		if cleanupErr := s.cache.Delete(ctx); cleanupErr != nil {
 			s.log.Warn("Unable to invalidate access policy cache", zap.Error(cleanupErr))
 		}
+
 		return fmt.Errorf("%w: write policy snapshot: %w", security.ErrPolicyUnavailable, err)
 	}
+
 	return nil
 }
 
@@ -209,6 +226,7 @@ func (s *Service) loadSnapshot(ctx context.Context) ([]*AccessPolicy, error) {
 			s.log.Warn("Unable to warm access policy cache", zap.Error(err))
 		}
 	}
+
 	return policies, nil
 }
 
@@ -229,12 +247,18 @@ func ValidateCreateInput(input CreateInput) (CreateInput, error) {
 	if input.PrincipalType == PrincipalEmail {
 		input.Principal = security.NormalizeEmail(input.Principal)
 		parsed, err := mail.ParseAddress(input.Principal)
-		if err != nil || parsed.Address != input.Principal || len(input.Principal) > 320 || security.IsStudentEmail(input.Principal) && input.Kind == KindAllowlist {
+		if err != nil ||
+			parsed.Address != input.Principal ||
+			len(input.Principal) > 320 ||
+			security.IsStudentEmail(input.Principal) &&
+				input.Kind == KindAllowlist {
 			return CreateInput{}, ErrInvalidPolicy
 		}
 	} else {
 		input.Principal = security.NormalizeGoogleSubject(input.Principal)
-		if input.Principal == "" || strings.IndexFunc(input.Principal, func(r rune) bool { return r == ' ' || r == '\t' || r == '\r' || r == '\n' }) >= 0 || len(input.Principal) > 320 {
+		if input.Principal == "" || strings.IndexFunc(input.Principal, func(r rune) bool {
+			return r == ' ' || r == '\t' || r == '\r' || r == '\n'
+		}) >= 0 || len(input.Principal) > 320 {
 			return CreateInput{}, ErrInvalidPolicy
 		}
 	}
@@ -244,6 +268,7 @@ func ValidateCreateInput(input CreateInput) (CreateInput, error) {
 	if input.ExpiresAt != nil && !input.ExpiresAt.After(time.Now()) {
 		return CreateInput{}, ErrInvalidPolicy
 	}
+
 	return input, nil
 }
 
@@ -260,16 +285,21 @@ func matchesBlacklist(policies []*AccessPolicy, email, googleSubject string) boo
 			return true
 		}
 	}
+
 	return false
 }
 
 func matchesAllowlist(policies []*AccessPolicy, email string) bool {
 	now := time.Now()
 	for _, policy := range policies {
-		if activeAt(policy, now) && policy.Kind == KindAllowlist && policy.PrincipalType == PrincipalEmail && policy.Principal == email {
+		if activeAt(policy, now) &&
+			policy.Kind == KindAllowlist &&
+			policy.PrincipalType == PrincipalEmail &&
+			policy.Principal == email {
 			return true
 		}
 	}
+
 	return false
 }
 

@@ -83,6 +83,7 @@ func validateAbsoluteURL(raw, field string, requireHTTPS, allowQuery bool) (stri
 	if requireHTTPS && scheme != "https" {
 		return "", fmt.Errorf("%s must use https in production", field)
 	}
+
 	return scheme + "://" + strings.ToLower(parsed.Host), nil
 }
 
@@ -105,6 +106,7 @@ func validateConfiguredOrigins(rawOrigins string) (map[string]struct{}, error) {
 	if len(origins) == 0 {
 		return nil, fmt.Errorf("CORS_ALLOW_ORIGINS must contain at least one exact origin")
 	}
+
 	return origins, nil
 }
 
@@ -118,5 +120,6 @@ func validateExactOrigin(raw string) (string, error) {
 	if scheme != "http" && scheme != "https" {
 		return "", fmt.Errorf("origin scheme must be http or https")
 	}
+
 	return scheme + "://" + strings.ToLower(parsed.Host), nil
 }

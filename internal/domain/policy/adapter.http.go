@@ -58,6 +58,7 @@ func (h *HTTPHandler) List(c *fiber.Ctx) error {
 		next := encodeCursor(offset + len(result.Items))
 		response.NextCursor = &next
 	}
+
 	return c.JSON(response)
 }
 
@@ -71,6 +72,7 @@ func (h *HTTPHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return mapPolicyError(err)
 	}
+
 	return c.Status(fiber.StatusCreated).JSON(policyToResponse(created))
 }
 
@@ -102,6 +104,7 @@ func (h *HTTPHandler) Update(c *fiber.Ctx) error {
 	if err != nil {
 		return mapPolicyError(err)
 	}
+
 	return c.JSON(policyToResponse(updated))
 }
 
@@ -113,6 +116,7 @@ func (h *HTTPHandler) Delete(c *fiber.Ctx) error {
 	if _, err := h.service.Disable(c.UserContext(), c.Params("id")); err != nil {
 		return mapPolicyError(err)
 	}
+
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -124,6 +128,7 @@ func parseLimit(raw string) (int, error) {
 	if err != nil || limit < 1 || limit > 200 {
 		return 0, errors.New("invalid limit")
 	}
+
 	return limit, nil
 }
 
@@ -143,6 +148,7 @@ func decodeCursor(cursor string) (int, error) {
 	if err != nil || offset < 0 {
 		return 0, errors.New("invalid cursor")
 	}
+
 	return offset, nil
 }
 

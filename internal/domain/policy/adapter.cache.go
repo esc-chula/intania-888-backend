@@ -38,11 +38,20 @@ func (c *redisSnapshotCache) Load(ctx context.Context) ([]*AccessPolicy, error) 
 	result := make([]*AccessPolicy, len(records))
 	for i, record := range records {
 		if record != nil {
-			result[i] = &AccessPolicy{ID: record.ID, Kind: record.Kind, PrincipalType: record.PrincipalType,
-				Principal: record.Principal, Reason: record.Reason, Enabled: record.Enabled,
-				ExpiresAt: record.ExpiresAt, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+			result[i] = &AccessPolicy{
+				ID:            record.ID,
+				Kind:          record.Kind,
+				PrincipalType: record.PrincipalType,
+				Principal:     record.Principal,
+				Reason:        record.Reason,
+				Enabled:       record.Enabled,
+				ExpiresAt:     record.ExpiresAt,
+				CreatedAt:     record.CreatedAt,
+				UpdatedAt:     record.UpdatedAt,
+			}
 		}
 	}
+
 	return result, nil
 }
 
@@ -53,12 +62,21 @@ func (c *redisSnapshotCache) Store(ctx context.Context, policies []*AccessPolicy
 		records = make([]*policySnapshotRecord, len(policies))
 		for i, policy := range policies {
 			if policy != nil {
-				records[i] = &policySnapshotRecord{ID: policy.ID, Kind: policy.Kind, PrincipalType: policy.PrincipalType,
-					Principal: policy.Principal, Reason: policy.Reason, Enabled: policy.Enabled,
-					ExpiresAt: policy.ExpiresAt, CreatedAt: policy.CreatedAt, UpdatedAt: policy.UpdatedAt}
+				records[i] = &policySnapshotRecord{
+					ID:            policy.ID,
+					Kind:          policy.Kind,
+					PrincipalType: policy.PrincipalType,
+					Principal:     policy.Principal,
+					Reason:        policy.Reason,
+					Enabled:       policy.Enabled,
+					ExpiresAt:     policy.ExpiresAt,
+					CreatedAt:     policy.CreatedAt,
+					UpdatedAt:     policy.UpdatedAt,
+				}
 			}
 		}
 	}
+
 	return c.values.SetValue(ctx, security.ToPolicySnapshotCacheKey(), records, policyCacheTTL)
 }
 

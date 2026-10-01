@@ -78,6 +78,7 @@ func (s *Service) VoidBill(ctx context.Context, id, actor, reason string) (*Resu
 		payout := bill.Total
 		bill.Payout = &payout
 		bill.VoidedAt = &now
+
 		return nil
 	})
 	if err != nil {

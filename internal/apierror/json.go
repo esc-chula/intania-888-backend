@@ -53,6 +53,7 @@ func DecodeKnownObject(data []byte, dst any, allowed ...string) error {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
+
 	return decoder.Decode(dst)
 }
 
@@ -60,5 +61,6 @@ func DecodeKnownObject(data []byte, dst any, allowed ...string) error {
 // Full JSON validity is checked by the decoder.
 func StrictJSONObject(data []byte) bool {
 	trimmed := bytes.TrimSpace(data)
+
 	return len(trimmed) > 0 && trimmed[0] == '{'
 }

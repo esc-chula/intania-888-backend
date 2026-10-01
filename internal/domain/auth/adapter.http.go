@@ -27,7 +27,12 @@ type HTTPHandler struct {
 
 // NewHTTPHandler binds authentication and session services to the configured browser cookie policy.
 func NewHTTPHandler(service ServicePort, sessions SessionReader, cfg config.Config, production bool) *HTTPHandler {
-	return &HTTPHandler{service: service, sessions: sessions, cfg: cfg, production: production}
+	return &HTTPHandler{
+		service:    service,
+		sessions:   sessions,
+		cfg:        cfg,
+		production: production,
+	}
 }
 
 func (h *HTTPHandler) sessionName() string {
@@ -48,7 +53,6 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Han
 	router.Post("/revoke", h.applications.Revoke)
 	router.Post("/logout", h.Logout)
 	router.Get("/me", authenticate, h.GetMe)
-
 }
 
 // RegisterExternalRoutes registers the profile route behind scoped delegated authentication.
@@ -64,6 +68,7 @@ func (h *HTTPHandler) Logout(c *fiber.Ctx) error {
 	id := c.Cookies(h.sessionName())
 	if id == "" {
 		h.clearCookie(c, h.sessionName(), true)
+
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 
@@ -110,7 +115,10 @@ func (h *HTTPHandler) GetMe(c *fiber.Ctx) error {
 		return apierror.New(fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
 	}
 
-	return c.JSON(MeResponse{Profile: httpidentity.Response(profile), CSRFToken: csrfToken})
+	return c.JSON(MeResponse{
+		Profile:   httpidentity.Response(profile),
+		CSRFToken: csrfToken,
+	})
 }
 
 // GetExternalMe returns the bearer-authenticated profile without exposing browser CSRF state.

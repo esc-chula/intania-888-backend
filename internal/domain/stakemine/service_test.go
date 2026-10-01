@@ -39,21 +39,25 @@ func (r *fakeGameRepository) WithinTransaction(ctx context.Context, fn func(Tran
 		r.balance = originalBalance
 		r.history = originalHistory
 		r.calls = append(r.calls, "rollback")
+
 		return err
 	}
 	r.calls = append(r.calls, "commit")
+
 	return nil
 }
 
 func (r *fakeGameRepository) LockUserBalance(ctx context.Context, _ string) (int64, error) {
 	r.contexts = append(r.contexts, ctx)
 	r.calls = append(r.calls, "lock account")
+
 	return r.balance, nil
 }
 
 func (r *fakeGameRepository) CountActiveGames(ctx context.Context, _ string) (int64, error) {
 	r.contexts = append(r.contexts, ctx)
 	r.calls = append(r.calls, "count active")
+
 	return r.activeCount, nil
 }
 
@@ -62,6 +66,7 @@ func (r *fakeGameRepository) LockGame(ctx context.Context, _ string) (*Game, err
 	r.calls = append(r.calls, "lock game")
 	copy := *r.game
 	copy.Grid = append([]Tile(nil), r.game.Grid...)
+
 	return &copy, nil
 }
 
@@ -69,6 +74,7 @@ func (r *fakeGameRepository) CreateGame(ctx context.Context, game *Game) error {
 	r.contexts = append(r.contexts, ctx)
 	r.calls = append(r.calls, "create game")
 	r.game = game
+
 	return nil
 }
 
@@ -76,6 +82,7 @@ func (r *fakeGameRepository) SaveGame(ctx context.Context, game *Game) error {
 	r.contexts = append(r.contexts, ctx)
 	r.calls = append(r.calls, "save game")
 	r.game = game
+
 	return nil
 }
 
@@ -86,6 +93,7 @@ func (r *fakeGameRepository) AdjustBalance(ctx context.Context, _ string, amount
 		return r.adjustError
 	}
 	r.balance += amount
+
 	return nil
 }
 
@@ -96,24 +104,43 @@ func (r *fakeGameRepository) CreateHistory(ctx context.Context, history *History
 		return r.historyError
 	}
 	r.history = append(r.history, *history)
+
 	return nil
 }
 
 func testGame(revealed int) *Game {
 	grid := make([]Tile, 16)
 	for i := range grid {
-		grid[i] = Tile{Index: i, Type: "diamond", Revealed: i < revealed}
+		grid[i] = Tile{
+			Index:    i,
+			Type:     "diamond",
+			Revealed: i < revealed,
+		}
 	}
 	grid[14].Type = "bomb"
 	grid[15].Type = "bomb"
-	return &Game{ID: "game", UserID: "owner", BetAmount: 10000, CurrentPayout: 25000, Multiplier: 1000000, RiskLevel: "low", Status: "active", Grid: grid, RevealedCount: revealed}
+
+	return &Game{
+		ID:            "game",
+		UserID:        "owner",
+		BetAmount:     10000,
+		CurrentPayout: 25000,
+		Multiplier:    1000000,
+		RiskLevel:     "low",
+		Status:        "active",
+		Grid:          grid,
+		RevealedCount: revealed,
+	}
 }
 
 func TestCreateGameLocksAccountAndReturnsHiddenTiles(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	repo := &fakeGameRepository{balance: 50000}
-	game, err := NewService(repo, zap.NewNop()).CreateGame(ctx, "owner", CreateInput{BetAmount: value.MustMoneyFromMinor(10000), RiskLevel: "low"})
+	game, err := NewService(repo, zap.NewNop()).CreateGame(ctx, "owner", CreateInput{
+		BetAmount: value.MustMoneyFromMinor(10000),
+		RiskLevel: "low",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,8 +161,14 @@ func TestCreateGameLocksAccountAndReturnsHiddenTiles(t *testing.T) {
 }
 
 func TestCreateGameChecksExistingActiveGameBeforeBalanceMutation(t *testing.T) {
-	repo := &fakeGameRepository{balance: 50000, activeCount: 1}
-	_, err := NewService(repo, zap.NewNop()).CreateGame(context.Background(), "owner", CreateInput{BetAmount: value.MustMoneyFromMinor(10000), RiskLevel: "low"})
+	repo := &fakeGameRepository{
+		balance:     50000,
+		activeCount: 1,
+	}
+	_, err := NewService(repo, zap.NewNop()).CreateGame(context.Background(), "owner", CreateInput{
+		BetAmount: value.MustMoneyFromMinor(10000),
+		RiskLevel: "low",
+	})
 	if !errors.Is(err, ErrGameConflict) || repo.balance != 50000 || repo.game != nil {
 		t.Fatalf("existing active game caused mutation: err=%v repo=%+v", err, repo)
 	}
@@ -143,9 +176,17 @@ func TestCreateGameChecksExistingActiveGameBeforeBalanceMutation(t *testing.T) {
 
 func TestTerminalRevealHistoryFailureRollsBackPayoutAndState(t *testing.T) {
 	failure := errors.New("history unavailable")
-	repo := &fakeGameRepository{game: testGame(13), balance: 50000, historyError: failure}
+	repo := &fakeGameRepository{
+		game:         testGame(13),
+		balance:      50000,
+		historyError: failure,
+	}
 	_, _, err := NewService(repo, zap.NewNop()).RevealTile(context.Background(), "owner", "game", RevealInput{Index: 13})
-	if !errors.Is(err, failure) || repo.balance != 50000 || repo.game.Status != "active" || repo.game.Grid[13].Revealed || len(repo.history) != 0 {
+	if !errors.Is(err, failure) ||
+		repo.balance != 50000 ||
+		repo.game.Status != "active" ||
+		repo.game.Grid[13].Revealed ||
+		len(repo.history) != 0 {
 		t.Fatalf("failed terminal reveal changed state: err=%v balance=%d game=%+v", err, repo.balance, repo.game)
 	}
 	want := []string{"begin", "lock game", "save game", "adjust balance", "create history", "rollback"}
@@ -169,7 +210,11 @@ func TestCashOutPreservesOwnershipConflictAndAtomicFailure(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repo := &fakeGameRepository{game: testGame(test.revealed), balance: 50000, adjustError: test.adjustError}
+			repo := &fakeGameRepository{
+				game:        testGame(test.revealed),
+				balance:     50000,
+				adjustError: test.adjustError,
+			}
 			_, err := NewService(repo, zap.NewNop()).CashOut(context.Background(), test.actor, "game")
 			if !errors.Is(err, test.wantError) || repo.balance != 50000 || repo.game.Status != "active" {
 				t.Fatalf("cash-out failure changed state: err=%v balance=%d game=%+v", err, repo.balance, repo.game)

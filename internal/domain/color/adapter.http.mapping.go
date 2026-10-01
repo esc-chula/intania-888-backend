@@ -12,5 +12,6 @@ func responses(rows []*Leaderboard) []*Response {
 			TotalMatch: row.TotalMatch,
 		}
 	}
+
 	return result
 }

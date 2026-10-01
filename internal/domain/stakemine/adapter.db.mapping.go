@@ -25,6 +25,7 @@ func gridToJSON(grid []Tile) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(data), nil
 }
 
@@ -40,6 +41,7 @@ func jsonToGrid(data string) ([]Tile, error) {
 	for i, tile := range stored {
 		grid[i] = Tile(tile)
 	}
+
 	return grid, nil
 }
 
@@ -49,6 +51,7 @@ func gameSnapshot(row *persistence.MineGame, includeGrid bool) (*Game, error) {
 	if includeGrid {
 		grid, gridErr = jsonToGrid(row.GridData)
 	}
+
 	return &Game{
 		ID:            row.ID,
 		UserID:        row.UserID,
@@ -71,6 +74,7 @@ func gameRow(game *Game) (*persistence.MineGame, error) {
 	if err != nil {
 		return nil, fmt.Errorf("serialize game grid: %w", err)
 	}
+
 	return &persistence.MineGame{
 		ID:            game.ID,
 		UserID:        game.UserID,

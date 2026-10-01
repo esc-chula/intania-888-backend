@@ -24,6 +24,7 @@ type contractService struct {
 
 func (s *contractService) GetAllSportTypes(ctx context.Context) ([]*SportType, error) {
 	s.context = ctx
+
 	return s.rows, s.err
 }
 
@@ -33,7 +34,10 @@ func TestSportTypeHTTPPreservesCatalogueEmptyListsAndContext(t *testing.T) {
 		rows []*SportType
 		want string
 	}{
-		{"catalogue", []*SportType{{ID: "football", Title: "Football"}, {ID: "empty"}}, `[{"id":"football","title":"Football"},{"id":"empty","title":""}]`},
+		{"catalogue", []*SportType{{
+			ID:    "football",
+			Title: "Football",
+		}, {ID: "empty"}}, `[{"id":"football","title":"Football"},{"id":"empty","title":""}]`},
 		{"nil catalogue", nil, `[]`},
 		{"empty catalogue", []*SportType{}, `[]`},
 	}
@@ -45,13 +49,20 @@ func TestSportTypeHTTPPreservesCatalogueEmptyListsAndContext(t *testing.T) {
 			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 			app.Use(func(c *fiber.Ctx) error {
 				c.SetUserContext(ctx)
+
 				return c.Next()
 			})
-			NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error { return c.Next() }, func(c *fiber.Ctx) error { return c.Next() })
+			NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error {
+				return c.Next()
+			}, func(c *fiber.Ctx) error {
+				return c.Next()
+			})
+
 			response, err := app.Test(httptest.NewRequest("GET", "/sport-types", nil))
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer func() {
 				if err := response.Body.Close(); err != nil {
 					t.Error(err)
@@ -72,11 +83,17 @@ func TestSportTypeHTTPRedactsDependencyErrorsAndCorrelatesRequest(t *testing.T) 
 	service := &contractService{err: errors.New("database secret")}
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 	app.Use(apierror.RequestID())
-	NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error { return c.Next() }, func(c *fiber.Ctx) error { return c.Next() })
+	NewHTTPHandler(service).RegisterRoutes(app, func(c *fiber.Ctx) error {
+		return c.Next()
+	}, func(c *fiber.Ctx) error {
+		return c.Next()
+	})
+
 	response, err := app.Test(httptest.NewRequest("GET", "/sport-types", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -86,7 +103,11 @@ func TestSportTypeHTTPRedactsDependencyErrorsAndCorrelatesRequest(t *testing.T) 
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != fiber.StatusInternalServerError || body.Code != "INTERNAL_ERROR" || strings.Contains(body.Message, "database secret") || body.RequestID == "" || body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
+	if response.StatusCode != fiber.StatusInternalServerError ||
+		body.Code != "INTERNAL_ERROR" ||
+		strings.Contains(body.Message, "database secret") ||
+		body.RequestID == "" ||
+		body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
 		t.Fatalf("unsafe or changed error response: status=%d body=%+v", response.StatusCode, body)
 	}
 }

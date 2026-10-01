@@ -28,10 +28,13 @@ func matchResultDTO(result *Result) *Response {
 		TeamBRate:  result.TeamBRate,
 		WinnerID:   result.WinnerID,
 		TypeID:     result.TypeID,
-		Location:   location.Response{ID: result.LocationID, Title: result.LocationTitle},
-		IsDraw:     result.IsDraw,
-		StartTime:  result.StartTime,
-		EndTime:    result.EndTime,
+		Location: location.Response{
+			ID:    result.LocationID,
+			Title: result.LocationTitle,
+		},
+		IsDraw:    result.IsDraw,
+		StartTime: result.StartTime,
+		EndTime:   result.EndTime,
 	}
 }
 

@@ -47,6 +47,7 @@ func newBillingSuite(t *testing.T) *billingSuite {
 
 	billRepo := bill.NewGORMRepository(postgres.DB)
 	matchRepo := match.NewGORMRepository(postgres.DB)
+
 	return &billingSuite{
 		postgres: postgres,
 		bills:    bill.NewService(billRepo, billRepo, time.Now, uuid.NewString),
@@ -439,6 +440,7 @@ func TestConcurrentBillPlacementSerializesOdds(t *testing.T) {
 			})
 			if err != nil {
 				errorsCh <- err
+
 				return
 			}
 
@@ -459,8 +461,9 @@ func TestConcurrentBillPlacementSerializesOdds(t *testing.T) {
 	for created := range results {
 		rates = append(rates, created.Lines[0].Rate.MicroUnits())
 	}
-
-	sort.Slice(rates, func(i, j int) bool { return rates[i] < rates[j] })
+	sort.Slice(rates, func(i, j int) bool {
+		return rates[i] < rates[j]
+	})
 	want := []int64{1_500_000, 2_000_000}
 
 	if len(rates) != len(want) || rates[0] != want[0] || rates[1] != want[1] {
@@ -474,7 +477,10 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 
 	created := s.place(t, "U1", 10_00, line("M1", "A"), line("M2", "A"))
 
-	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
+		Outcome:  "winner",
+		WinnerID: winner("A"),
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -487,7 +493,10 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 		t.Fatalf("balance after first leg = %d; want 90_00", got)
 	}
 
-	if err := s.matches.SetResult(context.Background(), "M2", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M2", &match.ResultInput{
+		Outcome:  "winner",
+		WinnerID: winner("A"),
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -504,7 +513,10 @@ func TestSetResultSettlesAccumulatorAndIsIdempotent(t *testing.T) {
 		t.Fatalf("event count = %d; want 1", got)
 	}
 
-	if err := s.matches.SetResult(context.Background(), "M2", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M2", &match.ResultInput{
+		Outcome:  "winner",
+		WinnerID: winner("A"),
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -537,8 +549,11 @@ func TestSetResultHandlesDrawAndLoss(t *testing.T) {
 			wantCash:   100_00,
 		},
 		{
-			name:       "loss",
-			result:     &match.ResultInput{Outcome: "winner", WinnerID: winner("B")},
+			name: "loss",
+			result: &match.ResultInput{
+				Outcome:  "winner",
+				WinnerID: winner("B"),
+			},
 			wantStatus: "LOST",
 			wantPayout: 0,
 			wantCash:   90_00,
@@ -737,7 +752,10 @@ func TestSetResultRollsBackOnAuditFailure(t *testing.T) {
 		}
 	}()
 
-	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err == nil {
+	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
+		Outcome:  "winner",
+		WinnerID: winner("A"),
+	}); err == nil {
 		t.Fatal("settlement succeeded despite injected audit failure")
 	}
 
@@ -807,7 +825,10 @@ func TestVoidAllowsPendingAccumulatorAfterResolvedLeg(t *testing.T) {
 
 	created := s.place(t, "U1", 10_00, line("M1", "A"), line("M2", "A"))
 
-	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
+		Outcome:  "winner",
+		WinnerID: winner("A"),
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -831,7 +852,10 @@ func TestVoidRejectsSettledBill(t *testing.T) {
 
 	created := s.place(t, "U1", 10_00, line("M1", "A"))
 
-	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")}); err != nil {
+	if err := s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
+		Outcome:  "winner",
+		WinnerID: winner("A"),
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -955,7 +979,10 @@ func TestConcurrentResultRequestsFinishWithinTimeout(t *testing.T) {
 
 	go func() {
 		<-start
-		_ = s.matches.SetResult(context.Background(), "M1", &match.ResultInput{Outcome: "winner", WinnerID: winner("A")})
+		_ = s.matches.SetResult(context.Background(), "M1", &match.ResultInput{
+			Outcome:  "winner",
+			WinnerID: winner("A"),
+		})
 		close(finished)
 	}()
 
@@ -980,6 +1007,7 @@ func TestBillTransactionCallbackRollsBackBalanceOnError(t *testing.T) {
 		if err := tx.UpdateBalance(context.Background(), "U1", money(1_00)); err != nil {
 			return err
 		}
+
 		return cause
 	})
 	if !errors.Is(err, cause) {
@@ -1017,6 +1045,7 @@ func TestMatchTransactionCallbackRollsBackResultAndBalanceOnError(t *testing.T) 
 		if err := tx.UpdateBalance(context.Background(), "U1", money(1_00)); err != nil {
 			return err
 		}
+
 		return cause
 	})
 	if !errors.Is(err, cause) {

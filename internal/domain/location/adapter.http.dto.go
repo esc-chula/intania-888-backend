@@ -25,6 +25,7 @@ func (r CreateRequest) ValidateRequest() map[string]string {
 	if len(details) == 0 {
 		return nil
 	}
+
 	return details
 }
 
@@ -34,7 +35,9 @@ type UpdateRequest struct {
 }
 
 // ValidateRequest requires a title with 1–100 characters after trimming.
-func (r UpdateRequest) ValidateRequest() map[string]string { return titleDetails(r.Title) }
+func (r UpdateRequest) ValidateRequest() map[string]string {
+	return titleDetails(r.Title)
+}
 
 func titleDetails(title string) map[string]string {
 	if _, err := normalizeTitle(title); err != nil {

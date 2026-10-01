@@ -27,6 +27,7 @@ func (r *SetDailyRewardRequest) UnmarshalJSON(data []byte) error {
 	if wire.Amount != nil {
 		r.Amount = *wire.Amount
 	}
+
 	return nil
 }
 
@@ -38,6 +39,7 @@ func (r SetDailyRewardRequest) ValidateRequest() map[string]string {
 	if r.Amount.MinorUnits() < 0 {
 		return map[string]string{"amount": "must be zero or greater"}
 	}
+
 	return nil
 }
 
@@ -99,6 +101,7 @@ func (r *UseStealTokenRequest) UnmarshalJSON(data []byte) error {
 	if wire.VictimIndex != nil {
 		r.VictimIndex = *wire.VictimIndex
 	}
+
 	return nil
 }
 
@@ -111,6 +114,7 @@ func (r UseStealTokenRequest) ValidateRequest() map[string]string {
 	if !r.victimIndexSet || r.VictimIndex < 0 {
 		details["victim_index"] = "must be zero or greater"
 	}
+
 	return details
 }
 

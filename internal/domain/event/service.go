@@ -36,7 +36,14 @@ func NewService(repo Repository, defaultReward value.Money, log *zap.Logger) *Se
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Service{repo: repo, defaultReward: defaultReward, log: log, now: time.Now, drawSlot: getRandomSlot}
+
+	return &Service{
+		repo:          repo,
+		defaultReward: defaultReward,
+		log:           log,
+		now:           time.Now,
+		drawSlot:      getRandomSlot,
+	}
 }
 
 // RedeemDailyReward credits one claim per actor and Bangkok calendar date atomically.
@@ -77,12 +84,14 @@ func (s *Service) RedeemDailyReward(ctx context.Context, userID string) error {
 		if err != nil {
 			return err
 		}
+
 		return tx.SetUserBalance(ctx, userID, newBalance)
 	})
 	if err != nil {
 		return err
 	}
 	s.log.Named("RedeemDailyReward").Info("Daily reward redeemed", zap.String("user_id", userID), zap.String("date", date))
+
 	return nil
 }
 
@@ -101,7 +110,10 @@ func (s *Service) GetDailyRewardSchedule(ctx context.Context) (*DailyRewardSched
 		if err != nil {
 			return nil, fmt.Errorf("invalid daily reward amount for %q: %w", reward.Date, err)
 		}
-		response.Overrides = append(response.Overrides, DailyRewardScheduleItem{Date: reward.Date, Amount: amount})
+		response.Overrides = append(response.Overrides, DailyRewardScheduleItem{
+			Date:   reward.Date,
+			Amount: amount,
+		})
 	}
 	sort.SliceStable(response.Overrides, func(i, j int) bool {
 		left, leftErr := time.Parse("02-01-2006", response.Overrides[i].Date)
@@ -111,6 +123,7 @@ func (s *Service) GetDailyRewardSchedule(ctx context.Context) (*DailyRewardSched
 			if left.Equal(right) {
 				return response.Overrides[i].Date < response.Overrides[j].Date
 			}
+
 			return left.Before(right)
 		case leftErr == nil:
 			return true
@@ -120,6 +133,7 @@ func (s *Service) GetDailyRewardSchedule(ctx context.Context) (*DailyRewardSched
 			return response.Overrides[i].Date < response.Overrides[j].Date
 		}
 	})
+
 	return response, nil
 }
 
@@ -147,6 +161,7 @@ func (s *Service) SpinSlotMachine(ctx context.Context, actor identity.Profile, s
 		//nolint:errcheck // NORM-003 preserves the inherited zero reward on multiplication overflow; change separately.
 		reward, _ = spendAmount.Mul(value.MustRateFromMicro(micro))
 	}
+
 	switch {
 	// 3 matching aliens -> issue steal token
 	case slot1 == "👽" && slot2 == "👽" && slot3 == "👽":
@@ -175,7 +190,12 @@ func (s *Service) SpinSlotMachine(ctx context.Context, actor identity.Profile, s
 		previews = make([]CandidatePreview, 0, len(candidates))
 
 		for i, u := range candidates {
-			previews = append(previews, CandidatePreview{Index: i, Name: u.Name, RoleID: u.RoleID, GroupID: u.GroupID})
+			previews = append(previews, CandidatePreview{
+				Index:   i,
+				Name:    u.Name,
+				RoleID:  u.RoleID,
+				GroupID: u.GroupID,
+			})
 		}
 	// 3 matching gold symbols
 	case slot1 == "💰" && slot2 == "💰" && slot3 == "💰":
@@ -214,13 +234,21 @@ func (s *Service) SpinSlotMachine(ctx context.Context, actor identity.Profile, s
 	if err := s.CommitSlotSpin(ctx, actor.ID, spendAmount, reward, stealToken); err != nil {
 		return nil, err
 	}
-	result := &SpinResult{Slots: []string{slot1, slot2, slot3}, Reward: reward}
+	result := &SpinResult{
+		Slots:  []string{slot1, slot2, slot3},
+		Reward: reward,
+	}
 	if stealToken != nil {
 		result.Reward = value.Money{}
-		result.StealToken = &TokenReward{Token: stealToken.Token, ExpiresAt: stealToken.ExpiresAt,
-			VictimCount: 3, Message: "👽 ALIEN POWER! Use this token to steal from other players!"}
+		result.StealToken = &TokenReward{
+			Token:       stealToken.Token,
+			ExpiresAt:   stealToken.ExpiresAt,
+			VictimCount: 3,
+			Message:     "👽 ALIEN POWER! Use this token to steal from other players!",
+		}
 		result.Candidates = previews
 	}
+
 	return result, nil
 }
 
@@ -230,6 +258,7 @@ func (s *Service) CommitSlotSpin(ctx context.Context, userID string, spendAmount
 	if spendAmount.IsZero() {
 		return errors.New("invalid spend amount")
 	}
+
 	return s.repo.WithinTransaction(ctx, func(tx TransactionRepository) error {
 		actor, err := tx.LockUser(ctx, userID)
 		if err != nil {
@@ -258,16 +287,25 @@ func (s *Service) CommitSlotSpin(ctx context.Context, userID string, spendAmount
 				return err
 			}
 		}
+
 		return nil
 	})
 }
 
 // SetDailyReward creates or replaces the configured override for one date.
 func (s *Service) SetDailyReward(ctx context.Context, date string, amount value.Money) error {
-	if err := s.repo.SetReward(ctx, DailyReward{Date: date, Reward: amount.MinorUnits()}); err != nil {
+	if err := s.repo.SetReward(ctx, DailyReward{
+		Date:   date,
+		Reward: amount.MinorUnits(),
+	}); err != nil {
 		return err
 	}
-	s.log.Named("SetDailyReward").Info("Set daily reward successfully", zap.String("date", date), zap.Int64("amount_minor", amount.MinorUnits()))
+	s.log.Named("SetDailyReward").Info(
+		"Set daily reward successfully",
+		zap.String("date", date),
+		zap.Int64("amount_minor", amount.MinorUnits()),
+	)
+
 	return nil
 }
 
@@ -277,5 +315,6 @@ func (s *Service) DeleteDailyReward(ctx context.Context, date string) error {
 		return err
 	}
 	s.log.Named("DeleteDailyReward").Info("Deleted daily reward override", zap.String("date", date))
+
 	return nil
 }

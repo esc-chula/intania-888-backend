@@ -20,7 +20,10 @@ func TestBrowserSessionRotationAndRevocation(t *testing.T) {
 		}
 		t.Skip("INTANIA888_TEST_REDIS_ADDR is required")
 	}
-	client := redis.NewClient(&redis.Options{Addr: addr, Password: os.Getenv("INTANIA888_TEST_REDIS_PASSWORD")})
+	client := redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: os.Getenv("INTANIA888_TEST_REDIS_PASSWORD"),
+	})
 	defer client.Close()
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {

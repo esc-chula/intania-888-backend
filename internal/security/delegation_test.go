@@ -7,8 +7,11 @@ import (
 
 func TestDelegatedTokensAreBoundToIssuerClientAndExternalAudience(t *testing.T) {
 	grant := Delegation{
-		ID: "grant", UserID: "player", ClientID: "games",
-		Scopes: []string{"profile.read"}, ExpiresAt: time.Now().Add(time.Hour).Unix(),
+		ID:        "grant",
+		UserID:    "player",
+		ClientID:  "games",
+		Scopes:    []string{"profile.read"},
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
 	}
 	token, err := SignDelegatedToken(grant, "secret", "888", 60)
 	if err != nil {

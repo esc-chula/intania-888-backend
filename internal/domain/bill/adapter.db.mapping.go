@@ -48,6 +48,7 @@ func billFromRow(row *persistence.BillHead) *Result {
 			Match:     matchSnapshot(line.Match),
 		})
 	}
+
 	return result
 }
 
@@ -56,6 +57,7 @@ func billsFromRows(rows []*persistence.BillHead) []*Result {
 	for i := range rows {
 		results[i] = billFromRow(rows[i])
 	}
+
 	return results
 }
 
@@ -76,5 +78,6 @@ func billToRow(bill *Result) persistence.BillHead {
 			Rate:      line.Rate.MicroUnits(),
 		})
 	}
+
 	return row
 }

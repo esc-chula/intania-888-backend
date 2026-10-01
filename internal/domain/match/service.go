@@ -19,12 +19,22 @@ type Service struct {
 
 // NewService constructs match use cases with explicit repository, clock, and ID dependencies.
 func NewService(repo Repository, transactions TransactionManager, now func() time.Time, newID func() string) *Service {
-	return &Service{repo: repo, transactions: transactions, now: now, newID: newID}
+	return &Service{
+		repo:         repo,
+		transactions: transactions,
+		now:          now,
+		newID:        newID,
+	}
 }
 
 // CreateMatch creates a match from validated application details.
 func (s *Service) CreateMatch(ctx context.Context, input *Input) error {
-	if input == nil || input.TeamAID == "" || input.TeamBID == "" || input.TypeID == "" || input.LocationID == "" || !input.EndTime.After(input.StartTime) {
+	if input == nil ||
+		input.TeamAID == "" ||
+		input.TeamBID == "" ||
+		input.TypeID == "" ||
+		input.LocationID == "" ||
+		!input.EndTime.After(input.StartTime) {
 		return ErrInvalidMatch
 	}
 	if input.ID == "" {

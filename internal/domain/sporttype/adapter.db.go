@@ -32,8 +32,12 @@ func (r *GORMRepository) GetAllSportTypes(ctx context.Context) ([]*SportType, er
 
 	rows := make([]*SportType, len(sportTypes))
 	for i, row := range sportTypes {
-		rows[i] = &SportType{ID: row.ID, Title: row.Title}
+		rows[i] = &SportType{
+			ID:    row.ID,
+			Title: row.Title,
+		}
 	}
+
 	return rows, nil
 }
 
@@ -43,16 +47,27 @@ func (r *GORMRepository) GetSportType(ctx context.Context, id string) (*SportTyp
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&row).Error; err != nil {
 		return nil, translateStorageError(err)
 	}
-	return &SportType{ID: row.ID, Title: row.Title}, nil
+
+	return &SportType{
+		ID:    row.ID,
+		Title: row.Title,
+	}, nil
 }
 
 // CreateSportType inserts an entry, preserving duplicate-title support.
 func (r *GORMRepository) CreateSportType(ctx context.Context, input SportType) (*SportType, error) {
-	row := persistence.SportType{ID: input.ID, Title: input.Title}
+	row := persistence.SportType{
+		ID:    input.ID,
+		Title: input.Title,
+	}
 	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return nil, translateStorageError(err)
 	}
-	return &SportType{ID: row.ID, Title: row.Title}, nil
+
+	return &SportType{
+		ID:    row.ID,
+		Title: row.Title,
+	}, nil
 }
 
 // UpdateSportType renames and returns the entry in one statement.
@@ -67,7 +82,11 @@ WHERE id = ? RETURNING id, title`, title, id).Scan(&row)
 	if result.RowsAffected == 0 {
 		return nil, ErrSportTypeNotFound
 	}
-	return &SportType{ID: row.ID, Title: row.Title}, nil
+
+	return &SportType{
+		ID:    row.ID,
+		Title: row.Title,
+	}, nil
 }
 
 // DeleteSportType relies on restrictive foreign keys, including during concurrent writes.
@@ -79,6 +98,7 @@ func (r *GORMRepository) DeleteSportType(ctx context.Context, id string) error {
 	if result.RowsAffected == 0 {
 		return ErrSportTypeNotFound
 	}
+
 	return nil
 }
 
@@ -95,5 +115,6 @@ func translateStorageError(err error) error {
 			return ErrSportTypeInUse
 		}
 	}
+
 	return err
 }

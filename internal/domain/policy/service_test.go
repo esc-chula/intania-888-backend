@@ -26,13 +26,18 @@ func newFakeRepository(policies ...*AccessPolicy) *fakeRepository {
 	for _, policy := range policies {
 		items[policy.ID] = policy
 	}
-	return &fakeRepository{active: policies, items: items}
+
+	return &fakeRepository{
+		active: policies,
+		items:  items,
+	}
 }
 
 func (r *fakeRepository) ListActive(_ context.Context, _ time.Time) ([]*AccessPolicy, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.listCall++
+
 	return append([]*AccessPolicy(nil), r.active...), nil
 }
 
@@ -49,6 +54,7 @@ func (r *fakeRepository) List(_ context.Context, filter ListFilter) (ListResult,
 		}
 		items = append(items, policy)
 	}
+
 	return ListResult{Items: items}, nil
 }
 
@@ -59,6 +65,7 @@ func (r *fakeRepository) FindByID(_ context.Context, id string) (*AccessPolicy, 
 	if !ok {
 		return nil, ErrPolicyNotFound
 	}
+
 	return policy, nil
 }
 
@@ -70,6 +77,7 @@ func (r *fakeRepository) FindByIdentity(_ context.Context, kind, principalType, 
 			return policy, nil
 		}
 	}
+
 	return nil, ErrPolicyNotFound
 }
 
@@ -79,6 +87,7 @@ func (r *fakeRepository) Create(_ context.Context, policy *AccessPolicy) error {
 	r.create++
 	r.items[policy.ID] = policy
 	r.active = append(r.active, policy)
+
 	return nil
 }
 
@@ -91,6 +100,7 @@ func (r *fakeRepository) Update(_ context.Context, policy *AccessPolicy) error {
 			r.active[i] = policy
 		}
 	}
+
 	return nil
 }
 
@@ -102,7 +112,9 @@ type fakeCache struct {
 	setErr error
 }
 
-func newFakeCache() *fakeCache { return &fakeCache{values: make(map[string][]byte)} }
+func newFakeCache() *fakeCache {
+	return &fakeCache{values: make(map[string][]byte)}
+}
 
 func (c *fakeCache) SetValue(_ context.Context, key string, value interface{}, _ int) error {
 	if c.setErr != nil {
@@ -116,6 +128,7 @@ func (c *fakeCache) SetValue(_ context.Context, key string, value interface{}, _
 	defer c.mu.Unlock()
 	c.values[key] = encoded
 	c.sets++
+
 	return nil
 }
 
@@ -129,6 +142,7 @@ func (c *fakeCache) GetValue(_ context.Context, key string, value interface{}) e
 	if !ok {
 		return errors.New("cache miss")
 	}
+
 	return json.Unmarshal(encoded, value)
 }
 
@@ -136,12 +150,19 @@ func (c *fakeCache) DeleteValue(_ context.Context, key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.values, key)
+
 	return nil
 }
 
 func TestEvaluateLoginUsesAllowlistAndAdminImplicitAllow(t *testing.T) {
 	repo := newFakeRepository(
-		&AccessPolicy{ID: "allow", Kind: KindAllowlist, PrincipalType: PrincipalEmail, Principal: "partner@example.com", Enabled: true},
+		&AccessPolicy{
+			ID:            "allow",
+			Kind:          KindAllowlist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "partner@example.com",
+			Enabled:       true,
+		},
 	)
 	service := NewService(repo, NewRedisSnapshotCache(newFakeCache()), zap.NewNop())
 
@@ -164,8 +185,20 @@ func TestEvaluateLoginUsesAllowlistAndAdminImplicitAllow(t *testing.T) {
 
 func TestBlacklistOverridesAllowlistAndAdmin(t *testing.T) {
 	repo := newFakeRepository(
-		&AccessPolicy{ID: "allow", Kind: KindAllowlist, PrincipalType: PrincipalEmail, Principal: "admin@example.com", Enabled: true},
-		&AccessPolicy{ID: "deny", Kind: KindBlacklist, PrincipalType: PrincipalEmail, Principal: "admin@example.com", Enabled: true},
+		&AccessPolicy{
+			ID:            "allow",
+			Kind:          KindAllowlist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "admin@example.com",
+			Enabled:       true,
+		},
+		&AccessPolicy{
+			ID:            "deny",
+			Kind:          KindBlacklist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "admin@example.com",
+			Enabled:       true,
+		},
 	)
 	service := NewService(repo, NewRedisSnapshotCache(newFakeCache()), zap.NewNop())
 
@@ -180,7 +213,13 @@ func TestBlacklistOverridesAllowlistAndAdmin(t *testing.T) {
 
 func TestGoogleSubjectBlacklistAndStudentDomain(t *testing.T) {
 	repo := newFakeRepository(
-		&AccessPolicy{ID: "deny", Kind: KindBlacklist, PrincipalType: PrincipalGoogleSubject, Principal: "google-subject", Enabled: true},
+		&AccessPolicy{
+			ID:            "deny",
+			Kind:          KindBlacklist,
+			PrincipalType: PrincipalGoogleSubject,
+			Principal:     "google-subject",
+			Enabled:       true,
+		},
 	)
 	service := NewService(repo, NewRedisSnapshotCache(newFakeCache()), zap.NewNop())
 
@@ -199,7 +238,13 @@ func TestGoogleSubjectBlacklistAndStudentDomain(t *testing.T) {
 
 func TestPolicyCacheMissFallsBackToRepositoryAndWarmsCache(t *testing.T) {
 	repo := newFakeRepository(
-		&AccessPolicy{ID: "deny", Kind: KindBlacklist, PrincipalType: PrincipalEmail, Principal: "blocked@example.com", Enabled: true},
+		&AccessPolicy{
+			ID:            "deny",
+			Kind:          KindBlacklist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "blocked@example.com",
+			Enabled:       true,
+		},
 	)
 	cache := newFakeCache()
 	service := NewService(repo, NewRedisSnapshotCache(cache), zap.NewNop())
@@ -286,7 +331,10 @@ func TestPolicyMutationsSucceedWhenCacheRefreshFails(t *testing.T) {
 		cache.setErr = errors.New("redis unavailable")
 		service := NewService(repo, NewRedisSnapshotCache(cache), zap.NewNop())
 
-		updated, err := service.Update(context.Background(), "policy-id", UpdateInput{Reason: "new reason", ReasonSet: true})
+		updated, err := service.Update(context.Background(), "policy-id", UpdateInput{
+			Reason:    "new reason",
+			ReasonSet: true,
+		})
 		if err != nil {
 			t.Fatalf("update policy error = %v; database write should remain successful", err)
 		}
@@ -320,10 +368,30 @@ func TestPolicyMutationsSucceedWhenCacheRefreshFails(t *testing.T) {
 
 func TestValidateCreateInputRejectsInvalidPolicyCombinations(t *testing.T) {
 	cases := []CreateInput{
-		{Kind: KindAllowlist, PrincipalType: PrincipalGoogleSubject, Principal: "subject", Reason: "invalid"},
-		{Kind: KindAllowlist, PrincipalType: PrincipalEmail, Principal: "student@student.chula.ac.th", Reason: "redundant"},
-		{Kind: KindBlacklist, PrincipalType: PrincipalEmail, Principal: "bad", Reason: "invalid email"},
-		{Kind: KindBlacklist, PrincipalType: PrincipalEmail, Principal: "blocked@example.com", Reason: ""},
+		{
+			Kind:          KindAllowlist,
+			PrincipalType: PrincipalGoogleSubject,
+			Principal:     "subject",
+			Reason:        "invalid",
+		},
+		{
+			Kind:          KindAllowlist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "student@student.chula.ac.th",
+			Reason:        "redundant",
+		},
+		{
+			Kind:          KindBlacklist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "bad",
+			Reason:        "invalid email",
+		},
+		{
+			Kind:          KindBlacklist,
+			PrincipalType: PrincipalEmail,
+			Principal:     "blocked@example.com",
+			Reason:        "",
+		},
 	}
 	for _, input := range cases {
 		if _, err := ValidateCreateInput(input); !errors.Is(err, ErrInvalidPolicy) {
@@ -337,18 +405,23 @@ type failingRepository struct{}
 func (*failingRepository) ListActive(context.Context, time.Time) ([]*AccessPolicy, error) {
 	return nil, errors.New("database unavailable")
 }
+
 func (*failingRepository) List(context.Context, ListFilter) (ListResult, error) {
 	return ListResult{}, errors.New("database unavailable")
 }
+
 func (*failingRepository) FindByID(context.Context, string) (*AccessPolicy, error) {
 	return nil, errors.New("database unavailable")
 }
+
 func (*failingRepository) FindByIdentity(context.Context, string, string, string) (*AccessPolicy, error) {
 	return nil, errors.New("database unavailable")
 }
+
 func (*failingRepository) Create(context.Context, *AccessPolicy) error {
 	return errors.New("database unavailable")
 }
+
 func (*failingRepository) Update(context.Context, *AccessPolicy) error {
 	return errors.New("database unavailable")
 }

@@ -112,7 +112,10 @@ func (h *HTTPHandler) ConfigureApplications(service *Service, client *cache.Redi
 func transactionKey(state string) string {
 	return loginTransactionKeyPrefix + security.HashOpaqueToken(state)
 }
-func codeKey(code string) string { return authorizationCodeKeyPrefix + security.HashOpaqueToken(code) }
+
+func codeKey(code string) string {
+	return authorizationCodeKeyPrefix + security.HashOpaqueToken(code)
+}
 
 func (h *ApplicationHTTPHandler) cookiePrefix() string {
 	if h.production {
@@ -137,7 +140,10 @@ func (h *ApplicationHTTPHandler) Login(c *fiber.Ctx) error {
 		return h.localError(c, fiber.StatusBadRequest, "Invalid return path")
 	}
 
-	return h.begin(c, loginTransaction{ClientID: app.ID, Destination: destination})
+	return h.begin(c, loginTransaction{
+		ClientID:    app.ID,
+		Destination: destination,
+	})
 }
 
 // Authorize validates a backend application before resuming account authentication.
@@ -156,7 +162,12 @@ func (h *ApplicationHTTPHandler) Authorize(c *fiber.Ctx) error {
 		Challenge:   c.Query("code_challenge"),
 		Scopes:      strings.Fields(c.Query("scope")),
 	}
-	if c.Query("response_type") != oauthResponseTypeCode || c.Query("code_challenge_method") != oauthPKCEMethod || !challengePattern.MatchString(tx.Challenge) || tx.ClientState == "" || len(tx.ClientState) > maxClientStateLength || len(tx.Scopes) == 0 {
+	if c.Query("response_type") != oauthResponseTypeCode ||
+		c.Query("code_challenge_method") != oauthPKCEMethod ||
+		!challengePattern.MatchString(tx.Challenge) ||
+		tx.ClientState == "" ||
+		len(tx.ClientState) > maxClientStateLength ||
+		len(tx.Scopes) == 0 {
 		return h.failure(c, tx, oauthErrorInvalidRequest)
 	}
 
@@ -192,6 +203,7 @@ func (h *ApplicationHTTPHandler) begin(c *fiber.Ctx, tx loginTransaction) error 
 					return h.failure(c, tx, oauthErrorAccessDenied)
 				}
 				h.cookie(c, security.SessionCookieName(h.production), id, h.service.cfg.GetSession().IdleTTLSeconds)
+
 				return h.finish(c, tx, user.ID, false)
 			}
 		} else if !errors.Is(err, middleware.ErrSessionMissing) {
@@ -224,6 +236,7 @@ func (h *ApplicationHTTPHandler) begin(c *fiber.Ctx, tx loginTransaction) error 
 	}
 
 	h.cookie(c, h.cookiePrefix()+login.State, binding, h.registry.Lifetimes.Login)
+
 	return c.Redirect(login.URL, fiber.StatusSeeOther)
 }
 
@@ -242,12 +255,15 @@ func (h *ApplicationHTTPHandler) Callback(c *fiber.Ctx) error {
 	if err := h.cache.GetValue(c.UserContext(), transactionKey(state), &tx); err != nil {
 		if cache.IsMissing(err) {
 			h.clear(c, name)
+
 			return h.localError(c, fiber.StatusBadRequest, "Expired login transaction; start login again")
 		}
+
 		return h.localError(c, fiber.StatusServiceUnavailable, "Login storage is unavailable")
 	}
 
-	if binding == "" || subtle.ConstantTimeCompare([]byte(tx.BindingHash), []byte(security.HashOpaqueToken(binding))) != 1 {
+	if binding == "" ||
+		subtle.ConstantTimeCompare([]byte(tx.BindingHash), []byte(security.HashOpaqueToken(binding))) != 1 {
 		return h.localError(c, fiber.StatusBadRequest, "Invalid login browser binding")
 	}
 
@@ -265,14 +281,22 @@ func (h *ApplicationHTTPHandler) Callback(c *fiber.Ctx) error {
 		if _, err := h.service.authRepo.ConsumeOAuthState(c.UserContext(), security.ToOAuthStateCacheKey(state)); err != nil {
 			return h.failure(c, tx, oauthErrorTemporarilyUnavailable)
 		}
+
 		return h.failure(c, tx, oauthErrorAccessDenied)
 	}
 
-	credentials, err := h.service.VerifyOAuthLogin(c.UserContext(), c.Query("code"), state, state, c.Cookies(security.SessionCookieName(h.production)))
+	credentials, err := h.service.VerifyOAuthLogin(
+		c.UserContext(),
+		c.Query("code"),
+		state,
+		state,
+		c.Cookies(security.SessionCookieName(h.production)),
+	)
 	if err != nil {
 		if errors.Is(err, ErrEmailNotAllowed) || errors.Is(err, ErrUnverifiedEmail) {
 			return h.failure(c, tx, oauthErrorAccessDenied)
 		}
+
 		return h.failure(c, tx, oauthErrorTemporarilyUnavailable)
 	}
 
@@ -294,19 +318,23 @@ func (h *ApplicationHTTPHandler) finish(c *fiber.Ctx, tx loginTransaction, userI
 			if err != nil {
 				return h.localError(c, fiber.StatusInternalServerError, "Invalid onboarding configuration")
 			}
+
 			parsed, err := url.Parse(onboarding)
 			if err != nil {
 				return h.localError(c, fiber.StatusInternalServerError, "Invalid onboarding destination")
 			}
+
 			original, err := url.Parse(destination)
 			if err != nil {
 				return h.localError(c, fiber.StatusInternalServerError, "Invalid return destination")
 			}
+
 			query := parsed.Query()
 			query.Set("return_to", original.RequestURI())
 			parsed.RawQuery = query.Encode()
 			destination = parsed.String()
 		}
+
 		return c.Redirect(destination, fiber.StatusSeeOther)
 	}
 
@@ -326,7 +354,10 @@ func (h *ApplicationHTTPHandler) finish(c *fiber.Ctx, tx loginTransaction, userI
 		return h.failure(c, tx, oauthErrorTemporarilyUnavailable)
 	}
 
-	return h.redirectParameters(c, tx.Destination, map[string]string{"code": code, "state": tx.ClientState})
+	return h.redirectParameters(c, tx.Destination, map[string]string{
+		"code":  code,
+		"state": tx.ClientState,
+	})
 }
 
 func (h *ApplicationHTTPHandler) authenticateClient(c *fiber.Ctx) (config.AuthApplication, bool) {
@@ -356,6 +387,7 @@ func (h *ApplicationHTTPHandler) authenticateClient(c *fiber.Ctx) (config.AuthAp
 	}
 
 	app, ok := h.registry.Application(id)
+
 	return app, ok && app.Mode == config.CodeApplication && subtle.ConstantTimeCompare([]byte(app.Secret), []byte(secret)) == 1
 }
 
@@ -366,6 +398,7 @@ func (h *ApplicationHTTPHandler) Token(c *fiber.Ctx) error {
 	app, ok := h.authenticateClient(c)
 	if !ok {
 		c.Set(fiber.HeaderWWWAuthenticate, oauthClientAuthChallenge)
+
 		return oauthError(c, fiber.StatusUnauthorized, oauthErrorInvalidClient)
 	}
 
@@ -394,12 +427,17 @@ func (h *ApplicationHTTPHandler) exchange(c *fiber.Ctx, app config.AuthApplicati
 		if cache.IsMissing(err) {
 			return oauthError(c, fiber.StatusBadRequest, oauthErrorInvalidGrant)
 		}
+
 		return oauthError(c, fiber.StatusServiceUnavailable, oauthErrorTemporarilyUnavailable)
 	}
 
 	digest := sha256.Sum256([]byte(verifier))
 	challenge := base64.RawURLEncoding.EncodeToString(digest[:])
-	if record.ClientID != app.ID || record.RedirectURI != c.FormValue("redirect_uri") || !slices.Contains(app.RedirectURIs, record.RedirectURI) || subtle.ConstantTimeCompare([]byte(record.Challenge), []byte(challenge)) != 1 || !scopesAllowed(record.Scopes, app.AllowedScopes) {
+	if record.ClientID != app.ID ||
+		record.RedirectURI != c.FormValue("redirect_uri") ||
+		!slices.Contains(app.RedirectURIs, record.RedirectURI) ||
+		subtle.ConstantTimeCompare([]byte(record.Challenge), []byte(challenge)) != 1 ||
+		!scopesAllowed(record.Scopes, app.AllowedScopes) {
 		return oauthError(c, fiber.StatusBadRequest, oauthErrorInvalidGrant)
 	}
 
@@ -458,6 +496,7 @@ func (h *ApplicationHTTPHandler) refresh(c *fiber.Ctx, app config.AuthApplicatio
 		if cache.IsMissing(err) {
 			return oauthError(c, fiber.StatusBadRequest, oauthErrorInvalidGrant)
 		}
+
 		return oauthError(c, fiber.StatusServiceUnavailable, oauthErrorTemporarilyUnavailable)
 	}
 
@@ -519,6 +558,7 @@ func (h *ApplicationHTTPHandler) Revoke(c *fiber.Ctx) error {
 	app, ok := h.authenticateClient(c)
 	if !ok {
 		c.Set(fiber.HeaderWWWAuthenticate, oauthClientAuthChallenge)
+
 		return oauthError(c, fiber.StatusUnauthorized, oauthErrorInvalidClient)
 	}
 
@@ -536,7 +576,8 @@ func (h *ApplicationHTTPHandler) Revoke(c *fiber.Ctx) error {
 		if marker != nil && marker.ClientID == app.ID {
 			grantID = marker.ID
 		}
-	} else if claims, err := security.ParseDelegatedToken(token, h.service.cfg.GetJWT().AccessTokenSecret, h.service.cfg.GetServer().Name); err == nil && claims.ClientID == app.ID {
+	} else if claims, err := security.ParseDelegatedToken(token, h.service.cfg.GetJWT().AccessTokenSecret, h.service.cfg.GetServer().Name); err == nil &&
+		claims.ClientID == app.ID {
 		grantID = claims.DelegationID
 	}
 
@@ -551,6 +592,7 @@ func (h *ApplicationHTTPHandler) Revoke(c *fiber.Ctx) error {
 
 func (h *ApplicationHTTPHandler) allowed(c *fiber.Ctx, user *identity.User) (bool, error) {
 	decision, err := h.service.policy.EvaluateLogin(c.UserContext(), user.Email, user.ID, user.RoleID)
+
 	return err == nil && decision.Allowed && !decision.Blacklisted, err
 }
 
@@ -609,10 +651,14 @@ func (h *ApplicationHTTPHandler) failure(c *fiber.Ctx, tx loginTransaction, code
 		if err != nil {
 			return h.localError(c, fiber.StatusInternalServerError, "Invalid login error destination")
 		}
+
 		return h.redirectParameters(c, destination, map[string]string{"error": code})
 	}
 
-	return h.redirectParameters(c, tx.Destination, map[string]string{"error": code, "state": tx.ClientState})
+	return h.redirectParameters(c, tx.Destination, map[string]string{
+		"error": code,
+		"state": tx.ClientState,
+	})
 }
 
 func (h *ApplicationHTTPHandler) redirectParameters(c *fiber.Ctx, destination string, values map[string]string) error {
@@ -626,6 +672,7 @@ func (h *ApplicationHTTPHandler) redirectParameters(c *fiber.Ctx, destination st
 		query.Set(name, value)
 	}
 	parsed.RawQuery = query.Encode()
+
 	return c.Redirect(parsed.String(), fiber.StatusSeeOther)
 }
 
@@ -633,6 +680,7 @@ func (h *ApplicationHTTPHandler) localError(c *fiber.Ctx, status int, message st
 	setNoStoreHeaders(c)
 
 	c.Type("html", "utf-8")
+
 	return c.Status(status).SendString("<!doctype html><title>Sign-in error</title><h1>Sign-in could not complete</h1><p>" + html.EscapeString(message) + "</p><p>Request ID: " + html.EscapeString(c.GetRespHeader(apierror.RequestIDHeader)) + "</p>")
 }
 
@@ -641,9 +689,25 @@ func oauthError(c *fiber.Ctx, status int, code string) error {
 }
 
 func (h *ApplicationHTTPHandler) cookie(c *fiber.Ctx, name, value string, seconds int) {
-	c.Cookie(&fiber.Cookie{Name: name, Value: value, Path: "/", MaxAge: seconds, HTTPOnly: true, Secure: h.production, SameSite: fiber.CookieSameSiteLaxMode})
+	c.Cookie(&fiber.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   seconds,
+		HTTPOnly: true,
+		Secure:   h.production,
+		SameSite: fiber.CookieSameSiteLaxMode,
+	})
 }
 
 func (h *ApplicationHTTPHandler) clear(c *fiber.Ctx, name string) {
-	c.Cookie(&fiber.Cookie{Name: name, Path: "/", MaxAge: -1, Expires: time.Unix(1, 0), HTTPOnly: true, Secure: h.production, SameSite: fiber.CookieSameSiteLaxMode})
+	c.Cookie(&fiber.Cookie{
+		Name:     name,
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(1, 0),
+		HTTPOnly: true,
+		Secure:   h.production,
+		SameSite: fiber.CookieSameSiteLaxMode,
+	})
 }

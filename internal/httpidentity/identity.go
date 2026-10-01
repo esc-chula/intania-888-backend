@@ -33,11 +33,14 @@ type ProfileResponse struct {
 // GetProfile returns the authenticated actor, or nil when no actor is installed.
 func GetProfile(c *fiber.Ctx) *identity.Profile {
 	profile, _ := c.Locals(profileKey).(*identity.Profile)
+
 	return profile
 }
 
 // SetProfile installs an authenticated actor for downstream handlers.
-func SetProfile(c *fiber.Ctx, profile *identity.Profile) { c.Locals(profileKey, profile) }
+func SetProfile(c *fiber.Ctx, profile *identity.Profile) {
+	c.Locals(profileKey, profile)
+}
 
 // SetSession installs the browser session ID and its CSRF token.
 func SetSession(c *fiber.Ctx, id, csrfToken string) {
@@ -49,6 +52,7 @@ func SetSession(c *fiber.Ctx, id, csrfToken string) {
 // It returns an empty string when no browser session token has been installed.
 func CSRFToken(c *fiber.Ctx) string {
 	token, _ := c.Locals(csrfTokenKey).(string)
+
 	return token
 }
 
@@ -58,9 +62,15 @@ func Response(profile *identity.Profile) *ProfileResponse {
 	if profile == nil {
 		return nil
 	}
+
 	return &ProfileResponse{
-		ID: profile.ID, Email: profile.Email, Name: profile.Name,
-		NickName: profile.NickName, RoleID: profile.RoleID, GroupID: profile.GroupID,
-		RemainingCoin: profile.RemainingCoin, CreatedAt: profile.CreatedAt,
+		ID:            profile.ID,
+		Email:         profile.Email,
+		Name:          profile.Name,
+		NickName:      profile.NickName,
+		RoleID:        profile.RoleID,
+		GroupID:       profile.GroupID,
+		RemainingCoin: profile.RemainingCoin,
+		CreatedAt:     profile.CreatedAt,
 	}
 }

@@ -131,6 +131,7 @@ func (h *HTTPHandler) DeleteDailyReward(c *fiber.Ctx) error {
 		if errors.Is(err, ErrDailyRewardOverrideNotFound) {
 			return apierror.Wrap(err, fiber.StatusNotFound, "RESOURCE_NOT_FOUND", "Daily reward override not found")
 		}
+
 		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to delete daily reward override")
 	}
 
@@ -159,6 +160,7 @@ func (h *HTTPHandler) UseStealToken(c *fiber.Ctx) error {
 
 func validRewardDate(value string) bool {
 	parsed, err := time.Parse("02-01-2006", value)
+
 	return err == nil && parsed.Format("02-01-2006") == value && strings.TrimSpace(value) == value
 }
 

@@ -19,7 +19,10 @@ type Service struct {
 
 // NewService constructs Stake Mines use cases using the supplied repository.
 func NewService(repo Repository, log *zap.Logger) *Service {
-	return &Service{repo: repo, log: log}
+	return &Service{
+		repo: repo,
+		log:  log,
+	}
 }
 
 // CreateGame funds one active game while holding the account lock.
@@ -76,6 +79,7 @@ func (s *Service) CreateGame(ctx context.Context, userID string, input CreateInp
 		if err := tx.AdjustBalance(ctx, userID, -input.BetAmount.MinorUnits()); err != nil {
 			return err
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -87,6 +91,7 @@ func (s *Service) CreateGame(ctx context.Context, userID string, input CreateInp
 		zap.String("game_id", game.ID),
 		zap.String("user_id", userID),
 		zap.Int64("bet_minor", input.BetAmount.MinorUnits()))
+
 	return gameResult(game, true), nil
 }
 
@@ -203,6 +208,7 @@ func (s *Service) RevealTile(ctx context.Context, userID, gameID string, input R
 		}); err != nil {
 			return err
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -210,8 +216,14 @@ func (s *Service) RevealTile(ctx context.Context, userID, gameID string, input R
 	}
 
 	if game.Status != "active" {
-		s.log.Info("Game completed", zap.String("game_id", gameID), zap.String("user_id", userID), zap.String("status", game.Status))
+		s.log.Info(
+			"Game completed",
+			zap.String("game_id", gameID),
+			zap.String("user_id", userID),
+			zap.String("status", game.Status),
+		)
 	}
+
 	return gameResult(game, game.Status == "active"), message, nil
 }
 
@@ -258,6 +270,7 @@ func (s *Service) CashOut(ctx context.Context, userID, gameID string) (*GameResu
 		if err := tx.AdjustBalance(ctx, userID, game.CurrentPayout); err != nil {
 			return err
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -268,6 +281,7 @@ func (s *Service) CashOut(ctx context.Context, userID, gameID string) (*GameResu
 		zap.String("game_id", gameID),
 		zap.String("user_id", userID),
 		zap.Int64("payout_minor", game.CurrentPayout))
+
 	return gameResult(game, false), nil
 }
 
@@ -283,6 +297,7 @@ func (s *Service) GetGame(ctx context.Context, userID, gameID string) (*GameResu
 	if game.GridError != nil {
 		return nil, game.GridError
 	}
+
 	return gameResult(game, game.Status == "active"), nil
 }
 
@@ -295,6 +310,7 @@ func (s *Service) GetActiveGame(ctx context.Context, userID string) (*GameResult
 	if game.GridError != nil {
 		return nil, game.GridError
 	}
+
 	return gameResult(game, true), nil
 }
 
@@ -319,6 +335,7 @@ func (s *Service) GetGameHistory(ctx context.Context, userID string, limit, offs
 			CompletedAt:   game.CompletedAt,
 		}
 	}
+
 	return history, nil
 }
 
@@ -332,5 +349,6 @@ func (s *Service) GetStats(ctx context.Context, userID string) (*StatsResult, er
 	if stats.TotalGames > 0 {
 		stats.WinRate = float64(stats.GamesWon+stats.GamesCashedOut) / float64(stats.TotalGames) * 100
 	}
+
 	return stats, nil
 }

@@ -42,6 +42,7 @@ func (h *HTTPHandler) GetSportType(c *fiber.Ctx) error {
 	if err != nil {
 		return mapSportTypeError(err)
 	}
+
 	return c.JSON(response(row))
 }
 
@@ -56,6 +57,7 @@ func (h *HTTPHandler) CreateSportType(c *fiber.Ctx) error {
 	if err != nil {
 		return mapSportTypeError(err)
 	}
+
 	return c.Status(fiber.StatusCreated).JSON(response(row))
 }
 
@@ -70,6 +72,7 @@ func (h *HTTPHandler) UpdateSportType(c *fiber.Ctx) error {
 	if err != nil {
 		return mapSportTypeError(err)
 	}
+
 	return c.JSON(response(row))
 }
 
@@ -78,5 +81,6 @@ func (h *HTTPHandler) DeleteSportType(c *fiber.Ctx) error {
 	if err := h.service.DeleteSportType(c.UserContext(), c.Params("id")); err != nil {
 		return mapSportTypeError(err)
 	}
+
 	return c.SendStatus(fiber.StatusNoContent)
 }

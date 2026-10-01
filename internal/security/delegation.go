@@ -77,7 +77,11 @@ func ParseDelegatedToken(raw, secret, issuer string) (*DelegatedClaims, error) {
 		jwt.WithAudience(issuer+":external"),
 		jwt.WithExpirationRequired(),
 	)
-	if err != nil || claims.Kind != delegatedTokenKind || claims.Subject == "" || claims.ClientID == "" || claims.DelegationID == "" {
+	if err != nil ||
+		claims.Kind != delegatedTokenKind ||
+		claims.Subject == "" ||
+		claims.ClientID == "" ||
+		claims.DelegationID == "" {
 		return nil, errors.New("invalid delegated token")
 	}
 
@@ -85,10 +89,14 @@ func ParseDelegatedToken(raw, secret, issuer string) (*DelegatedClaims, error) {
 }
 
 // DelegationKey hashes a grant identifier into the delegation namespace.
-func DelegationKey(id string) string { return delegationKeyPrefix + HashOpaqueToken(id) }
+func DelegationKey(id string) string {
+	return delegationKeyPrefix + HashOpaqueToken(id)
+}
 
 // RefreshKey hashes a refresh credential into the replay-detection namespace.
-func RefreshKey(token string) string { return refreshKeyPrefix + HashOpaqueToken(token) }
+func RefreshKey(token string) string {
+	return refreshKeyPrefix + HashOpaqueToken(token)
+}
 
 // DelegationStore retains consumed refresh markers until absolute expiry to detect replay.
 type DelegationStore struct{ Cache *cache.RedisClient }
@@ -117,6 +125,7 @@ redis.call('DEL', KEYS[1])
 redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[3])
 redis.call('SET', KEYS[3], ARGV[2], 'EX', ARGV[4])
 return 'ok'`, []string{codeKey, DelegationKey(grant.ID), RefreshKey(refresh)}, expected, string(payload), min(int64(idle), remaining), remaining)
+
 	return result == "ok", err
 }
 
@@ -151,6 +160,7 @@ if grant.refresh_hash ~= ARGV[1] then redis.call('DEL', KEYS[1]); return 'replay
 redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
 redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[4])
 return 'ok'`, []string{DelegationKey(marker.ID), RefreshKey(replacement)}, HashOpaqueToken(old), string(payload), min(int64(idle), remaining), remaining)
+
 	return &marker, result == "ok", err
 }
 

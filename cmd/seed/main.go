@@ -35,6 +35,7 @@ func main() {
 		if err := importPolicies(*policyFile, *policyDryRun); err != nil {
 			log.Fatal(err)
 		}
+
 		return
 	}
 
@@ -51,12 +52,30 @@ func main() {
 func seedCatalogue(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		colors := []persistence.Color{
-			{ID: "VIOLET", Title: "สีม่วง"},
-			{ID: "BLUE", Title: "สีฟ้า"},
-			{ID: "GREEN", Title: "สีเขียว"},
-			{ID: "PINK", Title: "สีชมพู"},
-			{ID: "ORANGE", Title: "สีส้ม"},
-			{ID: "YELLOW", Title: "สีเหลือง"},
+			{
+				ID:    "VIOLET",
+				Title: "สีม่วง",
+			},
+			{
+				ID:    "BLUE",
+				Title: "สีฟ้า",
+			},
+			{
+				ID:    "GREEN",
+				Title: "สีเขียว",
+			},
+			{
+				ID:    "PINK",
+				Title: "สีชมพู",
+			},
+			{
+				ID:    "ORANGE",
+				Title: "สีส้ม",
+			},
+			{
+				ID:    "YELLOW",
+				Title: "สีเหลือง",
+			},
 		}
 
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&colors).Error; err != nil {
@@ -64,17 +83,32 @@ func seedCatalogue(db *gorm.DB) error {
 		}
 
 		groupColors := map[string]string{
-			"DOG": "VIOLET", "J": "VIOLET", "R": "VIOLET",
-			"E": "BLUE", "K": "BLUE", "N": "BLUE",
-			"B": "GREEN", "C": "GREEN", "M": "GREEN",
-			"G": "PINK", "H": "PINK", "T": "PINK",
-			"P": "ORANGE", "Q": "ORANGE", "S": "ORANGE",
-			"A": "YELLOW", "F": "YELLOW", "L": "YELLOW",
+			"DOG": "VIOLET",
+			"J":   "VIOLET",
+			"R":   "VIOLET",
+			"E":   "BLUE",
+			"K":   "BLUE",
+			"N":   "BLUE",
+			"B":   "GREEN",
+			"C":   "GREEN",
+			"M":   "GREEN",
+			"G":   "PINK",
+			"H":   "PINK",
+			"T":   "PINK",
+			"P":   "ORANGE",
+			"Q":   "ORANGE",
+			"S":   "ORANGE",
+			"A":   "YELLOW",
+			"F":   "YELLOW",
+			"L":   "YELLOW",
 		}
 
 		groups := make([]persistence.IntaniaGroup, 0, len(groupColors))
 		for id, color := range groupColors {
-			groups = append(groups, persistence.IntaniaGroup{ID: id, ColorID: color})
+			groups = append(groups, persistence.IntaniaGroup{
+				ID:      id,
+				ColorID: color,
+			})
 		}
 
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&groups).Error; err != nil {
@@ -82,10 +116,22 @@ func seedCatalogue(db *gorm.DB) error {
 		}
 
 		sports := []persistence.SportType{
-			{ID: sporttype.FootballMaleJunior, Title: "ฟุตบอลชาย ปี 1"},
-			{ID: sporttype.FootballMaleSenior, Title: "ฟุตบอลชาย ปี 2-4"},
-			{ID: sporttype.BasketballMaleJunior, Title: "บาสเก็ตบอลชาย ปี 1"},
-			{ID: sporttype.BasketballMaleSenior, Title: "บาสเก็ตบอลชาย ปี 2-4"},
+			{
+				ID:    sporttype.FootballMaleJunior,
+				Title: "ฟุตบอลชาย ปี 1",
+			},
+			{
+				ID:    sporttype.FootballMaleSenior,
+				Title: "ฟุตบอลชาย ปี 2-4",
+			},
+			{
+				ID:    sporttype.BasketballMaleJunior,
+				Title: "บาสเก็ตบอลชาย ปี 1",
+			},
+			{
+				ID:    sporttype.BasketballMaleSenior,
+				Title: "บาสเก็ตบอลชาย ปี 2-4",
+			},
 			{
 				ID:    sporttype.BasketballFemaleAll,
 				Title: "บาสเก็ตบอลหญิง รวมชั้นปี",
@@ -102,24 +148,58 @@ func seedCatalogue(db *gorm.DB) error {
 				ID:    sporttype.ChairballFemaleAll,
 				Title: "แชร์บอลหญิง รวมชั้นปี",
 			},
-			{ID: sporttype.Running, Title: "วิ่งเปี้ยว"},
-			{ID: sporttype.TugOfWar, Title: "ชักเย่อ"},
-			{ID: sporttype.TraditionalSports, Title: "กีฬาพื้นบ้าน"},
-			{ID: sporttype.TugOfWarChakYor, Title: "ชักเย่อ"},
-			{ID: sporttype.RunningPiaw, Title: "วิ่งเปี้ยว"},
+			{
+				ID:    sporttype.Running,
+				Title: "วิ่งเปี้ยว",
+			},
+			{
+				ID:    sporttype.TugOfWar,
+				Title: "ชักเย่อ",
+			},
+			{
+				ID:    sporttype.TraditionalSports,
+				Title: "กีฬาพื้นบ้าน",
+			},
+			{
+				ID:    sporttype.TugOfWarChakYor,
+				Title: "ชักเย่อ",
+			},
+			{
+				ID:    sporttype.RunningPiaw,
+				Title: "วิ่งเปี้ยว",
+			},
 		}
 		locations := []persistence.Location{
-			{ID: location.CivilCourt, Title: "สนามโยธา"},
-			{ID: location.TwoReignsStatuePlaza, Title: "ลานพระบรมรูปสองรัชกาล"},
-			{ID: location.CentennialBuildingFloor, Title: "ตึก 100 ปี ชั้น 12"},
-			{ID: location.GearLawn, Title: "ลานเกียร์"},
-			{ID: location.IndoorStadiumOne, Title: "สนามกีฬาในร่ม 1"},
-			{ID: location.JubStadium, Title: "สนามจุ๊บ"},
+			{
+				ID:    location.CivilCourt,
+				Title: "สนามโยธา",
+			},
+			{
+				ID:    location.TwoReignsStatuePlaza,
+				Title: "ลานพระบรมรูปสองรัชกาล",
+			},
+			{
+				ID:    location.CentennialBuildingFloor,
+				Title: "ตึก 100 ปี ชั้น 12",
+			},
+			{
+				ID:    location.GearLawn,
+				Title: "ลานเกียร์",
+			},
+			{
+				ID:    location.IndoorStadiumOne,
+				Title: "สนามกีฬาในร่ม 1",
+			},
+			{
+				ID:    location.JubStadium,
+				Title: "สนามจุ๊บ",
+			},
 		}
 
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&sports).Error; err != nil {
 			return err
 		}
+
 		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&locations).Error
 	})
 }
@@ -151,6 +231,7 @@ func importPolicies(filename string, dryRun bool) error {
 			}
 		}
 		log.Printf("validated %d policy entries", len(input.Entries))
+
 		return nil
 	}
 
@@ -164,5 +245,6 @@ func importPolicies(filename string, dryRun bool) error {
 		}
 	}
 	log.Printf("imported %d policy entries", len(input.Entries))
+
 	return nil
 }

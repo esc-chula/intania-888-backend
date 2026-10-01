@@ -101,6 +101,7 @@ func (r CreateGameRequest) ValidateRequest() map[string]string {
 	default:
 		details["risk_level"] = "must be low, medium, or high"
 	}
+
 	return details
 }
 
@@ -131,6 +132,7 @@ func (r *RevealTileRequest) UnmarshalJSON(data []byte) error {
 	if wire.Index != nil {
 		r.Index = *wire.Index
 	}
+
 	return nil
 }
 
@@ -139,5 +141,6 @@ func (r RevealTileRequest) ValidateRequest() map[string]string {
 	if !r.indexSet || r.Index < 0 || r.Index > 15 {
 		return map[string]string{"index": "must be between 0 and 15"}
 	}
+
 	return nil
 }

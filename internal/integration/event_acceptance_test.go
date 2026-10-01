@@ -205,7 +205,10 @@ func TestDailyRewardConcurrentRedeemClaimsOnce(t *testing.T) {
 	seedStakeMineUser(t, postgres, "daily-user", 100_00)
 	date := time.Now().In(time.FixedZone("Asia/Bangkok", 7*60*60)).Format("02-01-2006")
 
-	if err := postgres.DB.Create(&persistence.DailyReward{Date: date, Reward: 123_45}).Error; err != nil {
+	if err := postgres.DB.Create(&persistence.DailyReward{
+		Date:   date,
+		Reward: 123_45,
+	}).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -289,7 +292,12 @@ func TestSlotTokenInsertFailureRollsBackBalance(t *testing.T) {
 		}
 	})
 	service := event.NewService(event.NewGORMRepository(postgres.DB), value.Money{}, nil)
-	token := &event.StealToken{ID: "rollback-token", UserID: "slot-rollback", Token: "rollback-value", ExpiresAt: time.Now().Add(time.Minute)}
+	token := &event.StealToken{
+		ID:        "rollback-token",
+		UserID:    "slot-rollback",
+		Token:     "rollback-value",
+		ExpiresAt: time.Now().Add(time.Minute),
+	}
 	if err := service.CommitSlotSpin(context.Background(), "slot-rollback", value.MustMoneyFromMinor(50_00), value.Money{}, token); err == nil {
 		t.Fatal("token insertion failure was ignored")
 	}
@@ -327,7 +335,10 @@ func TestRaidTokenUpdateFailureRollsBackBothBalances(t *testing.T) {
 	if _, err := service.UseStealToken(context.Background(), "rollback-thief", "rollback-value", 0); err == nil {
 		t.Fatal("token update failure was ignored")
 	}
-	for id, balance := range map[string]int64{"rollback-thief": 0, "rollback-victim": 100_00} {
+	for id, balance := range map[string]int64{
+		"rollback-thief":  0,
+		"rollback-victim": 100_00,
+	} {
 		var actor persistence.User
 		if err := postgres.DB.First(&actor, "id = ?", id).Error; err != nil {
 			t.Fatal(err)

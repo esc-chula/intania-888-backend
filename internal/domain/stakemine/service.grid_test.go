@@ -10,7 +10,10 @@ import (
 
 type gridReadRepository struct{ *fakeGameRepository }
 
-func (r gridReadRepository) FindByID(context.Context, string) (*Game, error) { return r.game, nil }
+func (r gridReadRepository) FindByID(context.Context, string) (*Game, error) {
+	return r.game, nil
+}
+
 func (r gridReadRepository) FindActiveByUserID(context.Context, string) (*Game, error) {
 	return r.game, nil
 }
@@ -31,7 +34,10 @@ func TestMalformedGridPreservesOwnershipAndStateErrors(t *testing.T) {
 			game := testGame(tc.revealed)
 			game.Status = tc.status
 			game.GridError = decodeErr
-			repo := &fakeGameRepository{game: game, balance: 50000}
+			repo := &fakeGameRepository{
+				game:    game,
+				balance: 50000,
+			}
 			svc := NewService(gridReadRepository{repo}, zap.NewNop())
 			_, err := svc.CashOut(context.Background(), tc.user, "game")
 			if !errors.Is(err, tc.want) {

@@ -112,7 +112,6 @@ func (c *GoogleClient) GetUserInfo(ctx context.Context, code, codeVerifier strin
 	// var parsedResponse dto.GoogleUserEmailResponse
 	var parsedResponse GoogleUserInfo
 	if err = json.Unmarshal(response, &parsedResponse); err != nil {
-
 		return nil, fmt.Errorf("%w: %w", ErrInvalidFormat, err)
 	}
 

@@ -25,6 +25,7 @@ func billResultDTO(result *Result) *HeadResponse {
 			Match:     match.ResponseFromSnapshot(line.Match),
 		})
 	}
+
 	return dto
 }
 
@@ -33,13 +34,18 @@ func billResultsDTO(results []*Result) []*HeadResponse {
 	for i := range results {
 		output[i] = billResultDTO(results[i])
 	}
+
 	return output
 }
 
 func createInput(request CreateBillRequest) *CreateInput {
-	input := &CreateInput{Total: request.Total, Lines: make([]Selection, len(request.Lines))}
+	input := &CreateInput{
+		Total: request.Total,
+		Lines: make([]Selection, len(request.Lines)),
+	}
 	for i, line := range request.Lines {
 		input.Lines[i] = Selection(line)
 	}
+
 	return input
 }

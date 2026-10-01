@@ -50,6 +50,7 @@ func TestCreateBillMissingMatchUsesSharedNotFoundContract(t *testing.T) {
 	app.Use(apierror.RequestID())
 	app.Post("/bills", func(c *fiber.Ctx) error {
 		c.Locals("user", &identity.Profile{ID: "u"})
+
 		return h.CreateBill(c)
 	})
 
@@ -57,10 +58,12 @@ func TestCreateBillMissingMatchUsesSharedNotFoundContract(t *testing.T) {
 		"total":"100.00",
 		"lines":[{"match_id":"missing","betting_on":"A"}]}`))
 	request.Header.Set("Content-Type", "application/json")
+
 	response, err := app.Test(request)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -130,7 +133,6 @@ func TestCreateBillStrictMoneyContract(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		res, err := app.Test(req)
-
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,7 +148,6 @@ func TestCreateBillStrictMoneyContract(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	res, err := app.Test(req)
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +182,10 @@ func TestVoidBillRequiresAdminAndRecordsActor(t *testing.T) {
 
 	app := newFiberTestApp()
 	app.Put("/bills/admin/:id/void", func(c *fiber.Ctx) error {
-		c.Locals("user", &identity.Profile{ID: "user", RoleID: "USER"})
+		c.Locals("user", &identity.Profile{
+			ID:     "user",
+			RoleID: "USER",
+		})
 
 		return mid.AdminMiddleware(c)
 	}, h.VoidBill)
@@ -200,7 +204,10 @@ func TestVoidBillRequiresAdminAndRecordsActor(t *testing.T) {
 
 	adminApp := newFiberTestApp()
 	adminApp.Put("/bills/admin/:id/void", func(c *fiber.Ctx) error {
-		c.Locals("user", &identity.Profile{ID: "admin", RoleID: "ADMIN"})
+		c.Locals("user", &identity.Profile{
+			ID:     "admin",
+			RoleID: "ADMIN",
+		})
 
 		return mid.AdminMiddleware(c)
 	}, h.VoidBill)

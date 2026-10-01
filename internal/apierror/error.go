@@ -55,20 +55,32 @@ func (e *Error) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("%s: %v", e.Code, e.Cause)
 	}
+
 	return e.Code + ": " + e.Message
 }
 
 // Unwrap exposes the original failure for errors.Is and errors.As.
-func (e *Error) Unwrap() error { return e.Cause }
+func (e *Error) Unwrap() error {
+	return e.Cause
+}
 
 // New constructs a safe public failure without an internal cause.
 func New(status int, code, message string) *Error {
-	return &Error{Status: status, Code: code, Message: message}
+	return &Error{
+		Status:  status,
+		Code:    code,
+		Message: message,
+	}
 }
 
 // Wrap retains a diagnostic cause while exposing only the supplied public message.
 func Wrap(cause error, status int, code, message string) *Error {
-	return &Error{Status: status, Code: code, Message: message, Cause: cause}
+	return &Error{
+		Status:  status,
+		Code:    code,
+		Message: message,
+		Cause:   cause,
+	}
 }
 
 // Invalid reports field-specific request validation failures using the shared 400 contract.
@@ -157,7 +169,12 @@ func ErrorHandler(log *zap.Logger) fiber.ErrorHandler {
 
 		c.Set(RequestIDHeader, id)
 
-		return c.Status(status).JSON(Response{Code: code, Message: message, RequestID: id, Details: details})
+		return c.Status(status).JSON(Response{
+			Code:      code,
+			Message:   message,
+			RequestID: id,
+			Details:   details,
+		})
 	}
 }
 
@@ -185,6 +202,7 @@ func publicFailure(status int) (string, string) {
 		if status >= 400 && status < 500 {
 			return CodeInvalidRequest, "The request cannot be processed"
 		}
+
 		return CodeInternalError, "Internal server error"
 	}
 }

@@ -26,22 +26,44 @@ type authTestConfig struct {
 	oauth  config.OAuth
 }
 
-func (c authTestConfig) GetServer() config.Server { return c.server }
-func (c authTestConfig) GetDB() config.DB         { return config.DB{} }
-func (c authTestConfig) GetCache() config.Cache   { return config.Cache{} }
-func (c authTestConfig) GetJWT() config.JWT       { return c.jwt }
-func (c authTestConfig) GetOAuth() config.OAuth   { return c.oauth }
+func (c authTestConfig) GetServer() config.Server {
+	return c.server
+}
+
+func (c authTestConfig) GetDB() config.DB {
+	return config.DB{}
+}
+
+func (c authTestConfig) GetCache() config.Cache {
+	return config.Cache{}
+}
+
+func (c authTestConfig) GetJWT() config.JWT {
+	return c.jwt
+}
+
+func (c authTestConfig) GetOAuth() config.OAuth {
+	return c.oauth
+}
+
 func (c authTestConfig) GetSession() config.Session {
 	return config.Session{
 		IdleTTLSeconds:     config.DefaultSessionIdleTTLSeconds,
 		AbsoluteTTLSeconds: config.DefaultSessionAbsoluteTTLSeconds,
 	}
 }
+
 func (c authTestConfig) GetSwagger() config.Swagger {
 	return config.Swagger{}
 }
-func (c authTestConfig) GetCORS() config.CORS               { return config.CORS{} }
-func (c authTestConfig) GetDailyReward() config.DailyReward { return config.DailyReward{} }
+
+func (c authTestConfig) GetCORS() config.CORS {
+	return config.CORS{}
+}
+
+func (c authTestConfig) GetDailyReward() config.DailyReward {
+	return config.DailyReward{}
+}
 
 type memoryAuthRepository struct {
 	mu      sync.Mutex
@@ -70,6 +92,7 @@ func (r *memoryAuthRepository) SetCacheValue(key string, value interface{}, ttl 
 	if ttl > 0 {
 		r.expires[key] = time.Now().Add(time.Duration(ttl) * time.Second)
 	}
+
 	return nil
 }
 
@@ -88,6 +111,7 @@ func (r *memoryAuthRepository) GetCacheValue(key string, value interface{}) erro
 	if !ok {
 		return redis.Nil
 	}
+
 	return json.Unmarshal(encoded, value)
 }
 
@@ -100,6 +124,7 @@ func (r *memoryAuthRepository) DeleteCacheValue(key string) error {
 	delete(r.values, key)
 	delete(r.ttls, key)
 	delete(r.expires, key)
+
 	return nil
 }
 
@@ -111,6 +136,7 @@ func (r *memoryAuthRepository) DeleteCacheValues(keys ...string) error {
 		delete(r.ttls, key)
 		delete(r.expires, key)
 	}
+
 	return nil
 }
 
@@ -129,6 +155,7 @@ func (r *memoryAuthRepository) ConsumeCacheValue(key string, value interface{}) 
 	delete(r.values, key)
 	delete(r.ttls, key)
 	delete(r.expires, key)
+
 	return json.Unmarshal(encoded, value)
 }
 
@@ -165,6 +192,7 @@ func (r *memoryAuthRepository) CompareAndSwapCacheValues(expected map[string]int
 			r.expires[key] = time.Now().Add(time.Duration(ttl) * time.Second)
 		}
 	}
+
 	return true, nil
 }
 
@@ -180,6 +208,7 @@ func newMemoryUserRepository() *memoryUserRepository {
 func (r *memoryUserRepository) Create(ctx context.Context, user *identity.User) error {
 	r.users[user.Email] = user
 	r.createCount++
+
 	return nil
 }
 
@@ -189,6 +218,7 @@ func (r *memoryUserRepository) GetByID(ctx context.Context, id string) (*identit
 			return user, nil
 		}
 	}
+
 	return nil, identity.ErrUserNotFound
 }
 
@@ -197,11 +227,17 @@ func (r *memoryUserRepository) GetByEmail(ctx context.Context, email string) (*i
 	if !ok {
 		return nil, identity.ErrUserNotFound
 	}
+
 	return user, nil
 }
 
-func (r *memoryUserRepository) GetAll() ([]*identity.User, error) { return nil, nil }
-func (r *memoryUserRepository) Update(*identity.User) error       { return nil }
+func (r *memoryUserRepository) GetAll() ([]*identity.User, error) {
+	return nil, nil
+}
+
+func (r *memoryUserRepository) Update(*identity.User) error {
+	return nil
+}
 
 func (r *memoryUserRepository) DeductCoin(string, value.Money) (value.Money, error) {
 	return value.Money{}, nil
@@ -231,22 +267,31 @@ func (c fakeGoogleOAuthClient) GetUserInfo(ctx context.Context, _, codeVerifier 
 	if c.verifier != nil {
 		*c.verifier = codeVerifier
 	}
+
 	return c.info, c.err
 }
 
-func (c fakeGoogleOAuthClient) OAuthConfig() *oauth2.Config { return c.config }
+func (c fakeGoogleOAuthClient) OAuthConfig() *oauth2.Config {
+	return c.config
+}
 
 func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*Service, *memoryAuthRepository, *memoryUserRepository) {
 	repo := newMemoryAuthRepository()
 	users := newMemoryUserRepository()
 	cfg := authTestConfig{
-		server: config.Server{Name: "intania-test", Env: "development"},
+		server: config.Server{
+			Name: "intania-test",
+			Env:  "development",
+		},
 		jwt: config.JWT{
 			AccessTokenSecret: "access-secret",
 		},
 		oauth: config.OAuth{
 			Registry: &config.AuthRegistry{
-				Lifetimes: config.AuthLifetimes{Login: 120, Access: 3600},
+				Lifetimes: config.AuthLifetimes{
+					Login:  120,
+					Access: 3600,
+				},
 			},
 		},
 	}
@@ -264,6 +309,7 @@ func newAuthTestService(info *oauthpkg.GoogleUserInfo) (*Service, *memoryAuthRep
 		verifier: verifier,
 	}
 	service := NewService(repo, users, cfg, client, testPolicyChecker{})
+
 	return service, repo, users
 }
 
@@ -296,6 +342,7 @@ func createOAuthState(t *testing.T, service *Service) string {
 	if stateRecord.CodeVerifier == "" {
 		t.Fatal("OAuth state did not store a PKCE verifier")
 	}
+
 	return login.State
 }
 
@@ -343,7 +390,12 @@ func (r *memoryAuthRepository) RotateSession(ctx context.Context,
 	r.mu.Lock()
 	old := string(r.values[userKey])
 	r.mu.Unlock()
-	if err := r.SetCacheValue(sessionKey, sessionRecord{UserID: state.UserID, CreatedAt: state.CreatedAt, ExpiresAt: state.ExpiresAt, CSRFToken: state.CSRFToken}, idleTTLSeconds); err != nil {
+	if err := r.SetCacheValue(sessionKey, sessionRecord{
+		UserID:    state.UserID,
+		CreatedAt: state.CreatedAt,
+		ExpiresAt: state.ExpiresAt,
+		CSRFToken: state.CSRFToken,
+	}, idleTTLSeconds); err != nil {
 		return err
 	}
 	if err := r.SetCacheValue(userKey, sessionKey, absoluteTTLSeconds); err != nil {
@@ -363,14 +415,20 @@ func (r *memoryAuthRepository) RotateSession(ctx context.Context,
 			return err
 		}
 	}
+
 	return nil
 }
+
 func (r *memoryAuthRepository) DeleteSession(ctx context.Context, key string) error {
 	return r.DeleteCacheValues(key)
 }
 
 func TestOpaqueSessionRotationAndFailedLogin(t *testing.T) {
-	info := &oauthpkg.GoogleUserInfo{ID: "google-id", Email: "student@student.chula.ac.th", VerifiedEmail: true}
+	info := &oauthpkg.GoogleUserInfo{
+		ID:            "google-id",
+		Email:         "student@student.chula.ac.th",
+		VerifiedEmail: true,
+	}
 	service, repo, _ := newAuthTestService(info)
 	state := createOAuthState(t, service)
 	first, err := service.VerifyOAuthLogin(context.Background(), "code", state, state, "")
@@ -429,7 +487,9 @@ func (r *memoryAuthRepository) ConsumeOAuthState(ctx context.Context, key string
 		if errors.Is(err, redis.Nil) {
 			return OAuthState{}, errors.Join(ErrInvalidOAuthState, err)
 		}
+
 		return OAuthState{}, err
 	}
+
 	return OAuthState(record), nil
 }

@@ -42,8 +42,10 @@ func (r *RedisRepository) ConsumeOAuthState(ctx context.Context, key string) (OA
 		if errors.Is(err, redis.Nil) {
 			return OAuthState{}, fmt.Errorf("%w: %w", ErrInvalidOAuthState, err)
 		}
+
 		return OAuthState{}, err
 	}
+
 	return OAuthState(record), nil
 }
 
@@ -55,6 +57,7 @@ func (r *RedisRepository) RotateSession(ctx context.Context, userKey, key, previ
 		ExpiresAt: state.ExpiresAt,
 		CSRFToken: state.CSRFToken,
 	}
+
 	return r.cache.RotateSession(ctx, userKey, key, previous, record, idle, absolute)
 }
 

@@ -23,8 +23,14 @@ import (
 
 type routeConfig struct{ config.Config }
 
-func (routeConfig) GetServer() config.Server   { return config.Server{Env: "development"} }
-func (routeConfig) GetSwagger() config.Swagger { return config.Swagger{} }
+func (routeConfig) GetServer() config.Server {
+	return config.Server{Env: "development"}
+}
+
+func (routeConfig) GetSwagger() config.Swagger {
+	return config.Swagger{}
+}
+
 func (routeConfig) GetCORS() config.CORS {
 	return config.CORS{AllowOrigins: "http://localhost:3000"}
 }
@@ -38,14 +44,25 @@ func (routeAuthService) GetSession(_ context.Context, id string) (*security.Sess
 	if id != "opaque" {
 		return nil, middleware.ErrSessionMissing
 	}
-	return &security.Session{UserID: "user", CSRFToken: "csrf"}, nil
+
+	return &security.Session{
+		UserID:    "user",
+		CSRFToken: "csrf",
+	}, nil
 }
+
 func (s routeAuthService) GetMe(context.Context, string) (*identity.Profile, error) {
-	return &identity.Profile{ID: "user", Email: "user@example.test", RoleID: s.role}, nil
+	return &identity.Profile{
+		ID:     "user",
+		Email:  "user@example.test",
+		RoleID: s.role,
+	}, nil
 }
+
 func (routeAuthService) VerifyScopedExternalToken(context.Context, string, string) (string, error) {
 	return "", errors.New("external credentials cannot access browser routes")
 }
+
 func (s routeAuthService) IsBlacklisted(context.Context, string, string) (bool, error) {
 	return s.blacklisted, nil
 }
@@ -65,6 +82,7 @@ func sportTypeTestAppWithAuth(t *testing.T, authService routeAuthService, repo *
 	router := app.Group("/api/v1", guard.OriginGuard())
 	mid := middleware.NewHTTPHandler(authService, false, config.DefaultSessionIdleTTLSeconds)
 	NewHTTPHandler(NewService(repo, zap.NewNop())).RegisterRoutes(router, mid.AuthMiddleware, mid.AdminMiddleware)
+
 	return app
 }
 
@@ -74,6 +92,7 @@ func sportTypeRequest(method, path, body string) *http.Request {
 	request.Header.Set("Origin", "http://localhost:3000")
 	request.Header.Set("Cookie", "session=opaque")
 	request.Header.Set("X-CSRF-Token", "csrf")
+
 	return request
 }
 
@@ -83,6 +102,7 @@ func sportTypeResponse(t *testing.T, app *fiber.App, request *http.Request) (int
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -92,6 +112,7 @@ func sportTypeResponse(t *testing.T, app *fiber.App, request *http.Request) (int
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return response.StatusCode, body
 }
 
@@ -123,6 +144,7 @@ func TestSportTypeHTTPCRUD(t *testing.T) {
 				if string(body) != test.want {
 					t.Fatalf("body = %s; want %s", body, test.want)
 				}
+
 				return
 			}
 			var failure apierror.Response
@@ -195,6 +217,7 @@ func TestSportTypeHTTPAuthenticationAdminOriginAndCSRF(t *testing.T) {
 				if check.header != "" {
 					request.Header.Set(check.header, check.value)
 				}
+
 				status, body := sportTypeResponse(t, app, request)
 				if status != check.status || repo.calls != 0 {
 					t.Fatalf("protected route = %d %s; calls=%d", status, body, repo.calls)
@@ -207,24 +230,31 @@ func TestSportTypeHTTPAuthenticationAdminOriginAndCSRF(t *testing.T) {
 func TestSportTypeCatalogueReadsArePublicAndSkipAccountBlacklist(t *testing.T) {
 	for _, path := range []string{"/sport-types", "/sport-types/S", "/sport-types/admin"} {
 		t.Run(path, func(t *testing.T) {
-			app := sportTypeTestAppWithAuth(t, routeAuthService{role: security.RoleUser, blacklisted: true}, newMemoryRepository())
+			app := sportTypeTestAppWithAuth(t, routeAuthService{
+				role:        security.RoleUser,
+				blacklisted: true,
+			}, newMemoryRepository())
 			request := sportTypeRequest(http.MethodGet, path, "")
 			request.Header.Del("X-CSRF-Token")
+
 			if status, body := sportTypeResponse(t, app, request); status != http.StatusOK {
 				t.Fatalf("public catalogue read with blocked-account cookie = %d %s", status, body)
 			}
 
 			request.Header.Del("Cookie")
+
 			if status, body := sportTypeResponse(t, app, request); status != http.StatusOK {
 				t.Fatalf("public catalogue read without a session = %d %s", status, body)
 			}
 
 			request.Header.Set("Origin", "https://unlisted.example.test")
+
 			if status, body := sportTypeResponse(t, app, request); status != http.StatusForbidden {
 				t.Fatalf("public catalogue read from an unlisted origin = %d %s", status, body)
 			}
 
 			request.Header.Del("Origin")
+
 			if status, body := sportTypeResponse(t, app, request); status != http.StatusOK {
 				t.Fatalf("public catalogue read without an Origin = %d %s", status, body)
 			}

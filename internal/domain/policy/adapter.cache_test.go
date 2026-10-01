@@ -15,8 +15,16 @@ func TestPolicySnapshotPreservesExistingCacheJSON(t *testing.T) {
 	raw := newFakeCache()
 	ctx := context.Background()
 	expiry := time.Date(2027, time.January, 1, 0, 0, 0, 0, time.UTC)
-	input := []*AccessPolicy{{ID: "id", Kind: KindBlacklist, PrincipalType: PrincipalGoogleSubject, Principal: "subject", Reason: "reason",
-		Enabled: true, ExpiresAt: &expiry, CreatedAt: time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)}}
+	input := []*AccessPolicy{{
+		ID:            "id",
+		Kind:          KindBlacklist,
+		PrincipalType: PrincipalGoogleSubject,
+		Principal:     "subject",
+		Reason:        "reason",
+		Enabled:       true,
+		ExpiresAt:     &expiry,
+		CreatedAt:     time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC),
+	}}
 	adapter := NewRedisSnapshotCache(raw)
 	if err := adapter.Store(ctx, input); err != nil {
 		t.Fatal(err)

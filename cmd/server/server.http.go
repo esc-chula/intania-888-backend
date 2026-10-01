@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-
 	"fmt"
 	"net/url"
 	"os"
@@ -27,8 +26,10 @@ import (
 	swagger "github.com/arsmn/fiber-swagger/v2"
 )
 
-const shutdownTimeout = 10 * time.Second
-const readinessTimeout = time.Second
+const (
+	shutdownTimeout  = 10 * time.Second
+	readinessTimeout = time.Second
+)
 
 // ReadinessCheck verifies that one application dependency can serve requests.
 type ReadinessCheck func(context.Context) error
@@ -142,6 +143,7 @@ func (s *FiberHTTPServer) Start() error {
 		if err != nil {
 			return fmt.Errorf("listen on %s: %w", url, err)
 		}
+
 		return nil
 	case <-quit:
 	}
@@ -157,6 +159,7 @@ func (s *FiberHTTPServer) Start() error {
 	}
 
 	s.logger.Sugar().Info("Server shutdown complete.")
+
 	return nil
 }
 
@@ -224,6 +227,7 @@ func (s *FiberHTTPServer) readinessHandler() fiber.Handler {
 		for _, check := range s.readinessChecks {
 			if err := check(ctx); err != nil {
 				s.logger.Warn("Readiness check failed", zap.Error(err))
+
 				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"status": "not_ready"})
 			}
 		}
@@ -245,6 +249,7 @@ func (s *FiberHTTPServer) registerSwagger() {
 			},
 			Unauthorized: func(c *fiber.Ctx) error {
 				c.Set(fiber.HeaderWWWAuthenticate, `Basic realm="Restricted"`)
+
 				return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
 			},
 		}))
@@ -253,6 +258,7 @@ func (s *FiberHTTPServer) registerSwagger() {
 	s.app.Get("/swagger/openapi.yaml", func(c *fiber.Ctx) error {
 		c.Set(fiber.HeaderContentType, "application/yaml; charset=utf-8")
 		c.Set(fiber.HeaderCacheControl, "no-store")
+
 		return c.Send(s.openAPIDocument)
 	})
 	s.app.Get("/swagger/doc.json", func(c *fiber.Ctx) error {
@@ -290,6 +296,7 @@ func (s *FiberHTTPServer) isAllowedOrigin(origin string) bool {
 		return false
 	}
 	_, ok := s.allowedOrigins[canonical]
+
 	return ok
 }
 
@@ -313,6 +320,7 @@ func parseAllowedOrigins(rawOrigins string) (map[string]struct{}, error) {
 		}
 		allowedOrigins[origin] = struct{}{}
 	}
+
 	return allowedOrigins, nil
 }
 
@@ -326,5 +334,6 @@ func canonicalOrigin(rawOrigin string) (string, error) {
 	if scheme != "http" && scheme != "https" {
 		return "", fmt.Errorf("origin scheme must be http or https")
 	}
+
 	return scheme + "://" + strings.ToLower(parsed.Host), nil
 }

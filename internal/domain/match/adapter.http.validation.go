@@ -27,14 +27,21 @@ func (r CreateMatchRequest) ValidateRequest() map[string]string {
 	if r.EndTime.IsZero() || !r.EndTime.After(r.StartTime) {
 		details["end_time"] = "must be after start_time"
 	}
+
 	return details
 }
 
 // ValidateRequest validates the HTTP request fields.
 func (r UpdateMatchRequest) ValidateRequest() map[string]string {
 	details := make(map[string]string)
-	if r.TeamAID == nil && r.TeamBID == nil && r.TypeID == nil && r.LocationID == nil && r.StartTime == nil && r.EndTime == nil {
+	if r.TeamAID == nil &&
+		r.TeamBID == nil &&
+		r.TypeID == nil &&
+		r.LocationID == nil &&
+		r.StartTime == nil &&
+		r.EndTime == nil {
 		details["body"] = "must include at least one match field"
+
 		return details
 	}
 	if r.TeamAID != nil && strings.TrimSpace(*r.TeamAID) == "" {
@@ -55,6 +62,7 @@ func (r UpdateMatchRequest) ValidateRequest() map[string]string {
 	if r.EndTime != nil && r.EndTime.IsZero() {
 		details["end_time"] = "must be a valid timestamp"
 	}
+
 	return details
 }
 
@@ -71,6 +79,7 @@ func (r ScoreDTO) ValidateRequest() map[string]string {
 	} else if r.TeamBScore < 0 {
 		details["team_b_score"] = "must be zero or greater"
 	}
+
 	return details
 }
 
@@ -92,6 +101,7 @@ func (r *ScoreDTO) UnmarshalJSON(data []byte) error {
 	if value.TeamBScore != nil {
 		r.TeamBScore = *value.TeamBScore
 	}
+
 	return nil
 }
 
@@ -110,5 +120,6 @@ func (r ResultRequest) ValidateRequest() map[string]string {
 	default:
 		details["outcome"] = "must be winner or draw"
 	}
+
 	return details
 }

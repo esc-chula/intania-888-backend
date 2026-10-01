@@ -20,9 +20,18 @@ type memoryRepository struct {
 func newMemoryRepository() *memoryRepository {
 	return &memoryRepository{
 		rows: map[string]*SportType{
-			"S":     {ID: "S", Title: "Sport"},
-			"USED":  {ID: "USED", Title: "Used sport"},
-			"admin": {ID: "admin", Title: "Admin is a valid ID"},
+			"S": {
+				ID:    "S",
+				Title: "Sport",
+			},
+			"USED": {
+				ID:    "USED",
+				Title: "Used sport",
+			},
+			"admin": {
+				ID:    "admin",
+				Title: "Admin is a valid ID",
+			},
 		},
 		inUse: map[string]bool{"USED": true},
 	}
@@ -31,6 +40,7 @@ func newMemoryRepository() *memoryRepository {
 func (r *memoryRepository) record(ctx context.Context) error {
 	r.ctx = ctx
 	r.calls++
+
 	return r.err
 }
 
@@ -42,6 +52,7 @@ func (r *memoryRepository) GetAllSportTypes(ctx context.Context) ([]*SportType, 
 	for _, row := range r.rows {
 		rows = append(rows, row)
 	}
+
 	return rows, nil
 }
 
@@ -53,7 +64,11 @@ func (r *memoryRepository) GetSportType(ctx context.Context, id string) (*SportT
 	if !ok {
 		return nil, ErrSportTypeNotFound
 	}
-	return &SportType{ID: row.ID, Title: row.Title}, nil
+
+	return &SportType{
+		ID:    row.ID,
+		Title: row.Title,
+	}, nil
 }
 
 func (r *memoryRepository) CreateSportType(ctx context.Context, input SportType) (*SportType, error) {
@@ -64,6 +79,7 @@ func (r *memoryRepository) CreateSportType(ctx context.Context, input SportType)
 		return nil, ErrSportTypeConflict
 	}
 	r.rows[input.ID] = &input
+
 	return &input, nil
 }
 
@@ -74,8 +90,12 @@ func (r *memoryRepository) UpdateSportType(ctx context.Context, id, title string
 	if _, exists := r.rows[id]; !exists {
 		return nil, ErrSportTypeNotFound
 	}
-	row := &SportType{ID: id, Title: title}
+	row := &SportType{
+		ID:    id,
+		Title: title,
+	}
 	r.rows[id] = row
+
 	return row, nil
 }
 
@@ -90,6 +110,7 @@ func (r *memoryRepository) DeleteSportType(ctx context.Context, id string) error
 		return ErrSportTypeInUse
 	}
 	delete(r.rows, id)
+
 	return nil
 }
 
@@ -114,11 +135,15 @@ func TestSportTypeValidationAndNormalization(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			repo := newMemoryRepository()
 			service := NewService(repo, zap.NewNop())
-			row, err := service.CreateSportType(context.Background(), SportType{ID: test.id, Title: test.title})
+			row, err := service.CreateSportType(context.Background(), SportType{
+				ID:    test.id,
+				Title: test.title,
+			})
 			if !test.valid {
 				if !errors.Is(err, ErrInvalidSportType) || repo.calls != 0 {
 					t.Fatalf("invalid input reached storage: row=%+v err=%v calls=%d", row, err, repo.calls)
 				}
+
 				return
 			}
 			if err != nil || row.ID != test.id || row.Title != strings.TrimSpace(test.title) {
@@ -134,10 +159,16 @@ func TestSportTypeCRUDAndErrorPropagation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if _, err := service.CreateSportType(ctx, SportType{ID: "NEW", Title: "Sport"}); err != nil {
+	if _, err := service.CreateSportType(ctx, SportType{
+		ID:    "NEW",
+		Title: "Sport",
+	}); err != nil {
 		t.Fatalf("duplicate titles must be allowed: %v", err)
 	}
-	if _, err := service.CreateSportType(ctx, SportType{ID: "NEW", Title: "Other"}); !errors.Is(err, ErrSportTypeConflict) {
+	if _, err := service.CreateSportType(ctx, SportType{
+		ID:    "NEW",
+		Title: "Other",
+	}); !errors.Is(err, ErrSportTypeConflict) {
 		t.Fatalf("duplicate ID error = %v", err)
 	}
 	row, err := service.UpdateSportType(ctx, "NEW", " Renamed ")
@@ -152,9 +183,20 @@ func TestSportTypeCRUDAndErrorPropagation(t *testing.T) {
 	}
 
 	operations := []func() error{
-		func() error { _, err := service.GetSportType(ctx, "NEW"); return err },
-		func() error { _, err := service.UpdateSportType(ctx, "NEW", "Sport"); return err },
-		func() error { return service.DeleteSportType(ctx, "NEW") },
+		func() error {
+			_, err := service.GetSportType(ctx, "NEW")
+
+			return err
+		},
+
+		func() error {
+			_, err := service.UpdateSportType(ctx, "NEW", "Sport")
+
+			return err
+		},
+		func() error {
+			return service.DeleteSportType(ctx, "NEW")
+		},
 	}
 	for _, operation := range operations {
 		if err := operation(); !errors.Is(err, ErrSportTypeNotFound) {
@@ -164,8 +206,20 @@ func TestSportTypeCRUDAndErrorPropagation(t *testing.T) {
 
 	repo.err = errors.New("storage unavailable")
 	operations = append(operations,
-		func() error { _, err := service.GetAllSportTypes(ctx); return err },
-		func() error { _, err := service.CreateSportType(ctx, SportType{ID: "NEW", Title: "Sport"}); return err },
+		func() error {
+			_, err := service.GetAllSportTypes(ctx)
+
+			return err
+		},
+
+		func() error {
+			_, err := service.CreateSportType(ctx, SportType{
+				ID:    "NEW",
+				Title: "Sport",
+			})
+
+			return err
+		},
 	)
 	for _, operation := range operations {
 		if err := operation(); !errors.Is(err, repo.err) || repo.ctx != ctx {
@@ -179,10 +233,26 @@ func TestSportTypeInvalidOperationsDoNotReachStorage(t *testing.T) {
 	service := NewService(repo, nil)
 	ctx := context.Background()
 	operations := []func() error{
-		func() error { _, err := service.GetSportType(ctx, "bad.id"); return err },
-		func() error { _, err := service.UpdateSportType(ctx, "bad.id", "Sport"); return err },
-		func() error { _, err := service.UpdateSportType(ctx, "S", " "); return err },
-		func() error { return service.DeleteSportType(ctx, "bad.id") },
+		func() error {
+			_, err := service.GetSportType(ctx, "bad.id")
+
+			return err
+		},
+
+		func() error {
+			_, err := service.UpdateSportType(ctx, "bad.id", "Sport")
+
+			return err
+		},
+
+		func() error {
+			_, err := service.UpdateSportType(ctx, "S", " ")
+
+			return err
+		},
+		func() error {
+			return service.DeleteSportType(ctx, "bad.id")
+		},
 	}
 	for _, operation := range operations {
 		if err := operation(); !errors.Is(err, ErrInvalidSportType) || repo.calls != 0 {

@@ -18,7 +18,10 @@ func NewService(repo Repository, log *zap.Logger) *Service {
 		log = zap.NewNop()
 	}
 
-	return &Service{repo: repo, log: log}
+	return &Service{
+		repo: repo,
+		log:  log,
+	}
 }
 
 // GetAllLocations returns every configured venue.

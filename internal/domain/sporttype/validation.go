@@ -17,6 +17,7 @@ func validID(id string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -26,5 +27,6 @@ func normalizeTitle(title string) (string, error) {
 	if length == 0 || length > 100 {
 		return "", ErrInvalidSportType
 	}
+
 	return title, nil
 }

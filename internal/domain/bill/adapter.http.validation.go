@@ -23,6 +23,7 @@ func (r CreateBillRequest) ValidateRequest() map[string]string {
 			break
 		}
 	}
+
 	return details
 }
 
@@ -31,5 +32,6 @@ func (r VoidBillRequest) ValidateRequest() map[string]string {
 	if strings.TrimSpace(r.Reason) == "" {
 		return map[string]string{"reason": "is required"}
 	}
+
 	return nil
 }

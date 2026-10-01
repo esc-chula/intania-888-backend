@@ -102,11 +102,13 @@ func (s *Service) UseStealToken(ctx context.Context, userID, tokenValue string, 
 		}
 
 		result, err = buildStealResult(token.AllowedVictimIDs, candidates, chosenID, credit, thiefBalance)
+
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return result, nil
 }
 
@@ -119,15 +121,27 @@ func buildStealResult(candidateIDs []string, candidates []identity.User, chosenI
 	for i, id := range candidateIDs {
 		candidate, found := byID[id]
 		if !found {
-			details = append(details, VictimDetail{Index: i, Name: "[Deleted User]", RoleID: "UNKNOWN", WasChosen: id == chosenID})
+			details = append(details, VictimDetail{
+				Index:     i,
+				Name:      "[Deleted User]",
+				RoleID:    "UNKNOWN",
+				WasChosen: id == chosenID,
+			})
 			continue
 		}
 		balance, err := value.NewMoneyFromMinor(candidate.RemainingCoin)
 		if err != nil {
 			return nil, err
 		}
-		detail := VictimDetail{Index: i, UserID: candidate.ID, Name: candidate.Name, RoleID: candidate.RoleID,
-			GroupID: candidate.GroupID, BalanceBefore: balance, WasChosen: id == chosenID}
+		detail := VictimDetail{
+			Index:         i,
+			UserID:        candidate.ID,
+			Name:          candidate.Name,
+			RoleID:        candidate.RoleID,
+			GroupID:       candidate.GroupID,
+			BalanceBefore: balance,
+			WasChosen:     id == chosenID,
+		}
 		if detail.WasChosen {
 			detail.AmountStolen = credit
 		}
@@ -137,6 +151,11 @@ func buildStealResult(candidateIDs []string, candidates []identity.User, chosenI
 	if !exists {
 		return nil, errors.New("chosen victim no longer exists")
 	}
-	return &StealResult{TotalStolen: credit, RaiderNewBalance: thiefBalance, AllCandidates: details,
-		Message: fmt.Sprintf("👽 You raided %s and stole %s coins!", chosen.Name, credit.String())}, nil
+
+	return &StealResult{
+		TotalStolen:      credit,
+		RaiderNewBalance: thiefBalance,
+		AllCandidates:    details,
+		Message:          fmt.Sprintf("👽 You raided %s and stole %s coins!", chosen.Name, credit.String()),
+	}, nil
 }

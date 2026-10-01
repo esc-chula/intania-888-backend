@@ -22,7 +22,12 @@ type Service struct {
 
 // NewService constructs bill use cases with explicit persistence, clock, and ID dependencies.
 func NewService(repo Repository, transactions TransactionManager, now func() time.Time, newID func() string) *Service {
-	return &Service{repo: repo, transactions: transactions, now: now, newID: newID}
+	return &Service{
+		repo:         repo,
+		transactions: transactions,
+		now:          now,
+		newID:        newID,
+	}
 }
 
 // CreateBill validates selections and atomically stores a bill and debits its stake.
@@ -32,7 +37,9 @@ func (s *Service) CreateBill(ctx context.Context, userID string, req *CreateInpu
 	}
 
 	lines := append([]Selection(nil), req.Lines...)
-	sort.Slice(lines, func(i, j int) bool { return lines[i].MatchID < lines[j].MatchID })
+	sort.Slice(lines, func(i, j int) bool {
+		return lines[i].MatchID < lines[j].MatchID
+	})
 	for i, line := range lines {
 		matchIDEmpty := strings.TrimSpace(line.MatchID) == ""
 		bettingOnEmpty := strings.TrimSpace(line.BettingOn) == ""
@@ -126,6 +133,7 @@ func (s *Service) CreateBill(ctx context.Context, userID string, req *CreateInpu
 		if err := tx.CreateBill(ctx, &made); err != nil {
 			return err
 		}
+
 		return tx.DebitBalance(ctx, userID, req.Total)
 	})
 	if err != nil {

@@ -50,6 +50,7 @@ func (h *HTTPHandler) AuthMiddleware(c *fiber.Ctx) error {
 	id := c.Cookies(h.CookieName())
 	if id == "" {
 		clearBrowserSessionCookie(c, h.production)
+
 		return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 	}
 
@@ -57,8 +58,10 @@ func (h *HTTPHandler) AuthMiddleware(c *fiber.Ctx) error {
 	if err != nil {
 		if errors.Is(err, ErrSessionMissing) {
 			clearBrowserSessionCookie(c, h.production)
+
 			return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 		}
+
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
 	}
 
@@ -66,8 +69,10 @@ func (h *HTTPHandler) AuthMiddleware(c *fiber.Ctx) error {
 	if err != nil {
 		if errors.Is(err, identity.ErrUserNotFound) {
 			clearBrowserSessionCookie(c, h.production)
+
 			return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 		}
+
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "User status is unavailable")
 	}
 
@@ -120,6 +125,7 @@ func parseBearerToken(header string) (string, bool) {
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
 		return "", false
 	}
+
 	return parts[1], true
 }
 

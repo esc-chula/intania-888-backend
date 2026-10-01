@@ -53,7 +53,11 @@ func stakeMineGrid(t *testing.T, revealed int) string {
 	}
 	grid := make([]tile, 16)
 	for i := range grid {
-		grid[i] = tile{Index: i, Type: "diamond", Revealed: i < revealed}
+		grid[i] = tile{
+			Index:    i,
+			Type:     "diamond",
+			Revealed: i < revealed,
+		}
 	}
 
 	grid[14].Type = "bomb"

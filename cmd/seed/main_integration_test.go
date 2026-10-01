@@ -42,7 +42,10 @@ func TestCatalogueReseedPreservesRenamesAndRestoresDeletedDefaults(t *testing.T)
 	if err := service.DeleteSportType(ctx, sporttype.TugOfWar); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.CreateSportType(ctx, sporttype.SportType{ID: "CUSTOM", Title: "Custom sport"}); err != nil {
+	if _, err := service.CreateSportType(ctx, sporttype.SportType{
+		ID:    "CUSTOM",
+		Title: "Custom sport",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := locationService.UpdateLocation(ctx, location.CivilCourt, "Renamed venue"); err != nil {

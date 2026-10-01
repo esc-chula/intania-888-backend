@@ -33,6 +33,7 @@ func billLookupError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
+
 	return err
 }
 
@@ -50,6 +51,7 @@ func (r *gormRepository) GetByID(ctx context.Context, id, userID string) (*Resul
 	if err := query.First(&row).Error; err != nil {
 		return nil, billLookupError(err)
 	}
+
 	return billFromRow(&row), nil
 }
 
@@ -62,6 +64,7 @@ func (r *gormRepository) GetAll(ctx context.Context, userID string) ([]*Result, 
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+
 	return billsFromRows(rows), nil
 }
 
@@ -74,6 +77,7 @@ func (r *gormRepository) GetAllAdmin(ctx context.Context) ([]*Result, error) {
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+
 	return billsFromRows(rows), nil
 }
 
@@ -97,6 +101,7 @@ func (r *gormRepository) LockMatches(ctx context.Context, ids []string) ([]match
 	for i := range rows {
 		snapshots[i] = matchSnapshot(rows[i])
 	}
+
 	return snapshots, nil
 }
 
@@ -109,6 +114,7 @@ func (r *gormRepository) CountBets(ctx context.Context, matchID string) ([]BetCo
 		Where("bill_lines.match_id = ? AND bill_heads.status = 'PENDING'", matchID).
 		Group("bill_lines.betting_on").
 		Scan(&counts).Error
+
 	return counts, err
 }
 
@@ -120,12 +126,14 @@ func (r *gormRepository) LockBalance(ctx context.Context, userID string) (value.
 		First(&row, "id = ?", userID).Error; err != nil {
 		return value.Money{}, billLookupError(err)
 	}
+
 	return value.MustMoneyFromMinor(row.RemainingCoin), nil
 }
 
 // CreateBill writes a head and its lines without writing the nested matches.
 func (r *gormRepository) CreateBill(ctx context.Context, bill *Result) error {
 	row := billToRow(bill)
+
 	return r.db.WithContext(ctx).Omit("Lines.Match").Create(&row).Error
 }
 
@@ -141,6 +149,7 @@ func (r *gormRepository) DebitBalance(ctx context.Context, userID string, amount
 	if result.RowsAffected != 1 {
 		return ErrInsufficientBalance
 	}
+
 	return nil
 }
 
@@ -152,6 +161,7 @@ func (r *gormRepository) FindMatchIDs(ctx context.Context, billID string) ([]str
 		Where("bill_id = ?", billID).
 		Order("match_id").
 		Scan(&ids).Error
+
 	return ids, err
 }
 
@@ -163,6 +173,7 @@ func (r *gormRepository) LockBill(ctx context.Context, billID string) (*Result, 
 		First(&row, "id = ?", billID).Error; err != nil {
 		return nil, billLookupError(err)
 	}
+
 	return billFromRow(&row), nil
 }
 
@@ -174,6 +185,7 @@ func (r *gormRepository) VoidBill(ctx context.Context, billID string, payout val
 		"voided_at":  now,
 		"updated_at": now,
 	}
+
 	return r.db.WithContext(ctx).Model(&persistence.BillHead{ID: billID}).Updates(updates).Error
 }
 
@@ -195,5 +207,6 @@ func (r *gormRepository) CreateTerminalEvent(ctx context.Context, event Terminal
 		Reason:    &event.Reason,
 		CreatedAt: event.CreatedAt,
 	}
+
 	return r.db.WithContext(ctx).Create(&row).Error
 }

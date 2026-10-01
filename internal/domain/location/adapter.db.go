@@ -29,7 +29,10 @@ func (r *GORMRepository) GetAllLocations(ctx context.Context) ([]*Location, erro
 
 	locations := make([]*Location, len(rows))
 	for i, row := range rows {
-		locations[i] = &Location{ID: row.ID, Title: row.Title}
+		locations[i] = &Location{
+			ID:    row.ID,
+			Title: row.Title,
+		}
 	}
 
 	return locations, nil
@@ -42,17 +45,26 @@ func (r *GORMRepository) GetLocation(ctx context.Context, id string) (*Location,
 		return nil, translateStorageError(err)
 	}
 
-	return &Location{ID: row.ID, Title: row.Title}, nil
+	return &Location{
+		ID:    row.ID,
+		Title: row.Title,
+	}, nil
 }
 
 // CreateLocation inserts an entry. Duplicate titles are permitted.
 func (r *GORMRepository) CreateLocation(ctx context.Context, input Location) (*Location, error) {
-	row := persistence.Location{ID: input.ID, Title: input.Title}
+	row := persistence.Location{
+		ID:    input.ID,
+		Title: input.Title,
+	}
 	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
 		return nil, translateStorageError(err)
 	}
 
-	return &Location{ID: row.ID, Title: row.Title}, nil
+	return &Location{
+		ID:    row.ID,
+		Title: row.Title,
+	}, nil
 }
 
 // UpdateLocation renames and returns the entry in one statement.
@@ -69,7 +81,10 @@ WHERE id = ? RETURNING id, title`, title, id).Scan(&row)
 		return nil, ErrLocationNotFound
 	}
 
-	return &Location{ID: row.ID, Title: row.Title}, nil
+	return &Location{
+		ID:    row.ID,
+		Title: row.Title,
+	}, nil
 }
 
 // DeleteLocation relies on the match foreign key to reject referenced entries.

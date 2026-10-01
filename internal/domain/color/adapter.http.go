@@ -67,5 +67,6 @@ func validateOptionalID(field, value string) error {
 	if _, err := uuid.Parse(value); err != nil {
 		return apierror.Invalid(map[string]string{field: "must be a valid ID"})
 	}
+
 	return nil
 }

@@ -28,6 +28,7 @@ func ToPolicySnapshotCacheKey() string {
 // HashOpaqueToken returns the hexadecimal SHA-256 digest used to avoid raw credentials in cache keys.
 func HashOpaqueToken(token string) string {
 	digest := sha256.Sum256([]byte(token))
+
 	return hex.EncodeToString(digest[:])
 }
 

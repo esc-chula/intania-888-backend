@@ -58,6 +58,7 @@ func (r *UpdatePolicyRequest) UnmarshalJSON(data []byte) error {
 			r.ExpiresAt = &expiresAt
 		}
 	}
+
 	return nil
 }
 
@@ -76,6 +77,7 @@ func (r CreatePolicyRequest) ValidateRequest() map[string]string {
 	if strings.TrimSpace(r.Reason) == "" {
 		details["reason"] = "is required"
 	}
+
 	return details
 }
 
@@ -84,6 +86,7 @@ func (r UpdatePolicyRequest) ValidateRequest() map[string]string {
 	if r.Reason == nil && !r.expiresAtSet && r.Enabled == nil {
 		return map[string]string{"body": "must include at least one policy field"}
 	}
+
 	return nil
 }
 

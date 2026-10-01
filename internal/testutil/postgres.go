@@ -38,6 +38,7 @@ func OpenPostgres(dsn string) (*Postgres, error) {
 		if os.Getenv("INTANIA888_REQUIRE_INTEGRATION") == "1" {
 			return nil, errors.New("required integration configuration missing: INTANIA888_TEST_DATABASE_URL")
 		}
+
 		return nil, ErrMissingTestDatabaseURL
 	}
 
@@ -71,10 +72,14 @@ func OpenPostgres(dsn string) (*Postgres, error) {
 		if closeErr := sqlDB.Close(); closeErr != nil {
 			return nil, errors.Join(pingErr, fmt.Errorf("close failed test database: %w", closeErr))
 		}
+
 		return nil, pingErr
 	}
 
-	return &Postgres{DB: db, SQL: sqlDB}, nil
+	return &Postgres{
+		DB:  db,
+		SQL: sqlDB,
+	}, nil
 }
 
 // Close releases the SQL pool and is safe for a nil Postgres or missing pool.
@@ -155,6 +160,7 @@ $$`, quoteIdentifier(functionName))
 		if cleanupErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("remove partial failure function: %w", cleanupErr))
 		}
+
 		return nil, err
 	}
 

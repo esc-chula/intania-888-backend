@@ -32,6 +32,7 @@ func (h *HTTPHandler) RequireExternalScope(scope string) fiber.Handler {
 			if errors.Is(err, ErrExternalMissing) {
 				return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 			}
+
 			return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Token service is unavailable")
 		}
 
@@ -41,6 +42,7 @@ func (h *HTTPHandler) RequireExternalScope(scope string) fiber.Handler {
 			if errors.Is(err, identity.ErrUserNotFound) {
 				return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 			}
+
 			return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "User status is unavailable")
 		}
 

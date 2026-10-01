@@ -53,6 +53,7 @@ func requestHTTP(client *http.Client, url string) <-chan httpRequestResult {
 		response, err := client.Get(url)
 		if err != nil {
 			result <- httpRequestResult{err: err}
+
 			return
 		}
 		body, err := io.ReadAll(response.Body)
@@ -60,8 +61,13 @@ func requestHTTP(client *http.Client, url string) <-chan httpRequestResult {
 		if err == nil {
 			err = closeErr
 		}
-		result <- httpRequestResult{status: response.StatusCode, body: string(body), err: err}
+		result <- httpRequestResult{
+			status: response.StatusCode,
+			body:   string(body),
+			err:    err,
+		}
 	}()
+
 	return result
 }
 
@@ -73,6 +79,7 @@ func awaitRequest(t *testing.T, result <-chan httpRequestResult) httpRequestResu
 		return got
 	case <-time.After(2 * time.Second):
 		t.Fatal("HTTP request did not finish")
+
 		return httpRequestResult{}
 	}
 }
@@ -95,13 +102,17 @@ func TestFiberHTTPServerShutdownWaitsForActiveRequest(t *testing.T) {
 	releaseRequest := make(chan struct{})
 	var releaseOnce sync.Once
 	finishRequest := func() {
-		releaseOnce.Do(func() { close(releaseRequest) })
+		releaseOnce.Do(func() {
+			close(releaseRequest)
+		})
 	}
+
 	defer finishRequest()
 
 	httpServer, url, listenDone := newShutdownTestServer(t, func(c *fiber.Ctx) error {
 		close(requestStarted)
 		<-releaseRequest
+
 		return c.SendString("completed")
 	})
 	client := &http.Client{Timeout: 2 * time.Second}
@@ -152,13 +163,17 @@ func TestFiberHTTPServerShutdownHonorsDeadline(t *testing.T) {
 	releaseRequest := make(chan struct{})
 	var releaseOnce sync.Once
 	finishRequest := func() {
-		releaseOnce.Do(func() { close(releaseRequest) })
+		releaseOnce.Do(func() {
+			close(releaseRequest)
+		})
 	}
+
 	defer finishRequest()
 
 	httpServer, url, listenDone := newShutdownTestServer(t, func(c *fiber.Ctx) error {
 		close(requestStarted)
 		<-releaseRequest
+
 		return c.SendString("completed")
 	})
 	client := &http.Client{Timeout: 2 * time.Second}

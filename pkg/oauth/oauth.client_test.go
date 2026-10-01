@@ -15,7 +15,9 @@ import (
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
-func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
 
 func TestGetUserInfoPropagatesContextAndPKCE(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -41,14 +43,28 @@ func TestGetUserInfoPropagatesContextAndPKCE(t *testing.T) {
 		} else if r.Header.Get("Authorization") != "Bearer access" {
 			t.Fatal("userinfo access token absent")
 		}
-		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    r,
+		}, nil
 	})
 	httpClient := &http.Client{Transport: transport}
 	previous := http.DefaultClient
 	http.DefaultClient = httpClient
-	t.Cleanup(func() { http.DefaultClient = previous })
+	t.Cleanup(func() {
+		http.DefaultClient = previous
+	})
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
-	cfg := &oauth2.Config{ClientID: "client", Endpoint: oauth2.Endpoint{TokenURL: "https://provider.example.test/token", AuthStyle: oauth2.AuthStyleInParams}}
+	cfg := &oauth2.Config{
+		ClientID: "client",
+		Endpoint: oauth2.Endpoint{
+			TokenURL:  "https://provider.example.test/token",
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+	}
 	result, err := NewGoogleOAuthClient(cfg, zap.NewNop()).GetUserInfo(ctx, "code", "verifier")
 	if err != nil || result.ID != "subject" || !result.VerifiedEmail || calls != 2 {
 		t.Fatalf("result=%+v, calls=%d, error=%v", result, calls, err)
@@ -58,9 +74,14 @@ func TestGetUserInfoPropagatesContextAndPKCE(t *testing.T) {
 func TestGetUserInfoRetainsCancellationCause(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) { return nil, r.Context().Err() })}
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, r.Context().Err()
+	})}
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
-	cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: "https://provider.example.test/token", AuthStyle: oauth2.AuthStyleInParams}}
+	cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{
+		TokenURL:  "https://provider.example.test/token",
+		AuthStyle: oauth2.AuthStyleInParams,
+	}}
 	_, err := NewGoogleOAuthClient(cfg, zap.NewNop()).GetUserInfo(ctx, "code", "verifier")
 	if !errors.Is(err, ErrInvalidCode) || !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation cause lost: %v", err)

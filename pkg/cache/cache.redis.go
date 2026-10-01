@@ -169,6 +169,7 @@ func (r *RedisClient) HasKey(ctx context.Context, key string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	n, err := r.client.Exists(ctx, key).Result()
+
 	return n > 0, err
 }
 
@@ -176,6 +177,7 @@ func (r *RedisClient) HasKey(ctx context.Context, key string) (bool, error) {
 func (r *RedisClient) EvalText(ctx context.Context, script string, keys []string, args ...interface{}) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
 	return r.client.Eval(ctx, script, keys, args...).Text()
 }
 

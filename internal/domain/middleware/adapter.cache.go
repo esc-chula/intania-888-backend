@@ -33,8 +33,10 @@ func (r *RedisSessionStore) ReadAndRenewSession(ctx context.Context, key string,
 		if errors.Is(err, redis.Nil) {
 			return nil, fmt.Errorf("%w: %w", ErrSessionMissing, err)
 		}
+
 		return nil, err
 	}
+
 	return &security.Session{
 		UserID:    record.UserID,
 		CreatedAt: record.CreatedAt,

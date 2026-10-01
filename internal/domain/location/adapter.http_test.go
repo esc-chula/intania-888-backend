@@ -21,7 +21,10 @@ type memoryRepository struct {
 
 func newMemoryRepository() *memoryRepository {
 	return &memoryRepository{
-		rows:       map[string]Location{"USED": {ID: "USED", Title: "Used venue"}},
+		rows: map[string]Location{"USED": {
+			ID:    "USED",
+			Title: "Used venue",
+		}},
 		references: map[string]bool{"USED": true},
 	}
 }
@@ -80,13 +83,19 @@ func (r *memoryRepository) DeleteLocation(_ context.Context, id string) error {
 func locationTestApp(repo *memoryRepository) *fiber.App {
 	return locationTestAppWithGuards(
 		repo,
-		func(c *fiber.Ctx) error { return c.Next() },
-		func(c *fiber.Ctx) error { return c.Next() },
+		func(c *fiber.Ctx) error {
+			return c.Next()
+		},
+		func(c *fiber.Ctx) error {
+			return c.Next()
+		},
 	)
 }
 
 func locationTestAppWithAuth(repo *memoryRepository, authenticate fiber.Handler) *fiber.App {
-	return locationTestAppWithGuards(repo, authenticate, func(c *fiber.Ctx) error { return c.Next() })
+	return locationTestAppWithGuards(repo, authenticate, func(c *fiber.Ctx) error {
+		return c.Next()
+	})
 }
 
 func locationTestAppWithGuards(repo *memoryRepository, authenticate, admin fiber.Handler) *fiber.App {
@@ -110,6 +119,7 @@ func locationResponse(t *testing.T, app *fiber.App, request *http.Request) (int,
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -186,7 +196,9 @@ func TestLocationReadsArePublicAndMutationsStillAuthenticate(t *testing.T) {
 
 	app = locationTestAppWithGuards(
 		repo,
-		func(c *fiber.Ctx) error { return c.Next() },
+		func(c *fiber.Ctx) error {
+			return c.Next()
+		},
 		func(c *fiber.Ctx) error {
 			return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator access required")
 		},

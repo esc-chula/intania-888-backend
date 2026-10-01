@@ -27,6 +27,7 @@ func (r *gormRepository) Create(ctx context.Context, user *identity.User) error 
 		return fmt.Errorf("create user: %w", err)
 	}
 	*user = *userSnapshot(row)
+
 	return nil
 }
 
@@ -36,6 +37,7 @@ func (r *gormRepository) GetByID(ctx context.Context, id string) (*identity.User
 	if err := r.db.WithContext(ctx).Preload("Role").Where("id = ?", id).First(&row).Error; err != nil {
 		return nil, fmt.Errorf("get user by id: %w", mapUserLookupError(err))
 	}
+
 	return userSnapshot(&row), nil
 }
 
@@ -45,6 +47,7 @@ func (r *gormRepository) GetByEmail(ctx context.Context, email string) (*identit
 	if err := r.db.WithContext(ctx).Preload("Role").Where("email = ?", email).First(&row).Error; err != nil {
 		return nil, fmt.Errorf("get user by email: %w", mapUserLookupError(err))
 	}
+
 	return userSnapshot(&row), nil
 }
 
@@ -59,6 +62,7 @@ func (r *gormRepository) GetAll(ctx context.Context) ([]*identity.User, error) {
 	for i, row := range rows {
 		users[i] = userSnapshot(row)
 	}
+
 	return users, nil
 }
 
@@ -84,11 +88,13 @@ func (r *gormRepository) PatchProfile(ctx context.Context, actorID string, input
 		if errors.As(result.Error, &constraintError) && constraintError.Code == "23503" {
 			return fmt.Errorf("patch user profile: %w", errors.Join(ErrProfileGroupNotFound, result.Error))
 		}
+
 		return fmt.Errorf("patch user profile: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return ErrUserNotFound
 	}
+
 	return nil
 }
 
@@ -99,6 +105,7 @@ func (r *gormRepository) Update(ctx context.Context, user *identity.User) error 
 	if err := r.db.WithContext(ctx).Model(row).Where("id = ?", row.ID).Updates(row).Error; err != nil {
 		return fmt.Errorf("update user: %w", err)
 	}
+
 	return nil
 }
 
@@ -116,6 +123,7 @@ func (r *gormRepository) LockByID(ctx context.Context, id string) (*identity.Use
 		Where("id = ?", id).First(&row).Error; err != nil {
 		return nil, fmt.Errorf("lock user: %w", mapUserLookupError(err))
 	}
+
 	return userSnapshot(&row), nil
 }
 
@@ -126,6 +134,7 @@ func (r *gormRepository) DeductBalance(ctx context.Context, id string, amount in
 		Update("remaining_coin", gorm.Expr("remaining_coin - ?", amount)).Error; err != nil {
 		return fmt.Errorf("deduct coins: %w", err)
 	}
+
 	return nil
 }
 
@@ -133,21 +142,34 @@ func mapUserLookupError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return errors.Join(ErrUserNotFound, err)
 	}
+
 	return err
 }
 
 func userRow(user *identity.User) *persistence.User {
 	return &persistence.User{
-		ID: user.ID, Email: user.Email, Name: user.Name,
-		NickName: user.NickName, RoleID: user.RoleID, GroupID: user.GroupID,
-		RemainingCoin: user.RemainingCoin, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt,
+		ID:            user.ID,
+		Email:         user.Email,
+		Name:          user.Name,
+		NickName:      user.NickName,
+		RoleID:        user.RoleID,
+		GroupID:       user.GroupID,
+		RemainingCoin: user.RemainingCoin,
+		CreatedAt:     user.CreatedAt,
+		UpdatedAt:     user.UpdatedAt,
 	}
 }
 
 func userSnapshot(row *persistence.User) *identity.User {
 	return &identity.User{
-		ID: row.ID, Email: row.Email, Name: row.Name,
-		NickName: row.NickName, RoleID: row.RoleID, GroupID: row.GroupID,
-		RemainingCoin: row.RemainingCoin, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		ID:            row.ID,
+		Email:         row.Email,
+		Name:          row.Name,
+		NickName:      row.NickName,
+		RoleID:        row.RoleID,
+		GroupID:       row.GroupID,
+		RemainingCoin: row.RemainingCoin,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
 	}
 }

@@ -17,6 +17,7 @@ func NewService(sportTypeRepo Repository, log *zap.Logger) *Service {
 	if log == nil {
 		log = zap.NewNop()
 	}
+
 	return &Service{
 		sportTypeRepo: sportTypeRepo,
 		log:           log,
@@ -27,12 +28,12 @@ func NewService(sportTypeRepo Repository, log *zap.Logger) *Service {
 func (s *Service) GetAllSportTypes(ctx context.Context) ([]*SportType, error) {
 	sportTypes, err := s.sportTypeRepo.GetAllSportTypes(ctx)
 	if err != nil {
-
 		return nil, err
 	}
 
 	results := sportTypes
 	s.log.Named("GetAllSportTypes").Info("Retrieved all sport types successful", zap.Int("count", len(results)))
+
 	return results, nil
 }
 
@@ -41,6 +42,7 @@ func (s *Service) GetSportType(ctx context.Context, id string) (*SportType, erro
 	if !validID(id) {
 		return nil, ErrInvalidSportType
 	}
+
 	return s.sportTypeRepo.GetSportType(ctx, id)
 }
 
@@ -55,6 +57,7 @@ func (s *Service) CreateSportType(ctx context.Context, input SportType) (*SportT
 	}
 
 	input.Title = title
+
 	return s.sportTypeRepo.CreateSportType(ctx, input)
 }
 
@@ -76,5 +79,6 @@ func (s *Service) DeleteSportType(ctx context.Context, id string) error {
 	if !validID(id) {
 		return ErrInvalidSportType
 	}
+
 	return s.sportTypeRepo.DeleteSportType(ctx, id)
 }

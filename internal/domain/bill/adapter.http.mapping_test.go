@@ -23,7 +23,11 @@ func TestBillHTTPMappingPreservesNullableFieldsAndNestedMatch(t *testing.T) {
 			MatchID:   "match",
 			BettingOn: "A",
 			Rate:      value.MustRateFromMicro(2000000),
-			Match:     match.Snapshot{ID: "match", TeamAID: &a, TeamBID: &b},
+			Match: match.Snapshot{
+				ID:      "match",
+				TeamAID: &a,
+				TeamBID: &b,
+			},
 		}},
 	}
 	encoded, err := json.Marshal(billResultDTO(result))

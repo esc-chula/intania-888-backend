@@ -100,7 +100,10 @@ func (r *gormRepository) CountBetsForTeam(ctx context.Context, matchID, teamID s
 
 // UpdateScore writes only the score columns.
 func (r *gormRepository) UpdateScore(ctx context.Context, item *Snapshot) error {
-	updates := map[string]any{"teama_score": item.TeamAScore, "teamb_score": item.TeamBScore}
+	updates := map[string]any{
+		"teama_score": item.TeamAScore,
+		"teamb_score": item.TeamBScore,
+	}
 
 	return r.db.WithContext(ctx).Model(&persistence.Match{ID: item.ID}).Updates(updates).Error
 }
@@ -194,7 +197,11 @@ func (r *gormRepository) LockMatches(ctx context.Context, ids []string) ([]Snaps
 
 // UpdateResult writes only the terminal match result and timestamp.
 func (r *gormRepository) UpdateResult(ctx context.Context, item *Snapshot, now time.Time) error {
-	updates := map[string]any{"winner_id": item.WinnerID, "is_draw": item.IsDraw, "updated_at": now}
+	updates := map[string]any{
+		"winner_id":  item.WinnerID,
+		"is_draw":    item.IsDraw,
+		"updated_at": now,
+	}
 
 	return r.db.WithContext(ctx).Model(&persistence.Match{ID: item.ID}).Updates(updates).Error
 }
@@ -265,7 +272,10 @@ func (r *gormRepository) LockUsers(ctx context.Context, ids []string) ([]UserBal
 
 	results := make([]UserBalance, len(rows))
 	for i, row := range rows {
-		results[i] = UserBalance{ID: row.ID, Balance: value.MustMoneyFromMinor(row.RemainingCoin)}
+		results[i] = UserBalance{
+			ID:      row.ID,
+			Balance: value.MustMoneyFromMinor(row.RemainingCoin),
+		}
 	}
 
 	return results, nil

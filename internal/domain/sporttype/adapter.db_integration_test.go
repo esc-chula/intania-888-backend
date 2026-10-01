@@ -33,6 +33,7 @@ func sportTypePostgres(t *testing.T) *testutil.Postgres {
 	if err := p.ResetAndMigrate(); err != nil {
 		t.Fatal(err)
 	}
+
 	return p
 }
 
@@ -53,17 +54,28 @@ var sportReferences = []struct{ name, table, insert string }{
 
 func TestSportTypePostgresCRUDAndSafeDeletion(t *testing.T) {
 	p := sportTypePostgres(t)
-	execSportSQL(t, p, `INSERT INTO colors(id,title) VALUES('A','A')`, `INSERT INTO locations(id,title) VALUES('TEST_LOCATION','Test location')`)
+	execSportSQL(
+		t,
+		p,
+		`INSERT INTO colors(id,title) VALUES('A','A')`,
+		`INSERT INTO locations(id,title) VALUES('TEST_LOCATION','Test location')`,
+	)
 	service := NewService(NewGORMRepository(p.DB), nil)
 	ctx := context.Background()
 
 	for _, id := range []string{"UNUSED", "SAME_TITLE"} {
-		row, err := service.CreateSportType(ctx, SportType{ID: id, Title: " Sport "})
+		row, err := service.CreateSportType(ctx, SportType{
+			ID:    id,
+			Title: " Sport ",
+		})
 		if err != nil || row.ID != id || row.Title != "Sport" {
 			t.Fatalf("create = %+v %v", row, err)
 		}
 	}
-	if _, err := service.CreateSportType(ctx, SportType{ID: "UNUSED", Title: "Other"}); !errors.Is(err, ErrSportTypeConflict) {
+	if _, err := service.CreateSportType(ctx, SportType{
+		ID:    "UNUSED",
+		Title: "Other",
+	}); !errors.Is(err, ErrSportTypeConflict) {
 		t.Fatalf("duplicate ID = %v", err)
 	}
 	row, err := service.UpdateSportType(ctx, "UNUSED", " Renamed ")
@@ -90,7 +102,10 @@ func TestSportTypePostgresCRUDAndSafeDeletion(t *testing.T) {
 	for _, reference := range sportReferences {
 		t.Run(reference.name, func(t *testing.T) {
 			id := reference.table
-			if _, err := service.CreateSportType(ctx, SportType{ID: id, Title: "Sport"}); err != nil {
+			if _, err := service.CreateSportType(ctx, SportType{
+				ID:    id,
+				Title: "Sport",
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := p.SQL.Exec(reference.insert, id); err != nil {
@@ -104,7 +119,8 @@ func TestSportTypePostgresCRUDAndSafeDeletion(t *testing.T) {
 			}
 			var count int
 			// Table names come from the static test fixture above.
-			if err := p.SQL.QueryRow("SELECT count(*) FROM "+reference.table+" WHERE type_id = $1", id).Scan(&count); err != nil || count != 1 {
+			if err := p.SQL.QueryRow("SELECT count(*) FROM "+reference.table+" WHERE type_id = $1", id).Scan(&count); err != nil ||
+				count != 1 {
 				t.Fatalf("dependent record count = %d; err=%v", count, err)
 			}
 			if _, err := service.GetSportType(ctx, id); err != nil {
@@ -125,7 +141,8 @@ func TestSportTypeFreshSchemaRestrictsReferences(t *testing.T) {
 	}
 	for _, reference := range sportReferences {
 		var rule string
-		if err := p.SQL.QueryRow(`SELECT confdeltype FROM pg_constraint WHERE conname=$1`, reference.table+"_type_id_fkey").Scan(&rule); err != nil || rule != "r" {
+		if err := p.SQL.QueryRow(`SELECT confdeltype FROM pg_constraint WHERE conname=$1`, reference.table+"_type_id_fkey").Scan(&rule); err != nil ||
+			rule != "r" {
 			t.Fatalf("%s deletion rule = %s; err=%v", reference.table, rule, err)
 		}
 	}
@@ -183,7 +200,9 @@ func TestSportTypeConcurrentReferenceAndDeletion(t *testing.T) {
 					t.Fatal(deleteTx.Error)
 				}
 				defer func() {
-					if err := deleteTx.Rollback().Error; err != nil && !errors.Is(err, sql.ErrTxDone) && !errors.Is(err, gorm.ErrInvalidTransaction) {
+					if err := deleteTx.Rollback().Error; err != nil &&
+						!errors.Is(err, sql.ErrTxDone) &&
+						!errors.Is(err, gorm.ErrInvalidTransaction) {
 						t.Error(err)
 					}
 				}()
@@ -200,7 +219,9 @@ func TestSportTypeConcurrentReferenceAndDeletion(t *testing.T) {
 					if _, err := refTx.ExecContext(ctx, reference.insert, id); err != nil {
 						t.Fatal(err)
 					}
-					go func() { done <- repo.DeleteSportType(ctx, id) }()
+					go func() {
+						done <- repo.DeleteSportType(ctx, id)
+					}()
 					waitSportTypeBlock(t, p, refPID, deletePID)
 					if err := refTx.Commit(); err != nil {
 						t.Fatal(err)
@@ -228,7 +249,8 @@ func TestSportTypeConcurrentReferenceAndDeletion(t *testing.T) {
 			})
 		}
 		var dangling int
-		if err := p.SQL.QueryRow("SELECT count(*) FROM " + reference.table + " r LEFT JOIN sport_types s ON s.id=r.type_id WHERE s.id IS NULL").Scan(&dangling); err != nil || dangling != 0 {
+		if err := p.SQL.QueryRow("SELECT count(*) FROM " + reference.table + " r LEFT JOIN sport_types s ON s.id=r.type_id WHERE s.id IS NULL").Scan(&dangling); err != nil ||
+			dangling != 0 {
 			t.Fatalf("dangling %s references = %d; err=%v", reference.name, dangling, err)
 		}
 	}

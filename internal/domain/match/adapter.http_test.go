@@ -20,40 +20,59 @@ type matchFilterService struct {
 	result  *Result
 }
 
-func (*matchFilterService) CreateMatch(context.Context, *Input) error { return nil }
+func (*matchFilterService) CreateMatch(context.Context, *Input) error {
+	return nil
+}
 
 func (s *matchFilterService) GetMatch(context.Context, string) (*Result, error) {
 	return s.result, nil
 }
 
-func (*matchFilterService) GetTime() (string, error) { return "", nil }
+func (*matchFilterService) GetTime() (string, error) {
+	return "", nil
+}
 
 func (s *matchFilterService) GetAllMatches(ctx context.Context, filter *Filter) ([]*Result, error) {
 	s.filter = filter
 	s.context = ctx
+
 	return []*Result{}, nil
 }
 
-func (*matchFilterService) UpdateMatchScore(context.Context, string, *ScoreInput) error { return nil }
+func (*matchFilterService) UpdateMatchScore(context.Context, string, *ScoreInput) error {
+	return nil
+}
 
-func (*matchFilterService) SetResult(context.Context, string, *ResultInput) error { return nil }
+func (*matchFilterService) SetResult(context.Context, string, *ResultInput) error {
+	return nil
+}
 
-func (*matchFilterService) UpdateMatch(context.Context, string, *Input) error { return nil }
+func (*matchFilterService) UpdateMatch(context.Context, string, *Input) error {
+	return nil
+}
 
-func (*matchFilterService) DeleteMatch(context.Context, string) error { return nil }
+func (*matchFilterService) DeleteMatch(context.Context, string) error {
+	return nil
+}
 
 func TestGetAllMatchesAcceptsOpaqueTypeID(t *testing.T) {
 	service := &matchFilterService{}
 	handler := NewHTTPHandler(service)
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
 	ctx := context.WithValue(context.Background(), contextKey{}, "http request")
-	app.Use(func(c *fiber.Ctx) error { c.SetUserContext(ctx); return c.Next() })
+
+	app.Use(func(c *fiber.Ctx) error {
+		c.SetUserContext(ctx)
+
+		return c.Next()
+	})
 	app.Get("/matches", handler.GetAllMatches)
 
 	response, err := app.Test(httptest.NewRequest("GET", "/matches?typeId=S", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -87,6 +106,7 @@ func TestGetMatchReturnsStringRatesAndNumericScores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -97,7 +117,9 @@ func TestGetMatchReturnsStringRatesAndNumericScores(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != fiber.StatusOK || body["team_a_rate"] != "1.234567" || body["team_b_rate"] != "0.000000" {
+	if response.StatusCode != fiber.StatusOK ||
+		body["team_a_rate"] != "1.234567" ||
+		body["team_b_rate"] != "0.000000" {
 		t.Fatalf("rate contract = %+v; status %d", body, response.StatusCode)
 	}
 	if body["team_a_score"] != float64(0) || body["team_b_score"] != nil {
@@ -112,18 +134,24 @@ func TestMatchReadsArePublicAndMutationsRemainProtected(t *testing.T) {
 	adminCalls := 0
 	unauthorized := func(c *fiber.Ctx) error {
 		authCalls++
+
 		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
+
 	forbidden := func(c *fiber.Ctx) error {
 		adminCalls++
+
 		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator access required")
 	}
+
 	createRequest := func() *http.Request {
 		const body = `{"team_a":"A","team_b":"B","type":"S","location_id":"L","start_time":"2026-10-01T10:00:00Z","end_time":"2026-10-01T11:00:00Z"}`
 		request := httptest.NewRequest(http.MethodPost, "/matches", strings.NewReader(body))
 		request.Header.Set("Content-Type", "application/json")
+
 		return request
 	}
+
 	NewHTTPHandler(service).RegisterRoutes(app, unauthorized, forbidden)
 
 	for _, path := range []string{"/matches", "/matches/current/time", "/matches/match"} {
@@ -159,7 +187,9 @@ func TestMatchReadsArePublicAndMutationsRemainProtected(t *testing.T) {
 	adminCalls = 0
 	NewHTTPHandler(service).RegisterRoutes(
 		authorized,
-		func(c *fiber.Ctx) error { return c.Next() },
+		func(c *fiber.Ctx) error {
+			return c.Next()
+		},
 		forbidden,
 	)
 	response, err = authorized.Test(createRequest())

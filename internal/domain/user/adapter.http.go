@@ -43,8 +43,13 @@ func (h *HTTPHandler) CreateUser(c *fiber.Ctx) error {
 	}
 
 	created, err := h.service.CreateUser(c.UserContext(), CreateInput{
-		ID: user.ID, Email: user.Email, Name: user.Name, NickName: user.NickName,
-		RoleID: user.RoleID, GroupID: user.GroupID, CreatedAt: user.CreatedAt,
+		ID:        user.ID,
+		Email:     user.Email,
+		Name:      user.Name,
+		NickName:  user.NickName,
+		RoleID:    user.RoleID,
+		GroupID:   user.GroupID,
+		CreatedAt: user.CreatedAt,
 	})
 	if err != nil {
 		return err
@@ -79,6 +84,7 @@ func (h *HTTPHandler) GetAllUsers(c *fiber.Ctx) error {
 	for i, profile := range users {
 		responses[i] = httpidentity.Response(profile)
 	}
+
 	return c.JSON(responses)
 }
 
@@ -136,8 +142,10 @@ func (h *HTTPHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.AdminUpdateUser(c.UserContext(), userID, AdminUpdateInput{
-		Name: userDto.Name, NickName: userDto.NickName,
-		GroupID: userDto.GroupID, RemainingCoin: userDto.RemainingCoin,
+		Name:          userDto.Name,
+		NickName:      userDto.NickName,
+		GroupID:       userDto.GroupID,
+		RemainingCoin: userDto.RemainingCoin,
 	}); err != nil {
 		return mapUserError(err)
 	}

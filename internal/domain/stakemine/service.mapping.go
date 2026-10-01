@@ -8,6 +8,7 @@ func gameResult(game *Game, hideUnrevealed bool) *GameResult {
 	for i, tile := range safeGrid {
 		tiles[i] = TileResult(tile)
 	}
+
 	return &GameResult{
 		ID:            game.ID,
 		UserID:        game.UserID,

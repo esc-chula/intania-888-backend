@@ -26,7 +26,13 @@ type Service struct {
 func NewService(repo Repository, sessions SessionStore, cfg config.Config, policy security.AccessPolicyChecker) *Service {
 	reader, _ := sessions.(DelegationReader)
 
-	return &Service{repo: repo, cache: sessions, cfg: cfg, policy: policy, grants: reader}
+	return &Service{
+		repo:   repo,
+		cache:  sessions,
+		cfg:    cfg,
+		policy: policy,
+		grants: reader,
+	}
 }
 
 // GetSession validates the opaque session ID and retrieves its renewed server-side record.
@@ -96,7 +102,10 @@ func (s *Service) VerifyScopedExternalToken(ctx context.Context, token, scope st
 	if grant.UserID != claims.Subject || grant.ClientID != claims.ClientID {
 		return "", ErrExternalMissing
 	}
-	if scope == "" || !slices.Contains(app.AllowedScopes, scope) || !slices.Contains(grant.Scopes, scope) || !slices.Contains(claims.Scopes, scope) {
+	if scope == "" ||
+		!slices.Contains(app.AllowedScopes, scope) ||
+		!slices.Contains(grant.Scopes, scope) ||
+		!slices.Contains(claims.Scopes, scope) {
 		return "", ErrExternalScope
 	}
 	user, err := s.repo.GetByID(ctx, grant.UserID)
@@ -116,5 +125,6 @@ func (s *Service) VerifyScopedExternalToken(ctx context.Context, token, scope st
 	if !decision.Allowed || decision.Blacklisted {
 		return "", ErrExternalMissing
 	}
+
 	return claims.Subject, nil
 }

@@ -29,12 +29,19 @@ type fakeHTTPService struct {
 func (s *fakeHTTPService) RevealTile(_ context.Context, _, _ string, input RevealInput) (*GameResult, string, error) {
 	s.revealCalled = true
 	s.index = input.Index
-	return &GameResult{ID: "game", BetAmount: value.MustMoneyFromMinor(10000), Multiplier: value.MustRateFromMicro(1030000), Grid: []TileResult{}}, "message", nil
+
+	return &GameResult{
+		ID:         "game",
+		BetAmount:  value.MustMoneyFromMinor(10000),
+		Multiplier: value.MustRateFromMicro(1030000),
+		Grid:       []TileResult{},
+	}, "message", nil
 }
 
 func (s *fakeHTTPService) GetGameHistory(_ context.Context, _ string, limit, offset int) ([]HistoryResult, error) {
 	s.limit = limit
 	s.offset = offset
+
 	return s.history, nil
 }
 
@@ -64,14 +71,18 @@ func TestRevealTilePresenceAndZeroIndex(t *testing.T) {
 			handler := NewHTTPHandler(service)
 			app.Post("/mines/:id/reveal", func(c *fiber.Ctx) error {
 				httpidentity.SetProfile(c, &identity.Profile{ID: "owner"})
+
 				return handler.RevealTile(c)
 			})
+
 			request := httptest.NewRequest("POST", "/mines/game/reveal", strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")
+
 			response, err := app.Test(request)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer func() {
 				if err := response.Body.Close(); err != nil {
 					t.Error(err)
@@ -80,6 +91,7 @@ func TestRevealTilePresenceAndZeroIndex(t *testing.T) {
 			if response.StatusCode != test.wantStatus || service.revealCalled != test.wantCalled {
 				t.Fatalf("status/called = %d %t", response.StatusCode, service.revealCalled)
 			}
+
 			if test.wantCalled {
 				var body struct {
 					Message string         `json:"message"`
@@ -88,6 +100,7 @@ func TestRevealTilePresenceAndZeroIndex(t *testing.T) {
 				if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 					t.Fatal(err)
 				}
+
 				if service.index != 0 || body.Game["bet_amount"] != "100.00" || body.Game["multiplier"] != "1.030000" {
 					t.Fatalf("success payload changed: %+v", body)
 				}
@@ -105,12 +118,15 @@ func TestHistoryPreservesLimitClampAndEmptyArray(t *testing.T) {
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 	app.Get("/mines/history", func(c *fiber.Ctx) error {
 		httpidentity.SetProfile(c, &identity.Profile{ID: "owner"})
+
 		return handler.GetHistory(c)
 	})
+
 	response, err := app.Test(httptest.NewRequest("GET", "/mines/history?limit=999&offset=2", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -120,7 +136,12 @@ func TestHistoryPreservesLimitClampAndEmptyArray(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != fiber.StatusOK || service.limit != 100 || service.offset != 2 || body.Data == nil || body.Limit != 100 || body.Offset != 2 {
+	if response.StatusCode != fiber.StatusOK ||
+		service.limit != 100 ||
+		service.offset != 2 ||
+		body.Data == nil ||
+		body.Limit != 100 ||
+		body.Offset != 2 {
 		t.Fatalf("pagination/empty shape changed: service=%+v body=%+v", service, body)
 	}
 }
@@ -137,6 +158,7 @@ func TestHistoryReturnsStringMultiplierAndNumericPagination(t *testing.T) {
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 	app.Get("/mines/history", func(c *fiber.Ctx) error {
 		httpidentity.SetProfile(c, &identity.Profile{ID: "owner"})
+
 		return handler.GetHistory(c)
 	})
 
@@ -144,6 +166,7 @@ func TestHistoryReturnsStringMultiplierAndNumericPagination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -162,7 +185,10 @@ func TestHistoryReturnsStringMultiplierAndNumericPagination(t *testing.T) {
 		t.Fatalf("history response = %+v; status %d", body, response.StatusCode)
 	}
 	game := body.Data[0]
-	if game["multiplier"] != "1.030000" || game["bet_amount"] != "100.00" || game["final_payout"] != "103.00" || game["revealed_count"] != float64(1) {
+	if game["multiplier"] != "1.030000" ||
+		game["bet_amount"] != "100.00" ||
+		game["final_payout"] != "103.00" ||
+		game["revealed_count"] != float64(1) {
 		t.Fatalf("history decimal/count contract = %+v", game)
 	}
 }
@@ -180,6 +206,7 @@ func TestStatsKeepApproximateWinRateAndCountsAsNumbers(t *testing.T) {
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 	app.Get("/mines/stats", func(c *fiber.Ctx) error {
 		httpidentity.SetProfile(c, &identity.Profile{ID: "owner"})
+
 		return handler.GetStats(c)
 	})
 
@@ -187,6 +214,7 @@ func TestStatsKeepApproximateWinRateAndCountsAsNumbers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
@@ -197,7 +225,10 @@ func TestStatsKeepApproximateWinRateAndCountsAsNumbers(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != fiber.StatusOK || body["win_rate"] != 100.0/3 || body["total_games"] != float64(3) || body["games_won"] != float64(1) {
+	if response.StatusCode != fiber.StatusOK ||
+		body["win_rate"] != 100.0/3 ||
+		body["total_games"] != float64(3) ||
+		body["games_won"] != float64(1) {
 		t.Fatalf("statistical number contract = %+v; status %d", body, response.StatusCode)
 	}
 	if body["total_wagered"] != "300.00" || body["total_winnings"] != "103.00" || body["net_profit"] != "-197.00" {

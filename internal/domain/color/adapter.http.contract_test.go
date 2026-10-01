@@ -27,12 +27,14 @@ type contractService struct {
 func (s *contractService) GetAllLeaderboards(ctx context.Context, typeID string) ([]*Leaderboard, error) {
 	s.context, s.typeID = ctx, typeID
 	s.invocations++
+
 	return s.rows, s.err
 }
 
 func (s *contractService) GetGroupStageTable(ctx context.Context, typeID, groupID string) ([]*Leaderboard, error) {
 	s.context, s.typeID, s.groupID = ctx, typeID, groupID
 	s.invocations++
+
 	return s.rows, s.err
 }
 
@@ -48,7 +50,14 @@ func TestColorHTTPPreservesRowsEmptyListsFiltersAndContext(t *testing.T) {
 		{
 			name: "leaderboard fields",
 			path: "/colors/leaderboards?type_id=" + typeID,
-			rows: []*Leaderboard{{ID: "red", Title: "Red", Won: 2, Drawn: 1, Lost: 3, TotalMatch: 6}},
+			rows: []*Leaderboard{{
+				ID:         "red",
+				Title:      "Red",
+				Won:        2,
+				Drawn:      1,
+				Lost:       3,
+				TotalMatch: 6,
+			}},
 			want: `[{"id":"red","title":"Red","won":2,"drawn":1,"lost":3,"total_matches":6}]`,
 		},
 		{
@@ -57,8 +66,17 @@ func TestColorHTTPPreservesRowsEmptyListsFiltersAndContext(t *testing.T) {
 			rows: []*Leaderboard{{ID: "blue"}},
 			want: `[{"id":"blue","won":0,"drawn":0,"lost":0,"total_matches":0}]`,
 		},
-		{name: "empty leaderboard", path: "/colors/leaderboards", want: `[]`},
-		{name: "empty group stage", path: "/colors/group-stage", rows: []*Leaderboard{}, want: `[]`},
+		{
+			name: "empty leaderboard",
+			path: "/colors/leaderboards",
+			want: `[]`,
+		},
+		{
+			name: "empty group stage",
+			path: "/colors/group-stage",
+			rows: []*Leaderboard{},
+			want: `[]`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -68,13 +86,16 @@ func TestColorHTTPPreservesRowsEmptyListsFiltersAndContext(t *testing.T) {
 			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 			app.Use(func(c *fiber.Ctx) error {
 				c.SetUserContext(ctx)
+
 				return c.Next()
 			})
 			NewHTTPHandler(service).RegisterRoutes(app)
+
 			response, err := app.Test(httptest.NewRequest("GET", test.path, nil))
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer func() {
 				if err := response.Body.Close(); err != nil {
 					t.Error(err)
@@ -119,10 +140,12 @@ func TestColorHTTPPreservesValidationAndDependencyErrorContract(t *testing.T) {
 			app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 			app.Use(apierror.RequestID())
 			NewHTTPHandler(service).RegisterRoutes(app)
+
 			response, err := app.Test(httptest.NewRequest("GET", test.path, nil))
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer func() {
 				if err := response.Body.Close(); err != nil {
 					t.Error(err)
@@ -135,7 +158,9 @@ func TestColorHTTPPreservesValidationAndDependencyErrorContract(t *testing.T) {
 			if response.StatusCode != test.wantStatus || body.Code != test.wantCode || service.invocations != test.wantCalls {
 				t.Fatalf("status/body/calls = %d %+v %d", response.StatusCode, body, service.invocations)
 			}
-			if strings.Contains(body.Message, "database secret") || body.RequestID == "" || body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
+			if strings.Contains(body.Message, "database secret") ||
+				body.RequestID == "" ||
+				body.RequestID != response.Header.Get(apierror.RequestIDHeader) {
 				t.Fatalf("unsafe or uncorrelated error response: %+v", body)
 			}
 		})

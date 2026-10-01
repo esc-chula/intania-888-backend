@@ -24,12 +24,12 @@ func NewService(colorRepo Repository, log *zap.Logger) *Service {
 func (s *Service) GetAllLeaderboards(ctx context.Context, typeID string) ([]*Leaderboard, error) {
 	colors, err := s.colorRepo.GetAllLeaderboards(ctx, typeID)
 	if err != nil {
-
 		return nil, err
 	}
 
 	results := leaderboards(colors)
 	s.log.Named("GetAllLeaderboards").Info("Retrieved all leaderboards successful", zap.Int("count", len(results)))
+
 	return results, nil
 }
 
@@ -37,12 +37,12 @@ func (s *Service) GetAllLeaderboards(ctx context.Context, typeID string) ([]*Lea
 func (s *Service) GetGroupStageTable(ctx context.Context, typeID, groupID string) ([]*Leaderboard, error) {
 	colors, err := s.colorRepo.GetGroupStageTable(ctx, typeID, groupID)
 	if err != nil {
-
 		return nil, err
 	}
 
 	results := leaderboards(colors)
 	s.log.Named("GetGroupStageTable").Info("Retrieved group stage successful", zap.Int("count", len(results)))
+
 	return results, nil
 }
 
@@ -58,5 +58,6 @@ func leaderboards(rows []*Standing) []*Leaderboard {
 			TotalMatch: row.TotalMatches,
 		}
 	}
+
 	return result
 }

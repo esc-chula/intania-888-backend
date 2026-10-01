@@ -20,29 +20,75 @@ type configServer struct {
 }
 
 func (c securityValidationConfig) GetServer() Server {
-	return Server{Name: c.server.Name, Env: c.server.Env, URL: c.server.URL}
+	return Server{
+		Name: c.server.Name,
+		Env:  c.server.Env,
+		URL:  c.server.URL,
+	}
 }
-func (c securityValidationConfig) GetDB() DB           { return DB{} }
-func (c securityValidationConfig) GetCache() Cache     { return Cache{Host: "localhost", Port: 6379} }
-func (c securityValidationConfig) GetJWT() JWT         { return c.jwt }
-func (c securityValidationConfig) GetOAuth() OAuth     { return c.oauth }
-func (c securityValidationConfig) GetSession() Session { return c.session }
-func (c securityValidationConfig) GetSwagger() Swagger { return Swagger{} }
-func (c securityValidationConfig) GetCORS() CORS       { return c.cors }
+
+func (c securityValidationConfig) GetDB() DB {
+	return DB{}
+}
+
+func (c securityValidationConfig) GetCache() Cache {
+	return Cache{
+		Host: "localhost",
+		Port: 6379,
+	}
+}
+
+func (c securityValidationConfig) GetJWT() JWT {
+	return c.jwt
+}
+
+func (c securityValidationConfig) GetOAuth() OAuth {
+	return c.oauth
+}
+
+func (c securityValidationConfig) GetSession() Session {
+	return c.session
+}
+
+func (c securityValidationConfig) GetSwagger() Swagger {
+	return Swagger{}
+}
+
+func (c securityValidationConfig) GetCORS() CORS {
+	return c.cors
+}
+
 func (c securityValidationConfig) GetDailyReward() DailyReward {
 	return DailyReward{}
 }
 
 func validSecurityConfig(env string) securityValidationConfig {
 	registry := &AuthRegistry{
-		Version:      1,
-		Lifetimes:    AuthLifetimes{Login: 600, Code: 60, Access: 3600, Idle: 604800, Absolute: 2592000},
-		Applications: []AuthApplication{{ID: "web", Mode: CookieApplication, FrontendOrigin: "http://localhost:3001", DefaultReturnPath: "/", OnboardingPath: "/register", LoginErrorPath: "/login-error"}},
+		Version: 1,
+		Lifetimes: AuthLifetimes{
+			Login:    600,
+			Code:     60,
+			Access:   3600,
+			Idle:     604800,
+			Absolute: 2592000,
+		},
+		Applications: []AuthApplication{{
+			ID:                "web",
+			Mode:              CookieApplication,
+			FrontendOrigin:    "http://localhost:3001",
+			DefaultReturnPath: "/",
+			OnboardingPath:    "/register",
+			LoginErrorPath:    "/login-error",
+		}},
 	}
 	registry.Google.CallbackURI = "http://localhost:8080/api/v1/auth/callback"
 
 	return securityValidationConfig{
-		server: configServer{Name: "intania", Env: env, URL: "http://api.example.test/api/v1"},
+		server: configServer{
+			Name: "intania",
+			Env:  env,
+			URL:  "http://api.example.test/api/v1",
+		},
 		jwt: JWT{
 			AccessTokenSecret: strings.Repeat("a", 32),
 		},
@@ -98,9 +144,22 @@ func TestValidateSecurityRejectsWildcardAndNonExactOrigins(t *testing.T) {
 func TestValidateSecurityRequiresRegisteredFrontendOrigin(t *testing.T) {
 	cfg := validSecurityConfig("development")
 	cfg.oauth.Registry = &AuthRegistry{
-		Version:      1,
-		Lifetimes:    AuthLifetimes{Login: 600, Code: 60, Access: 3600, Idle: 604800, Absolute: 2592000},
-		Applications: []AuthApplication{{ID: "web", Mode: CookieApplication, FrontendOrigin: "http://other-frontend.example.test", DefaultReturnPath: "/", OnboardingPath: "/register", LoginErrorPath: "/login-error"}},
+		Version: 1,
+		Lifetimes: AuthLifetimes{
+			Login:    600,
+			Code:     60,
+			Access:   3600,
+			Idle:     604800,
+			Absolute: 2592000,
+		},
+		Applications: []AuthApplication{{
+			ID:                "web",
+			Mode:              CookieApplication,
+			FrontendOrigin:    "http://other-frontend.example.test",
+			DefaultReturnPath: "/",
+			OnboardingPath:    "/register",
+			LoginErrorPath:    "/login-error",
+		}},
 	}
 	cfg.oauth.Registry.Google.CallbackURI = "http://localhost:8080/api/v1/auth/callback"
 	if err := ValidateSecurity(cfg); err == nil {

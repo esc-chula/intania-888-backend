@@ -53,16 +53,46 @@ func assertSchemaTypes(t *testing.T, p *testutil.Postgres) {
 		table  string
 		column string
 	}{
-		{table: "users", column: "remaining_coin"},
-		{table: "bill_heads", column: "total"},
-		{table: "bill_heads", column: "payout"},
-		{table: "bill_lines", column: "rate"},
-		{table: "daily_rewards", column: "reward"},
-		{table: "mine_games", column: "bet_amount"},
-		{table: "mine_games", column: "current_payout"},
-		{table: "mine_games", column: "multiplier"},
-		{table: "mine_game_histories", column: "multiplier"},
-		{table: "mine_game_histories", column: "payout_at_hit"},
+		{
+			table:  "users",
+			column: "remaining_coin",
+		},
+		{
+			table:  "bill_heads",
+			column: "total",
+		},
+		{
+			table:  "bill_heads",
+			column: "payout",
+		},
+		{
+			table:  "bill_lines",
+			column: "rate",
+		},
+		{
+			table:  "daily_rewards",
+			column: "reward",
+		},
+		{
+			table:  "mine_games",
+			column: "bet_amount",
+		},
+		{
+			table:  "mine_games",
+			column: "current_payout",
+		},
+		{
+			table:  "mine_games",
+			column: "multiplier",
+		},
+		{
+			table:  "mine_game_histories",
+			column: "multiplier",
+		},
+		{
+			table:  "mine_game_histories",
+			column: "payout_at_hit",
+		},
 	}
 
 	for _, column := range columns {

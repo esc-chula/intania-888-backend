@@ -72,6 +72,7 @@ func run() (runErr error) {
 	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := sqlDB.PingContext(startupCtx); err != nil {
 		cancelStartup()
+
 		return fmt.Errorf("check PostgreSQL at startup: %w", err)
 	}
 	cancelStartup()
@@ -85,6 +86,7 @@ func run() (runErr error) {
 	startupCtx, cancelStartup = context.WithTimeout(context.Background(), 5*time.Second)
 	if err := cacheClient.Ping(startupCtx); err != nil {
 		cancelStartup()
+
 		return fmt.Errorf("check Redis at startup: %w", err)
 	}
 	cancelStartup()
@@ -141,6 +143,7 @@ func run() (runErr error) {
 	sportTypeRepo := sporttype.NewGORMRepository(db)
 	sportTypeSvc := sporttype.NewService(sportTypeRepo, logger.Named("SportTypeSvc"))
 	sportTypeHTTP := sporttype.NewHTTPHandler(sportTypeSvc)
+
 	locationRepo := location.NewGORMRepository(db)
 	locationSvc := location.NewService(locationRepo, logger.Named("LocationSvc"))
 	locationHTTP := location.NewHTTPHandler(locationSvc)
@@ -148,7 +151,9 @@ func run() (runErr error) {
 	// init router
 	httpServer, err := server.NewFiberHTTPServer(
 		cfg, logger,
-		func(ctx context.Context) error { return sqlDB.PingContext(ctx) },
+		func(ctx context.Context) error {
+			return sqlDB.PingContext(ctx)
+		},
 		cacheClient.Ping,
 	)
 	if err != nil {
@@ -177,7 +182,9 @@ func run() (runErr error) {
 	// start server
 	if err := httpServer.Start(); err != nil {
 		logger.Error("HTTP server stopped with an error", zap.Error(err))
+
 		return err
 	}
+
 	return nil
 }

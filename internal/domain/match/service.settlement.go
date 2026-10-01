@@ -41,6 +41,7 @@ func (s *Service) SetResult(ctx context.Context, id string, req *ResultInput) er
 	if !validOutcome || (winnerResult && !hasWinner) || (drawResult && req.WinnerID != nil) {
 		return ErrInvalidResult
 	}
+
 	return s.transactions.WithinTransaction(ctx, func(tx TransactionRepository) error {
 		if err := tx.AcquireLifecycleLock(ctx); err != nil {
 			return err
@@ -98,6 +99,7 @@ func (s *Service) SetResult(ctx context.Context, id string, req *ResultInput) er
 			if sameDraw || sameWinner {
 				return nil
 			}
+
 			return ErrResultConflict
 		}
 		if req.Outcome == "draw" {
@@ -173,7 +175,11 @@ func (s *Service) SetResult(ctx context.Context, id string, req *ResultInput) er
 				if err != nil {
 					return err
 				}
-				settlements = append(settlements, settlement{bill: bill, status: "WON", payout: payout})
+				settlements = append(settlements, settlement{
+					bill:   bill,
+					status: "WON",
+					payout: payout,
+				})
 				userSet[bill.UserID] = true
 			}
 		}
@@ -210,15 +216,26 @@ func (s *Service) SetResult(ctx context.Context, id string, req *ResultInput) er
 				}
 				user.Balance = balance
 			}
-			update := BillSettlement{BillID: item.bill.ID, Status: item.status, Payout: item.payout, SettledAt: now}
+			update := BillSettlement{
+				BillID:    item.bill.ID,
+				Status:    item.status,
+				Payout:    item.payout,
+				SettledAt: now,
+			}
 			if err := tx.SettleBill(ctx, update); err != nil {
 				return err
 			}
-			event := TerminalEvent{ID: s.newID(), BillID: item.bill.ID, Amount: item.payout, CreatedAt: now}
+			event := TerminalEvent{
+				ID:        s.newID(),
+				BillID:    item.bill.ID,
+				Amount:    item.payout,
+				CreatedAt: now,
+			}
 			if err := tx.CreateTerminalEvent(ctx, event); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	})
 }

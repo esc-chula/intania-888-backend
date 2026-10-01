@@ -45,12 +45,17 @@ func TestOwnProfileHTTPEndpointsAgainstPostgres(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("PATCH /users/me null clear status = %d, want %d; body=%v", status, http.StatusOK, body)
 	}
-	if body["name"] != "Updated self" || body["nick_name"] != nil || body["group_id"] != nil || body["remaining_coin"] != "123.45" {
+	if body["name"] != "Updated self" ||
+		body["nick_name"] != nil ||
+		body["group_id"] != nil ||
+		body["remaining_coin"] != "123.45" {
 		t.Fatalf("explicit null fields were not cleared independently: body=%v", body)
 	}
 
 	status, body = patchProfileRequest(t, app, "/api/v1/users/"+profileTestActorID, `{"name":"Updated through legacy route"}`)
-	if status != http.StatusOK || body["name"] != "Updated through legacy route" || body["remaining_coin"] != "123.45" {
+	if status != http.StatusOK ||
+		body["name"] != "Updated through legacy route" ||
+		body["remaining_coin"] != "123.45" {
 		t.Fatalf("matching-ID legacy route did not delegate to self-profile update: status=%d body=%v", status, body)
 	}
 
@@ -83,6 +88,7 @@ func TestOwnProfilePatchPreservesInterleavedBalanceChange(t *testing.T) {
 		Repository: repository,
 		beforePatch: func(ctx context.Context) error {
 			_, err := balanceService.DeductCoin(ctx, "profile-balance-user", value.MustMoneyFromMinor(12_34))
+
 			return err
 		},
 	}
@@ -116,10 +122,16 @@ func newProfileTestApp(t *testing.T, service userdomain.ServicePort, actorID str
 
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 	authenticate := func(c *fiber.Ctx) error {
-		httpidentity.SetProfile(c, &identity.Profile{ID: actorID, RoleID: "USER"})
+		httpidentity.SetProfile(c, &identity.Profile{
+			ID:     actorID,
+			RoleID: "USER",
+		})
+
 		return c.Next()
 	}
+
 	userdomain.NewHTTPHandler(service).RegisterRoutes(app.Group("/api/v1"), authenticate, authenticate)
+
 	return app
 }
 
@@ -128,6 +140,7 @@ func patchProfileRequest(t *testing.T, app *fiber.App, path, body string) (int, 
 
 	request := httptest.NewRequest(http.MethodPatch, path, strings.NewReader(body))
 	request.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+
 	response, err := app.Test(request)
 	if err != nil {
 		t.Fatalf("PATCH %s: %v", path, err)

@@ -18,7 +18,10 @@ type Service struct {
 
 // NewService constructs account use cases using the supplied repository.
 func NewService(repo Repository, log *zap.Logger) *Service {
-	return &Service{repo: repo, log: log}
+	return &Service{
+		repo: repo,
+		log:  log,
+	}
 }
 
 // CreateUser creates an account with the default 888 coin balance.
@@ -40,6 +43,7 @@ func (s *Service) CreateUser(ctx context.Context, input CreateInput) (*identity.
 	result := profileFromUser(user)
 	// Preserve the existing create response, which reflects the supplied timestamp.
 	result.CreatedAt = input.CreatedAt
+
 	return result, nil
 }
 
@@ -52,6 +56,7 @@ func (s *Service) GetUser(ctx context.Context, id string) (*identity.Profile, er
 
 	result := profileFromUser(user)
 	result.CreatedAt = zeroTime
+
 	return result, nil
 }
 
@@ -66,6 +71,7 @@ func (s *Service) GetAllUsers(ctx context.Context) ([]*identity.Profile, error) 
 	for i, user := range users {
 		profiles[i] = profileFromUser(user)
 	}
+
 	return profiles, nil
 }
 
@@ -91,6 +97,7 @@ func (s *Service) UpdateOwnProfile(ctx context.Context, actorID string, input Pr
 	}
 
 	s.log.Info("User profile updated successfully", zap.String("user_id", actorID))
+
 	return s.GetUser(ctx, actorID)
 }
 
@@ -115,6 +122,7 @@ func (s *Service) AdminUpdateUser(ctx context.Context, userID string, input Admi
 	}
 
 	s.log.Info("User updated by admin successfully", zap.String("user_id", userID))
+
 	return nil
 }
 
@@ -141,6 +149,7 @@ func (s *Service) DeductCoin(ctx context.Context, userID string, amount value.Mo
 
 		// 4. Calculate remaining balance for response.
 		remainingBalance = value.MustMoneyFromMinor(user.RemainingCoin - amount.MinorUnits())
+
 		return nil
 	})
 	if err != nil {
@@ -151,6 +160,7 @@ func (s *Service) DeductCoin(ctx context.Context, userID string, amount value.Mo
 		zap.String("user_id", userID),
 		zap.Int64("amount_minor", amount.MinorUnits()),
 		zap.Int64("remaining_minor", remainingBalance.MinorUnits()))
+
 	// Return the balance computed while the locked row was updated.
 	return remainingBalance, nil
 }

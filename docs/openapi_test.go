@@ -246,6 +246,7 @@ func hasRequiredField(schema map[string]any, name string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -257,6 +258,7 @@ func hasRequiredHeader(operation map[string]any, name string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -268,6 +270,7 @@ func hasParameter(operation map[string]any, location, name string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 

@@ -28,8 +28,10 @@ func (r *GORMRepository) GetByID(ctx context.Context, id string) (*identity.User
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("%w: %w", identity.ErrUserNotFound, err)
 		}
+
 		return nil, err
 	}
+
 	return &identity.User{
 		ID:            user.ID,
 		Email:         user.Email,
