@@ -164,11 +164,15 @@ Development:
 http://localhost:8080/swagger/index.html
 ```
 
-Production:
+Production example, matching the example auth registry:
 
 ```text
-https://888api.chula.engineering/swagger/index.html
+https://888-api.intania.org/swagger/index.html
 ```
+
+Use your deployed API host; production example domains are not deployment
+authorities. `SERVER_URL` selects the API target, and `google.callback_uri` must
+use the callback URL registered with Google.
 
 The development configuration leaves the UI open. Production requires HTTP
 Basic Auth using `SWAGGER_USERNAME` and `SWAGGER_PASSWORD`.
@@ -267,8 +271,9 @@ It returns `201 Created` with the policy resource. Duplicate identities return
 
 It returns `200 OK` with the updated resource. `DELETE
 /api/v1/auth/policies/:id` disables the entry and returns `204 No Content`.
-Errors use `{ "error": "..." }` with `400`, `401`,
-`403`, `404`, `409`, or `503` status codes as appropriate.
+Policy errors use the shared `{ "code", "message", "request_id", "details?" }`
+resource envelope with the appropriate HTTP status. The OAuth token error
+format does not apply to policy resources.
 
 The existing `cmd/seed` binary supports an explicit `--policy-file
 /secure/path/policies.json --policy-dry-run` validation mode. The import file
@@ -348,26 +353,55 @@ See [Application authentication](authentication-applications.md) for registratio
 
 ## External minigame backend
 
-The `/api/v1/external/*` API is used by a separate backend that runs other
-minigames, such as the war game, and reports game outcomes to this backend.
-The browser-focused OpenAPI reference documents administrator token issuance
-and revocation. The separate `/external/*` backend routes are described here
-because they use Bearer authentication instead of browser sessions.
+The separate game backend uses the delegated resources documented in
+[`openapi.yaml`](openapi.yaml). It obtains credentials through the registered
+[authorization-code flow](authentication-applications.md#backend-delegation),
+keeps them server-side, and issues its own game session cookie.
 
-The implemented routes are `GET /api/v1/external/me`, which returns the
-JWT-bound user's profile, and `POST /api/v1/external/deduct-coin`, which deducts
-coins from that user's balance using a money-string `amount`. External requests
-use Bearer authentication independently of browser cookies, Origin checks,
-and CSRF. The token identifies a user rather than the minigame service itself.
+| Route | Required scope | Success |
+| --- | --- | --- |
+| `GET /external/me` | `profile.read` | `200`, `{ "profile": { ... } }`; no CSRF token |
+| `POST /external/deduct-coin` | `coins.spend` | `200`, deduction and remaining balance |
 
-There is currently no external endpoint for submitting game results or crediting
-winnings. That part of the intended integration still needs a defined contract.
+Deduction takes only a JSON money-string amount:
 
-Registered game backends use delegated OAuth credentials bound to a client, account, grant, and scopes. `GET /external/me` requires `profile.read`; `POST /external/deduct-coin` requires `coins.spend`. The browser authenticates to its game backend through that backend's own session cookie. Access and refresh credentials stay on the backend.
+```json
+{ "amount": "25.00" }
+```
+
+```json
+{
+  "success": true,
+  "deducted_amount": "25.00",
+  "remaining_balance": "863.88"
+}
+```
+
+The token binds the account, registered client, delegation, and scopes. No caller
+`user_id` is accepted. Cookie credentials do not authenticate external routes.
+Missing/invalid/revoked credentials return `401 UNAUTHORIZED`; missing scope
+returns `403 FORBIDDEN`; insufficient balance returns `422 INSUFFICIENT_BALANCE`.
+Dependencies fail closed with `503 DEPENDENCY_UNAVAILABLE`.
+
+External routes skip the browser Origin guard and CSRF. Browser CORS still
+restricts browser requests; backend-to-backend calls do not need a CORS entry.
+The delegated Games flow does not call 888 resources from its frontend, so
+register the Games frontend origin on the Games backend. Register its backend
+callback under `redirect_uris` in the 888 auth registry.
+
+888 deduction is atomic within its database. It has no idempotency key,
+reservation, refund, or transaction spanning the game database. Do not retry an
+ambiguous deduction response without a reconciliation design. Game-result
+submission and winnings credit endpoints are not implemented.
 
 # API error contract and frontend handoff
 
-OAuth token endpoints use the standard `{ "error": "..." }` response. Browser login failures use a registered error redirect or a local HTML error page. These protocol endpoints differ from the resource error envelope below.
+`/auth/token` and `/auth/revoke` protocol failures use `{ "error": "..." }`.
+Login and authorization use registered error redirects (`error`, plus `state`
+for backend clients) or a local HTML error when a trusted destination cannot
+be established. The shared API-wide rate limiter can return the resource
+envelope with `429` on these routes. See the
+[authentication error table](authentication-applications.md#responses-and-errors).
 
 Protected resource failures return a stable code, a safe message, and the
 server generated request ID. `X-Request-ID` contains the same value and is
@@ -415,4 +449,13 @@ Browser routes use the `CookieSession` documentation scheme. Swagger 2.0 does
 not support a native cookie security scheme; its `Cookie` header representation
 is descriptive. Browser cookies are supplied by an authenticated browser session,
 and protected mutations also require `X-CSRF-Token` and an allowed Origin.
-`BearerAuth` applies only to the external minigame integration endpoints.
+`BearerAuth` applies only to the scoped external resources. `OAuthClient` is
+HTTP Basic backend-client authentication for `/auth/token` and `/auth/revoke`;
+it is separate from Swagger UI access protection and browser account login.
+
+Start cookie login by navigating to `/auth/login?client_id=intania-888-web`,
+then return to Swagger in the same browser and hostname. Do not fetch login as
+JSON or follow Google authentication through **Try it out**. Obtain CSRF from
+`/auth/me` before an active-session mutation. This branch serves Swagger 2.0;
+the OpenAPI 3 document and Swagger session helper are maintained on the separate
+`feat/swagger-openapi-v3-session-ux` branch and are not included here.

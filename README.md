@@ -34,10 +34,14 @@ migrations.
    http://localhost:8080/api/v1/auth/callback
    ```
 
-   The default frontend origin is `http://localhost:3000`. Keep it in
-   `CORS_ALLOW_ORIGINS` and set `OAUTH_POST_LOGIN_REDIRECT_URL` to the frontend
-   origin you use. For local development, the example JWT secret is suitable
-   only for development.
+   The default 888 frontend origin is `http://localhost:3000`. Keep it in
+   `CORS_ALLOW_ORIGINS` and in the `intania-888-web` registration in
+   `config/auth.development.yaml`. Set `AUTH_CONFIG_FILE` to that registry.
+   Google uses `google.callback_uri`; each application has its own frontend
+   or backend callback registration. Set `INTANIA_GAMES_CLIENT_SECRET` to a
+   random secret of at least 32 characters when using the Games registration,
+   and provision the same secret on the Games backend. The example secrets
+   are placeholders, not production credentials.
 
 3. Start the API and its dependencies:
 
@@ -72,6 +76,17 @@ APP_ENV=dev go run ./cmd/main.go
 
 The example Compose setup publishes PostgreSQL on port `5432` and Redis on
 `6379`. Edit `docker-compose.yml` if those host ports are already in use.
+
+Login starts through browser navigation to:
+
+```text
+http://localhost:8080/api/v1/auth/login?client_id=intania-888-web&return_to=%2F
+```
+
+For the local Games integration, the frontend is `http://localhost:3001` and
+its backend callback is `http://localhost:8081/auth/callback`. Google still
+returns to 888 on port 8080. The Games repository provides its own root Compose
+setup; its browser talks to its backend, which exchanges credentials with 888.
 
 ## Useful commands
 
@@ -115,7 +130,10 @@ and keeps their named data volumes.
 
 Browser mutations use the session cookie and `X-CSRF-Token` returned by
 `GET /api/v1/auth/me`. Configure the exact frontend origin in
-`CORS_ALLOW_ORIGINS`. The `/external/*` API uses Bearer authentication. See
+`CORS_ALLOW_ORIGINS`. The `/external/*` API requires registered, scoped delegated Bearer credentials:
+`profile.read` for `/external/me` and `coins.spend` for `/external/deduct-coin`.
+Obtain credentials through `/auth/authorize` and server-to-server `/auth/token`;
+see [application authentication](docs/authentication-applications.md). See
 [Swagger and API usage](docs/README.md) for the current contract.
 
 Location, sport, match, and color-standings reads are public and do not evaluate
@@ -151,3 +169,4 @@ changing package boundaries or adding shared helpers.
 - [API and Swagger guide](docs/README.md)
 - [Coding standard](docs/coding-standard.md)
 - [API migration guide](docs/api-migration-from-main.md)
+- [Application authentication and client registry](docs/authentication-applications.md)

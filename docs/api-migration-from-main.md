@@ -1,4 +1,4 @@
-# API migration: backend `main` to `development`
+# API migration: backend `main` to the current API
 
 Compare the API changes below, then follow the [migration checklist](#migration-checklist)
 to update the frontend and prepare the release. Each comparison explains the
@@ -13,20 +13,21 @@ client impact, the reason for the redesign, and the required action.
 
 | Comparison | Revision |
 | --- | --- |
-| Backend `main` | `3c82b1d` (`origin/main` at comparison time) |
-| Backend `development` baseline before public reads | `976315a` |
-| Public-read update | `fc9662a` (`feat/public-read-routes`) |
+| Backend `main` comparison source | `3c82b1d` |
+| Current documentation source | `cf4532a` on `feat/multi-application-auth` |
 
-This guide compares the legacy API with the development baseline and includes
-the public-read access update. The development API uses exact-decimal strings
-and admin-managed sport types with restrictive foreign keys in the fresh schema.
-It also includes the location catalogue and required match venue relationship
-documented below.
+This guide describes the current source contract, including registered
+applications, scoped backend delegation, public reads, exact-decimal strings,
+admin-managed sport types, and match locations. The revision identifies the
+source used for this documentation update; it is not a claim about deployed
+services. The earlier development baseline is no longer the full target.
+
 All routes below are relative to the unchanged API base path, `/api/v1`.
 
 | Change | Affected client work |
 | --- | --- |
 | [Browser authentication](#browser-authentication-and-request-protection) | Login, shared transport, session state, logout |
+| [Backend delegation](#registered-applications-and-backend-delegation) | Client registry, callbacks, scopes, token rotation and revocation |
 | [Public shared reads](#public-shared-reads) | Public screens, signed-out catalogue and fixture requests |
 | [Locations and match venues](#location-catalogue-and-match-venues) | Venue CRUD, match forms, match and bill response types |
 | [Money](#money-representation) | API types, forms, balance and payout displays |
@@ -47,7 +48,7 @@ preparation and acceptance checks, use the [migration checklist](#migration-chec
 
 ### Browser authentication and request protection
 
-| Before: `main` | After: `development` |
+| Before: `main` | After: current API |
 | --- | --- |
 | OAuth redirects could expose access/refresh tokens in the URL. | The callback sets an opaque HttpOnly session cookie. |
 | Frontend callback exchange and token storage in `localStorage`. | API callback and redirect to the configured frontend. |
@@ -74,7 +75,7 @@ The new login flow is:
 sequenceDiagram
     participant Browser as Browser / frontend
     participant API as Backend API
-participant Google
+    participant Google
     Browser->>API: Navigate to /auth/login?client_id=...&return_to=/
     API-->>Browser: Google redirect + bound transaction cookie
     Browser->>Google: Follow redirect
@@ -108,6 +109,59 @@ the HttpOnly `session` cookie; production uses `__Host-session` with HTTPS,
 `Secure`, `HttpOnly`, `Path=/`, and no `Domain` attribute. Both use `SameSite=Lax`.
 Configure the exact frontend origin in backend CORS/origin settings; the browser
 supplies the `Origin` header.
+
+### Registered applications and backend delegation
+
+| Previous integration | Current API |
+| --- | --- |
+| Caller-selected `redirect_to` or one global post-login URL. | Operator-managed `AUTH_CONFIG_FILE` registry; cookie `return_to` is a validated relative path. |
+| `GET /auth/login` fetched as JSON containing a Google URL. | Navigate to `/auth/login?client_id=...&return_to=...`; success is a `303` redirect. |
+| Tokens passed to the game frontend callback and stored in JavaScript. | `/auth/authorize` returns a one-use code to the registered game **backend** callback. |
+| Unscoped external credentials and administrator issuance/revocation. | Client-authenticated `/auth/token` and `/auth/revoke`; credentials bind account, client, delegation, and scopes. |
+
+**Required action:** register each application in YAML. Cookie applications
+configure `frontend_origin`, `default_return_path`, `onboarding_path`, and
+`login_error_path`. Confidential backends configure exact `redirect_uris`,
+`allowed_scopes`, and `client_secret_env`. Secrets stay in the backend
+environment and must match on both backends; no client secret goes to a browser.
+
+The game backend generates and stores browser-bound state and an S256 PKCE
+verifier. Browser navigation to `/auth/authorize` includes `response_type=code`,
+`client_id`, `redirect_uri`, `state`, `scope`, `code_challenge`, and
+`code_challenge_method=S256`. 888 reuses its admitted session or signs in with
+Google. Google always returns to 888's `google.callback_uri`. The game backend
+then receives `code` and its original `state`, checks its local transaction,
+and exchanges the code using form-encoded `/auth/token` with HTTP Basic client
+authentication, `grant_type=authorization_code`, `code`, `redirect_uri`, and
+`code_verifier`. Credentials stay server-side; the game issues its own cookie.
+
+`grant_type=refresh_token` rotates the refresh credential. Persist the
+replacement pair atomically and serialize refreshes for a delegation: reuse
+revokes the grant. Backend logout posts `token` to `/auth/revoke` with client
+authentication; success is `200` plain-text `OK`, including unknown or
+other-client credentials. The 888 browser session and game delegation have
+independent lifecycles.
+
+| Delegated resource | Scope and payload |
+| --- | --- |
+| `GET /external/me` | `profile.read`; returns `{ "profile": { ... } }`, without `csrf_token` |
+| `POST /external/deduct-coin` | `coins.spend`; JSON `{ "amount": "25.00" }`; returns `success`, `deducted_amount`, `remaining_balance` |
+
+`allowed_scopes` is the client's maximum permitted set. Authorization requests
+choose a nonempty subset, without duplicates. Each resource checks its required
+scope against the current registry, active grant, and token. Missing scope
+returns `403 FORBIDDEN`; expired/revoked credentials return `401 UNAUTHORIZED`.
+The external account comes from authentication, never a caller-supplied user ID.
+Deduction is atomic in 888; cross-database consistency and safe retries remain
+separate game integration work.
+
+For local development, 888 FE is port `3000`, 888 API and Google callback use
+`8080`, Games FE uses `3001`, and the registered Games backend callback uses
+`8081`. The browser-facing 888 URL and container-to-888 URL can differ; keep the
+same browser hostname across login and callback so host-only cookies are sent.
+
+See [Application authentication](authentication-applications.md) for the full
+registry, lifetimes, return-path rules, wire examples, and protocol errors.
 
 ### Public shared reads
 
@@ -194,7 +248,7 @@ missing entries without overwriting edited titles.
 
 ### Money representation
 
-| Before: `main` | After: `development` |
+| Before: `main` | After: current API |
 | --- | --- |
 | `"remaining_coin": 888.88` | `"remaining_coin": "888.88"` |
 | Money DTOs use floating-point values. | Money uses exact integer minor units internally. |
@@ -371,7 +425,7 @@ Frontend acceptance checks:
 
 ### Bill creation and cancellation
 
-| Before: `main` | After: `development` |
+| Before: `main` | After: current API |
 | --- | --- |
 | Bill lines include a client-provided `rate`. | Lines contain only `match_id` and `betting_on`. |
 | Creation returns a success message. | Creation returns the bill and its lifecycle fields. |
@@ -424,7 +478,7 @@ current user's bills. Administrators can now review all bills with
 
 ### Match results
 
-| Before: `main` | After: `development` |
+| Before: `main` | After: current API |
 | --- | --- |
 | `PATCH /matches/{id}/winner/{winner_id}` | `PUT /matches/{id}/result` with a winner body |
 | `PATCH /matches/{id}/draw` | `PUT /matches/{id}/result` with a draw body |
@@ -455,7 +509,7 @@ Handle conflicts explicitly. Score editing continues to use
 
 ### Daily reward administration
 
-| Before: `main` | After: `development` |
+| Before: `main` | After: current API |
 | --- | --- |
 | `POST /events/daily-rewards` with date and numeric amount. | `PUT /events/daily-rewards/{date}` with a string amount. |
 | No schedule read/delete API. | Schedule GET and per-date DELETE. |
@@ -485,7 +539,7 @@ mark the claim complete only after success, or show already claimed for
 
 ### Self-profile updates
 
-| Before: `main` | After: `development` |
+| Before: `main` | After: current API |
 | --- | --- |
 | `PATCH /users/{id}` with a broad user DTO. | `PATCH /users/me` with only editable profile fields. |
 | Client supplies the target user ID. | Account ID comes from the authenticated session. |
@@ -517,7 +571,14 @@ an operator database workflow. `GET /users/{id}` remains available.
 
 ### Errors and request validation
 
-| Before: `main` | After: `development` |
+The resource envelope below applies to browser and delegated resource APIs.
+`/auth/token` and `/auth/revoke` use `{ "error": "..." }` for protocol failures;
+login/authorization failures redirect or render local HTML. The global limiter
+can return `429 TOO_MANY_REQUESTS` with the resource envelope on every API route.
+See [authentication responses](authentication-applications.md#responses-and-errors).
+
+
+| Before: `main` | After: current API |
 | --- | --- |
 | Endpoint-specific `error` or `message` objects. | Shared `{ code, message, request_id, details? }` envelope. |
 | Clients match error text or discard failure details. | Clients branch on stable codes and retain diagnostics. |
@@ -556,7 +617,7 @@ payloads; unexpected failures return safe messages without internal details.
 
 ### Access policy administration
 
-| Before: `main` | After: `development` |
+| Before: `main` | After: current API |
 | --- | --- |
 | Access lists maintained in source. | Admin-managed allowlist/blacklist policies. |
 
@@ -693,7 +754,7 @@ Frontend acceptance checks:
 | Legacy route | Migration target |
 | --- | --- |
 | `POST /auth/login/callback` (removed) | [API callback login flow](#browser-authentication-and-request-protection) |
-| `POST /auth/refresh` (removed) | Server-managed cookie session |
+| `POST /auth/refresh` (removed) | Server-managed cookie session; delegated backends refresh through `/auth/token` |
 | `PATCH /bills/{id}` (removed) | Bills are immutable after placement. |
 | `DELETE /bills/{id}` (removed) | Admin `PUT /bills/admin/{id}/void` for pending cancellation |
 | `PATCH /matches/{id}/winner/{winner_id}` (replaced) | `PUT /matches/{id}/result` with winner body |
@@ -705,6 +766,11 @@ Frontend acceptance checks:
 
 | Route | Purpose |
 | --- | --- |
+| `GET /auth/authorize` | Registered backend authorization with client state and S256 PKCE |
+| `POST /auth/token` | Code exchange or rotating refresh; backend HTTP Basic client auth |
+| `POST /auth/revoke` | Revoke the authenticated client's delegation |
+| `GET /external/me` | Delegated profile read with `profile.read` |
+| `POST /external/deduct-coin` | Delegated money-string deduction with `coins.spend` |
 | `POST /auth/logout` | Browser session revocation |
 | `PATCH /users/me` | Self-profile update |
 | `PATCH /users/admin/{id}` | Administrator profile and balance update |
@@ -761,7 +827,8 @@ are listed here with their current access behavior. Origin checks and the global
 - [ ] Coordinate the backend and compatible frontend as one cutover; use the
   [impact overview](#release-at-a-glance) to assign client changes.
 - [ ] Configure the exact frontend origin in CORS/origin settings, the OAuth
-  callback and frontend redirect, and Redis session storage. Check the
+  callback in the auth YAML registry, per-application destinations, matching
+  backend client secrets, and Redis session/delegation storage. Check the
   [development/production cookie requirements](#browser-authentication-and-request-protection).
 - [ ] Prepare production data using the [database archive-and-reset rollout](adr/0001-exact-money-representation.md#archive-and-reset-rollout):
   restore-test the archive, provision a fresh database, apply Goose migrations,
@@ -773,6 +840,10 @@ are listed here with their current access behavior. Origin checks and the global
 - [ ] Recreate local databases from the revised fresh schema before enabling
   sport management; confirm restrictive sport references on matches, groups,
   and stages. Existing databases do not pick up edits to an applied baseline.
+
+- [ ] Register backend integrations, deploy their browser-bound callback and
+  server-side credential storage, and switch them to the scoped code flow.
+  Check container-to-888 networking separately from browser redirects.
 
 ### 2. Update the shared client
 
@@ -847,7 +918,9 @@ controlled accounts and resources against the prepared deployment.
 - [Exact-decimal frontend migration](#exact-decimal-frontend-migration)
 - [Sport-type frontend migration](#sport-type-frontend-migration)
 - [Exact money decision](adr/0001-exact-money-representation.md)
-- [Authentication routes](../internal/domain/auth/adapter.http.go)
+- [Application authentication](authentication-applications.md) and [registry](../pkg/config/auth_registry.go)
+- [Authentication routes](../internal/domain/auth/adapter.http.go) and [application handlers](../internal/domain/auth/adapter.http.applications.go)
+- [Delegated scope middleware](../internal/domain/middleware/adapter.http.external.go)
 - [Bill routes](../internal/domain/bill/adapter.http.go) and [request/response DTOs](../internal/domain/bill/adapter.http.dto.go)
 - [Match routes](../internal/domain/match/adapter.http.go) and [request/response DTOs](../internal/domain/match/adapter.http.dto.go)
 - [Event routes](../internal/domain/event/adapter.http.go) and [request/response DTOs](../internal/domain/event/adapter.http.dto.go)

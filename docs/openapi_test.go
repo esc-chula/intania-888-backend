@@ -36,6 +36,8 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 		"POST /auth/revoke",
 		"POST /auth/logout",
 		"GET /auth/me",
+		"GET /external/me",
+		"POST /external/deduct-coin",
 		"GET /auth/policies",
 		"POST /auth/policies",
 		"DELETE /auth/policies/{id}",
@@ -89,9 +91,6 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 
 	gotOperations := map[string]struct{}{}
 	for path, rawOperations := range paths {
-		if strings.HasPrefix(path, "/external/") {
-			t.Errorf("legacy external route %q must not appear in the reference", path)
-		}
 		operations, ok := rawOperations.(map[string]any)
 		if !ok {
 			t.Fatalf("operations for %q have type %T", path, rawOperations)
@@ -141,7 +140,7 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 
 			if method == "post" || method == "put" || method == "patch" || method == "delete" {
 				security, _ := operation["security"].([]any)
-				requiresCSRF := key != "POST /auth/logout" && key != "POST /auth/token" && key != "POST /auth/revoke"
+				requiresCSRF := key != "POST /auth/logout" && key != "POST /auth/token" && key != "POST /auth/revoke" && !strings.HasPrefix(path, "/external/")
 				if len(security) > 0 && requiresCSRF && !hasRequiredHeader(operation, "X-CSRF-Token") {
 					t.Errorf("%s does not document its required session CSRF header", key)
 				}
@@ -159,8 +158,8 @@ func TestOpenAPIDocumentMatchesPublishedRouteInventory(t *testing.T) {
 			t.Errorf("unexpected operation %q", operation)
 		}
 	}
-	if len(gotOperations) != 54 {
-		t.Errorf("documented operation count = %d, want 54", len(gotOperations))
+	if len(gotOperations) != 56 {
+		t.Errorf("documented operation count = %d, want 56", len(gotOperations))
 	}
 
 	definitions, ok := document["definitions"].(map[string]any)

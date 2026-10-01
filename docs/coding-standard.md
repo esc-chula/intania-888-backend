@@ -2,8 +2,9 @@
 
 This backend keeps each feature in one Go package. Files distinguish business
 rules, HTTP contracts and persistence implementations; import rules protect those
-boundaries. The standard applies to authored production code. Generated Swagger
-files are regenerated, and tests follow the same naming and formatting rules.
+boundaries. The standard applies to authored production code. The API contract is manually maintained in `docs/openapi.yaml`; update it
+when routes, wire types, or security requirements change. Tests follow the same
+naming and formatting rules.
 
 ## Sources and precedence
 

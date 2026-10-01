@@ -32,14 +32,6 @@ definitions:
       profile:
         $ref: '#/definitions/model.UserDto'
     type: object
-  auth.externalTokenRequest:
-    properties:
-      user_id:
-        type: string
-        description: Identifier of the associated resource.
-    required:
-    - user_id
-    type: object
   event.SpinResponse:
     properties:
       candidates:
@@ -623,7 +615,9 @@ definitions:
         type: string
       group_id:
         type: string
-        description: Current group ID, or null when the account has no group.
+        description: Current group ID; null when unassigned. A game must validate this ID against its
+          own playable groups.
+        x-nullable: true
       id:
         type: string
         description: Identifier of the associated resource.
@@ -631,6 +625,8 @@ definitions:
         type: string
       nick_name:
         type: string
+        x-nullable: true
+        description: Optional nickname; null when unset.
       remaining_coin:
         example: '888.88'
         type: string
@@ -795,39 +791,82 @@ definitions:
         description: Optional nickname; null clears the current nickname.
     type: object
     description: UpdateOwnProfileRequest representation used by this API.
+  auth.ExternalMeResponse:
+    type: object
+    required:
+    - profile
+    properties:
+      profile:
+        $ref: '#/definitions/model.UserDto'
+    description: Authenticated delegated profile. Does not include a browser CSRF token.
+  user.DeductCoinRequest:
+    type: object
+    required:
+    - amount
+    additionalProperties: false
+    properties:
+      amount:
+        type: string
+        example: '25.00'
+        description: Coin amount as an exact decimal JSON string with at most two fractional digits; numeric
+          JSON tokens and negative values are rejected.
+  user.DeductCoinResponse:
+    type: object
+    required:
+    - success
+    - deducted_amount
+    - remaining_balance
+    properties:
+      success:
+        type: boolean
+        example: true
+      deducted_amount:
+        type: string
+        example: '25.00'
+        description: Deduction as a two-decimal money string.
+      remaining_balance:
+        type: string
+        example: '863.88'
+        description: Balance after deduction as a two-decimal money string.
 host: localhost:8080
 info:
   title: Intania 888 API
   version: 1.0.0-breaking
-  description: "Browser and application API for Intania 888. All application routes use the /api/v1 base\
-    \ path. Browser authentication uses an HttpOnly session cookie; call GET /auth/me after login to retrieve\
-    \ the current profile and session-bound csrf_token. Send that token in X-CSRF-Token with browser mutations\
-    \ while a session is active and send an Origin allowed by the server. Mutations are rejected when\
-    \ either check fails. \n\nMoney values are JSON strings. Responses use exactly two fractional digits;\
-    \ requests accept up to two. Rate values are JSON strings with up to six fractional digits in requests\
-    \ and six in responses. Numeric JSON tokens are not accepted for these decimal values. \n\nAPI failures\
-    \ use the shared apierror.Response shape: code, message, request_id, and optional field-level details.\
-    \ The same request ID is returned in the X-Request-ID header. Dates and timestamps use the formats\
-    \ documented by each field. The separate /external/* backend integration is described in docs/README.md\
-    \ and is intentionally outside this browser-focused reference.\n\nThe API is rate limited to 200 requests\
-    \ per minute per client IP. Exceeding the limit returns 429 TOO_MANY_REQUESTS."
+  description: 'Intania 888 browser and delegated backend API under /api/v1. Browser login navigates
+    to /auth/login with a registered client_id and safe relative return_to. Google returns to the 888
+    callback. Protected browser operations use the HttpOnly session cookie; /auth/me returns profile
+    and csrf_token. Active-session mutations require X-CSRF-Token and an allowed Origin. Registered
+    backends use /auth/authorize with S256 PKCE, exchange one-use codes at /auth/token with HTTP Basic
+    client authentication, and keep access and refresh credentials server-side. External resources require
+    scoped delegated Bearer credentials.
+
+
+    Money uses decimal JSON strings (two fractional digits in responses); rates use six-decimal strings.
+    Numeric JSON tokens are rejected for exact decimals. Resource failures use code, message, request_id,
+    and optional details. Token/revocation protocol failures instead use error; validated browser failures
+    redirect, and untrusted destinations receive a local HTML error. Every response includes X-Request-ID.
+    The API-wide per-IP limit is 200 requests per minute; its 429 uses the shared resource error envelope.'
 paths:
   /auth/revoke:
     post:
       summary: Revoke a client-owned delegation
-      description: Server-to-server client_secret_basic. Accepts a refresh or valid access credential. Unknown,
-        already revoked, and other-client credentials return success without revealing ownership.
+      description: Server-to-server client_secret_basic. Accepts a refresh or valid access credential.
+        Unknown, already revoked, and other-client credentials return success without revealing ownership.
       tags:
       - Auth
       security:
       - OAuthClient: []
       responses:
         '200':
-          description: Revocation completed or credential unknown.
+          description: Revocation accepted; plain-text OK. Unknown, expired, already-revoked, or other-client
+            credentials do not reveal ownership.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
+          schema:
+            type: string
+            example: OK
         '400':
           description: invalid_request.
           headers:
@@ -845,6 +884,9 @@ paths:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
+            WWW-Authenticate:
+              type: string
+              description: Basic client authentication challenge.
           schema:
             type: object
             properties:
@@ -861,19 +903,27 @@ paths:
             properties:
               error:
                 type: string
+        '429':
+          description: 'TOO_MANY_REQUESTS: API-wide per-IP limit; this response uses the shared resource
+            error envelope.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
       consumes:
       - application/x-www-form-urlencoded
       parameters:
-      - name: body
-        in: body
-        required: true
-        schema:
-          type: object
-          required:
-          - token
-          properties:
-            token:
-              type: string
+      - in: formData
+        name: token
+        type: string
+        required: false
+        description: Opaque refresh credential or delegated access token to revoke. Unknown or other-client
+          credentials also return success.
+      produces:
+      - application/json
+      - text/plain
   /auth/token:
     post:
       summary: Exchange a code or rotate a refresh credential
@@ -886,7 +936,8 @@ paths:
       - OAuthClient: []
       responses:
         '200':
-          description: Bearer access_token, rotating refresh_token, token_type, expires_in, scope and user_id.
+          description: Bearer access_token, rotating refresh_token, token_type, expires_in, scope and
+            user_id.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
@@ -930,6 +981,9 @@ paths:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
+            WWW-Authenticate:
+              type: string
+              description: Basic client authentication challenge.
           schema:
             type: object
             properties:
@@ -946,27 +1000,48 @@ paths:
             properties:
               error:
                 type: string
+        '429':
+          description: 'TOO_MANY_REQUESTS: API-wide per-IP limit; this response uses the shared resource
+            error envelope.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
       consumes:
       - application/x-www-form-urlencoded
       parameters:
-      - name: body
-        in: body
+      - in: formData
+        name: grant_type
+        type: string
         required: true
-        schema:
-          type: object
-          required:
-          - grant_type
-          properties:
-            grant_type:
-              type: string
-            code:
-              type: string
-            redirect_uri:
-              type: string
-            code_verifier:
-              type: string
-            refresh_token:
-              type: string
+        description: authorization_code or refresh_token.
+        enum:
+        - authorization_code
+        - refresh_token
+      - in: formData
+        name: code
+        type: string
+        required: false
+        description: One-use code required for authorization_code; expires according to registry lifetime.
+      - in: formData
+        name: redirect_uri
+        type: string
+        required: false
+        description: Exact callback used during authorization; required for authorization_code.
+      - in: formData
+        name: code_verifier
+        type: string
+        required: false
+        description: Original 43–128 character PKCE verifier; required for authorization_code.
+      - in: formData
+        name: refresh_token
+        type: string
+        required: false
+        description: Current opaque refresh credential; required for refresh_token.
+      produces:
+      - application/json
   /auth/authorize:
     get:
       summary: Authorize a registered backend application
@@ -991,11 +1066,15 @@ paths:
         description: Must be code.
         required: true
         type: string
+        enum:
+        - code
       - name: state
         in: query
         description: Client browser-bound state.
         required: true
         type: string
+        minLength: 1
+        maxLength: 512
       - name: scope
         in: query
         description: Space-separated requested permissions.
@@ -1011,6 +1090,8 @@ paths:
         description: Must be S256.
         required: true
         type: string
+        enum:
+        - S256
       responses:
         '303':
           description: Google login or registered callback with code/state or error/state.
@@ -1018,10 +1099,12 @@ paths:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
-          schema:
-            type: string
+            Location:
+              type: string
+              description: Validated Google, registered frontend, or registered backend callback destination.
         '400':
-          description: Invalid client or callback; no redirect.
+          description: Invalid client or callback; no redirect. Local HTML error; not the resource JSON
+            envelope.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
@@ -1029,27 +1112,32 @@ paths:
           schema:
             type: string
         '429':
-          description: Pending transaction or IP limit reached.
+          description: 'TOO_MANY_REQUESTS: global per-IP limit. Pending-login limit instead returns a
+            local HTML sign-in error with status 429.'
           headers:
             X-Request-ID:
-              description: Correlation ID for this request.
               type: string
+              description: Correlation ID for this request.
           schema:
-            type: string
+            $ref: '#/definitions/apierror.Response'
         '503':
-          description: Login storage unavailable.
+          description: Login storage unavailable. Local HTML error; not the resource JSON envelope.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
           schema:
             type: string
+      produces:
+      - text/html
+      - text/plain
+      - application/json
   /auth/callback:
     get:
       summary: Complete Google authentication and resume the application flow
       description: Checks the transaction-specific browser binding and consumes Google state once. Sets
-        the opaque 888 session and redirects to the cookie frontend or registered application callback with
-        a one-use code. Validated failures use the recorded application destination.
+        the opaque 888 session and redirects to the cookie frontend or registered application callback
+        with a one-use code. Validated failures use the recorded application destination.
       tags:
       - Auth
       parameters:
@@ -1075,10 +1163,12 @@ paths:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
-          schema:
-            type: string
+            Location:
+              type: string
+              description: Validated Google, registered frontend, or registered backend callback destination.
         '400':
-          description: Missing, expired, replayed or unbound transaction.
+          description: Missing, expired, replayed or unbound transaction. Local HTML error; not the resource
+            JSON envelope.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
@@ -1086,19 +1176,32 @@ paths:
           schema:
             type: string
         '503':
-          description: Login storage unavailable.
+          description: Login storage unavailable. Local HTML error; not the resource JSON envelope.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
           schema:
             type: string
+        '429':
+          description: 'TOO_MANY_REQUESTS: global per-IP limit. Pending-login limit instead returns a
+            local HTML sign-in error with status 429.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+      produces:
+      - text/html
+      - text/plain
+      - application/json
   /auth/login:
     get:
       summary: Start registered cookie application login
-      description: Browser navigation. Requires client_id. Reuses a valid 888 session or starts Google login
-        with an independent transaction cookie. return_to is a validated relative frontend path. New accounts
-        go to configured onboarding.
+      description: Browser navigation. Requires client_id. Reuses a valid 888 session or starts Google
+        login with an independent transaction cookie. return_to is a validated relative frontend path.
+        New accounts go to configured onboarding.
       tags:
       - Auth
       parameters:
@@ -1109,7 +1212,9 @@ paths:
         type: string
       - name: return_to
         in: query
-        description: Relative frontend path; defaults to the registered path.
+        description: Safe relative path on the registered frontend; defaults to default_return_path. Rejects
+          absolute URLs, // authorities, backslashes, fragments and control characters, including encoded
+          forms.
         required: false
         type: string
       responses:
@@ -1119,10 +1224,11 @@ paths:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
-          schema:
-            type: string
+            Location:
+              type: string
+              description: Validated Google, registered frontend, or registered backend callback destination.
         '400':
-          description: Invalid application or return path.
+          description: Invalid application or return path. Local HTML error; not the resource JSON envelope.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
@@ -1130,21 +1236,26 @@ paths:
           schema:
             type: string
         '429':
-          description: Pending transaction or IP limit reached.
+          description: 'TOO_MANY_REQUESTS: global per-IP limit. Pending-login limit instead returns a
+            local HTML sign-in error with status 429.'
           headers:
             X-Request-ID:
-              description: Correlation ID for this request.
               type: string
+              description: Correlation ID for this request.
           schema:
-            type: string
+            $ref: '#/definitions/apierror.Response'
         '503':
-          description: Login storage unavailable.
+          description: Login storage unavailable. Local HTML error; not the resource JSON envelope.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
               type: string
           schema:
             type: string
+      produces:
+      - text/html
+      - text/plain
+      - application/json
   /auth/logout:
     post:
       description: Revokes the active server-side browser session and expires its cookie. If there is
@@ -6005,18 +6116,187 @@ paths:
       summary: Update your own profile
       tags:
       - User
+  /external/me:
+    get:
+      tags:
+      - External
+      summary: Read the delegated account profile
+      description: Requires profile.read. The account comes from the delegated bearer token. Returns profile
+        only, without csrf_token. The credential must match an active client registration and delegation.
+        Browser Origin guard and CSRF do not apply; browser CORS still applies to browser reads.
+      produces:
+      - application/json
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/auth.ExternalMeResponse'
+        '401':
+          description: 'UNAUTHORIZED: missing, expired, revoked, invalid or unregistered delegated credentials,
+            missing user, or blacklisted account.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '403':
+          description: 'FORBIDDEN: required scope is missing.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '429':
+          description: 'TOO_MANY_REQUESTS: shared per-IP rate limit.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '500':
+          description: 'INTERNAL_ERROR: unexpected resource failure.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '503':
+          description: 'DEPENDENCY_UNAVAILABLE: credential, user, or policy state cannot be checked.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+  /external/deduct-coin:
+    post:
+      tags:
+      - External
+      summary: Deduct coins from the delegated account
+      description: Requires coins.spend. Strict JSON amount uses the money-string contract; no user_id
+        is accepted. Locks the authenticated account and checks its balance in one 888 database transaction.
+        No idempotency key, reservation, refund, or cross-database rollback contract exists; do not blindly
+        retry an ambiguous response.
+      produces:
+      - application/json
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/user.DeductCoinResponse'
+        '401':
+          description: 'UNAUTHORIZED: missing, expired, revoked, invalid or unregistered delegated credentials,
+            missing user, or blacklisted account.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '403':
+          description: 'FORBIDDEN: required scope is missing.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '429':
+          description: 'TOO_MANY_REQUESTS: shared per-IP rate limit.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '500':
+          description: 'INTERNAL_ERROR: unexpected resource failure.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '503':
+          description: 'DEPENDENCY_UNAVAILABLE: credential, user, or policy state cannot be checked.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '400':
+          description: 'INVALID_REQUEST: invalid JSON, unsupported fields, or invalid money amount.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '404':
+          description: 'RESOURCE_NOT_FOUND: account disappeared before deduction.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+        '422':
+          description: 'INSUFFICIENT_BALANCE: no coins deducted.'
+          headers:
+            X-Request-ID:
+              type: string
+              description: Correlation ID for this request.
+          schema:
+            $ref: '#/definitions/apierror.Response'
+      consumes:
+      - application/json
+      parameters:
+      - name: body
+        in: body
+        required: true
+        description: Exact coin amount to deduct from the authenticated account.
+        schema:
+          $ref: '#/definitions/user.DeductCoinRequest'
 schemes:
 - http
 securityDefinitions:
   OAuthClient:
     type: basic
+    description: Confidential backend client authentication (client_secret_basic). Form-url-encode the
+      client ID and secret individually before joining with a colon and Base64 encoding. Cookies and
+      CSRF do not authenticate token or revocation requests.
   CookieSession:
-    description: Browser session cookie. The cookie is HttpOnly and is normally sent by the browser automatically.
-      Production uses the __Host-session cookie name. Swagger 2.0 represents this as a Cookie header.
-      For browser mutations, also send X-CSRF-Token from GET /auth/me and an allowed Origin.
+    description: Browser session cookie. The cookie is HttpOnly and is normally sent by the browser
+      automatically. Production uses the __Host-session cookie name. Swagger 2.0 represents this as
+      a Cookie header. For browser mutations, also send X-CSRF-Token from GET /auth/me and an allowed
+      Origin.
     in: header
     name: Cookie
     type: apiKey
+  BearerAuth:
+    type: apiKey
+    in: header
+    name: Authorization
+    description: Delegated access token issued to a registered backend. Enter Bearer followed by the
+      access token. /external/me requires profile.read; /external/deduct-coin requires coins.spend.
+      Cookies and unscoped credentials are not accepted.
 swagger: '2.0'
 consumes:
 - application/json
@@ -6024,7 +6304,7 @@ produces:
 - application/json
 tags:
 - name: Auth
-  description: OAuth login, browser sessions, profile context, and administrator external-token management.
+  description: Registered application login, browser sessions, scoped backend delegation, and revocation.
 - name: Auth Policy
   description: Administrator-managed allowlist and blacklist rules for account access.
 - name: Bill
@@ -6043,3 +6323,5 @@ tags:
   description: Public sport catalogue reads and administrator catalogue changes.
 - name: User
   description: Authenticated profile reads and self-service or administrator profile updates.
+- name: External
+  description: Scoped delegated profile reads and account coin spending by registered backends.
