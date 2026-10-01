@@ -276,15 +276,19 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               type: object
-              required:
-              - token
               properties:
                 token:
                   type: string
+                  description: Optional opaque refresh credential or delegated access token to revoke.
       responses:
         '200':
-          description: Revocation completed or credential unknown.
+          description: Revocation completed or credential unknown; plain-text OK.
           headers: *id001_2
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
         '400':
           description: invalid_request.
           headers: *id001_2
