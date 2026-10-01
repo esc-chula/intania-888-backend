@@ -34,12 +34,13 @@ func TestBrowserSessionRotationAndRevocation(t *testing.T) {
 	userKey := prefix + ":user"
 	firstKey := prefix + ":first"
 	secondKey := prefix + ":second"
-	defer client.Del(ctx, userKey, firstKey, secondKey)
+	previousKey := prefix + ":previous"
+	defer client.Del(ctx, userKey, firstKey, secondKey, previousKey)
 	record := struct {
 		ExpiresAt int64  `json:"expires_at"`
 		UserID    string `json:"user_id"`
 	}{time.Now().Add(30 * 24 * time.Hour).Unix(), "user"}
-	if err := r.RotateSession(context.Background(), userKey, firstKey, "test:auth:previous", record, 60, 30*24*3600); err != nil {
+	if err := r.RotateSession(context.Background(), userKey, firstKey, previousKey, record, 60, 30*24*3600); err != nil {
 		t.Fatal(err)
 	}
 	var got struct {
@@ -49,19 +50,34 @@ func TestBrowserSessionRotationAndRevocation(t *testing.T) {
 	if err := r.ReadAndRenewSession(context.Background(), firstKey, time.Now().Unix(), 30, &got); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.RotateSession(context.Background(), userKey, secondKey, firstKey, record, 60, 30*24*3600); err != nil {
+	// A second browser has no cookie for the first browser's session.
+	if err := r.RotateSession(context.Background(), userKey, secondKey, previousKey, record, 60, 30*24*3600); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.ReadAndRenewSession(context.Background(), firstKey, time.Now().Unix(), 30, &got); !errors.Is(err, redis.Nil) {
 		t.Fatalf("rotated session survived: %v", err)
 	}
-	if err := r.DeleteSession(context.Background(), secondKey); err != nil {
+	if pointedKey, err := client.Get(ctx, userKey).Result(); err != nil || pointedKey != secondKey {
+		t.Fatalf("account session pointer = %q, %v; want %q", pointedKey, err, secondKey)
+	}
+	if err := client.Set(ctx, previousKey, "stale browser session", time.Minute).Err(); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.ReadAndRenewSession(context.Background(), secondKey, time.Now().Unix(), 30, &got); !errors.Is(err, redis.Nil) {
+	if err := r.RotateSession(ctx, userKey, firstKey, previousKey, record, 60, 30*24*3600); err != nil {
+		t.Fatal(err)
+	}
+	for _, revokedKey := range []string{secondKey, previousKey} {
+		if exists, err := client.Exists(ctx, revokedKey).Result(); err != nil || exists != 0 {
+			t.Fatalf("revoked session %q still exists: count=%d error=%v", revokedKey, exists, err)
+		}
+	}
+	if err := r.DeleteSession(context.Background(), firstKey); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ReadAndRenewSession(context.Background(), firstKey, time.Now().Unix(), 30, &got); !errors.Is(err, redis.Nil) {
 		t.Fatalf("revoked session resurrected: %v", err)
 	}
-	if err := r.RotateSession(context.Background(), userKey, firstKey, "test:auth:previous", record, 60, 30*24*3600); err != nil {
+	if err := r.RotateSession(context.Background(), userKey, firstKey, previousKey, record, 60, 30*24*3600); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.ReadAndRenewSession(context.Background(), firstKey, time.Now().Add(31*24*time.Hour).Unix(), 30, &got); !errors.Is(err, redis.Nil) {

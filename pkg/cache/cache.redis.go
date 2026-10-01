@@ -101,8 +101,9 @@ func (r *RedisClient) DeleteValues(ctx context.Context, keys ...string) error {
 	return r.client.Del(ctx, keys...).Err()
 }
 
-// RotateSession commits the new browser session and revokes that browser's prior one in
-// one Redis operation. The per-user pointer never contains a raw session ID.
+// RotateSession commits the new browser session and revokes both the account's
+// current session and this browser's prior session in one Redis operation.
+// The per-user pointer never contains a raw session ID.
 // The session record uses idleTTLSeconds and the user pointer uses absoluteTTLSeconds.
 func (r *RedisClient) RotateSession(
 	ctx context.Context,
@@ -120,9 +121,11 @@ func (r *RedisClient) RotateSession(
 
 	return r.client.Eval(
 		ctx,
-		`redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
- redis.call('SET', KEYS[1], KEYS[2], 'EX', ARGV[3])
+		`local currentKey = redis.call('GET', KEYS[1])
+ if currentKey and currentKey ~= KEYS[2] then redis.call('DEL', currentKey) end
  if KEYS[3] ~= KEYS[2] then redis.call('DEL', KEYS[3]) end
+ redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
+ redis.call('SET', KEYS[1], KEYS[2], 'EX', ARGV[3])
  return 1`,
 		[]string{userKey, sessionKey, previousKey},
 		payload,
