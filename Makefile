@@ -37,7 +37,7 @@ help:
 		'  make build                                    Compile all Go packages' \
 		'  make fmt                                      Format authored Go code and imports' \
 		'  make lint                                     Check formatting, vet, and run golangci-lint' \
-		'  make openapi-check                            Validate the manual OpenAPI contract' \
+		'  make openapi-check                            Validate the OpenAPI document with kin-openapi' \
 		'  make tidy                                     Tidy Go modules' \
 		'  make ci                                       Run the local CI checks'
 
@@ -142,7 +142,7 @@ lint: fmt-check
 	$(GOLANGCI_LINT) run --allow-parallel-runners $(GO_PACKAGES)
 
 openapi-check:
-	$(GO) test ./docs
+	$(GO) run github.com/getkin/kin-openapi/cmd/validate@v0.149.0 -multi -- docs/openapi.yaml
 
 tidy:
 	$(GO) mod tidy

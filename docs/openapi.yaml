@@ -6081,7 +6081,6 @@ components:
           type: boolean
         location:
           $ref: '#/components/schemas/model.LocationDto'
-          description: Assigned venue, including its stable ID and current display title.
         start_time:
           description: Match start timestamp in RFC 3339 format.
           type: string

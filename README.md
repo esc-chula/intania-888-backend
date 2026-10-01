@@ -104,7 +104,7 @@ setup; its browser talks to its backend, which exchanges credentials with 888.
 | `make test-integration` | Run integration tests with disposable PostgreSQL and Redis containers |
 | `make lint` | Check formatting, run `go vet`, and run pinned golangci-lint |
 | `make ci` | Run lint, tests, race tests, build, and OpenAPI contract checks |
-| `make openapi-check` | Validate the manually maintained OpenAPI contract |
+| `make openapi-check` | Validate the OpenAPI document with kin-openapi |
 
 Catalogue seeding inserts missing defaults without overwriting edited titles.
 Explicitly rerunning `make seed` restores deleted default sport entries. Admins

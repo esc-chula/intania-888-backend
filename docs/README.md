@@ -208,6 +208,9 @@ request, response, security, and schema documentation.
 make openapi-check
 ```
 
+This runs the pinned kin-openapi validator to check OpenAPI structure, schemas,
+and references. It does not compare documented routes or behavior with handlers.
+
 The API target used by **Try it out** comes from `SERVER_URL`, including the
 `/api/v1` base path.
 
