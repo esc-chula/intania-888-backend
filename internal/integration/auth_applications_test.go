@@ -138,7 +138,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	}
 
 	t.Setenv("INTANIA_GAMES_CLIENT_SECRET", strings.Repeat("s", 32))
-	registry, err := config.LoadAuthRegistry("../../config/auth.development.yaml", "development", "http://localhost:3001", os.Getenv)
+	registry, err := config.LoadAuthRegistry("../../config/auth.development.yaml", "development", "http://localhost:3000", os.Getenv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	verifier := strings.Repeat("v", 43)
 	digest := sha256.Sum256([]byte(verifier))
 	parameters := url.Values{
-		"client_id": {"intania-games"}, "redirect_uri": {"http://localhost:3002/auth/callback"}, "response_type": {"code"},
+		"client_id": {"intania-games"}, "redirect_uri": {"http://localhost:8081/auth/callback"}, "response_type": {"code"},
 		"state": {"game-state"}, "scope": {"profile.read"}, "code_challenge_method": {"S256"},
 		"code_challenge": {base64.RawURLEncoding.EncodeToString(digest[:])},
 	}
@@ -238,13 +238,13 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 		t.Helper()
 		response := call("GET", "/api/v1/auth/authorize?"+parameters.Encode(), "", sessionCookie, "")
 		location, _ := url.Parse(response.Header.Get("Location"))
-		if response.StatusCode != fiber.StatusSeeOther || location.Host != "localhost:3002" || location.Query().Get("state") != "game-state" || location.Query().Get("code") == "" {
+		if response.StatusCode != fiber.StatusSeeOther || location.Host != "localhost:8081" || location.Query().Get("state") != "game-state" || location.Query().Get("code") == "" {
 			t.Fatalf("authorize: %d %s", response.StatusCode, location)
 		}
 		return location.Query().Get("code")
 	}
 	code := authorize()
-	exchange := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {"http://localhost:3002/auth/callback"}, "code_verifier": {strings.Repeat("x", 43)}}
+	exchange := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {"http://localhost:8081/auth/callback"}, "code_verifier": {strings.Repeat("x", 43)}}
 	if response := call("POST", "/api/v1/auth/token", exchange.Encode(), "", ""); response.StatusCode != fiber.StatusBadRequest {
 		t.Fatal("wrong verifier accepted")
 	}

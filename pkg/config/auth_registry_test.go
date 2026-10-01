@@ -35,7 +35,7 @@ func TestRegistryRejectsUnknownFieldsSecretsAndDuplicateClients(t *testing.T) {
 		if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
 			t.Fatal(err)
 		}
-		_, err := LoadAuthRegistry(path, "development", "http://localhost:3001", os.Getenv)
+		_, err := LoadAuthRegistry(path, "development", "http://localhost:3000", os.Getenv)
 		return err
 	}
 
@@ -46,8 +46,8 @@ func TestRegistryRejectsUnknownFieldsSecretsAndDuplicateClients(t *testing.T) {
 	for name, contents := range map[string]string{
 		"unknown field":        string(contents) + "\nunknown: true\n",
 		"duplicate ID":         strings.ReplaceAll(string(contents), "id: intania-games", "id: intania-888-web"),
-		"HTTP remote callback": strings.ReplaceAll(string(contents), "http://localhost:3002/auth/callback", "http://remote.test/callback"),
-		"wildcard callback":    strings.ReplaceAll(string(contents), "http://localhost:3002/auth/callback", "https://*.example.test/callback"),
+		"HTTP remote callback": strings.ReplaceAll(string(contents), "http://localhost:8081/auth/callback", "http://remote.test/callback"),
+		"wildcard callback":    strings.ReplaceAll(string(contents), "http://localhost:8081/auth/callback", "https://*.example.test/callback"),
 		"invalid lifetime":     strings.ReplaceAll(string(contents), "authorization_code_seconds: 60", "authorization_code_seconds: 0"),
 	} {
 		t.Run(name, func(t *testing.T) {
