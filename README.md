@@ -157,7 +157,7 @@ per-IP rate limit still apply; see [public shared reads](docs/README.md#public-s
 | `internal/testutil` | Disposable integration database helpers |
 | `pkg` | Shared infrastructure packages: config, database, cache, OAuth, and logging |
 | `migrations` | Versioned PostgreSQL SQL migrations |
-| `docs` | API guides, coding standard, and architecture decisions |
+| `docs` | API guides and coding standard |
 
 Feature code is organized by domain. Within a feature package, file names
 describe responsibility, such as `service.go`, `adapter.http.go`, and

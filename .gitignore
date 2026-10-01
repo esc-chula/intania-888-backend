@@ -12,6 +12,5 @@ bin/
 
 !docs/coding-standard.md
 !docs/api-migration-from-main.md
-!docs/adr/0001-exact-money-representation.md
 !docs/frontend-exact-decimals.md
 !docs/frontend-sport-types.md

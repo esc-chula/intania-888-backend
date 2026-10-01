@@ -281,7 +281,6 @@ calculations must preserve exact values.
 **Why it changed:** floating-point calculations in Go and JavaScript can lose
 decimal precision even when the database stores exact decimals. Decimal strings
 preserve the fixed-point API contract and avoid JavaScript integer-range limits.
-See [the money decision](adr/0001-exact-money-representation.md).
 
 **Required action:** keep API/form money as strings. Use `bigint` minor units
 when exact client arithmetic is needed. Convert to a JavaScript number only for
@@ -849,7 +848,7 @@ are listed here with their current access behavior. Origin checks and the global
   callback in the auth YAML registry, per-application destinations, matching
   backend client secrets, and Redis session/delegation storage. Check the
   [development/production cookie requirements](#browser-authentication-and-request-protection).
-- [ ] Prepare production data using the [database archive-and-reset rollout](adr/0001-exact-money-representation.md#archive-and-reset-rollout):
+- [ ] Prepare production data using the database archive-and-reset rollout:
   restore-test the archive, provision a fresh database, apply Goose migrations,
   and seed required reference data. This release does not convert legacy rows
   in place. Do not use migration `down` or `reset` as an upgrade step.
@@ -936,7 +935,6 @@ controlled accounts and resources against the prepared deployment.
 - [OpenAPI specification](openapi.yaml)
 - [Exact-decimal frontend migration](#exact-decimal-frontend-migration)
 - [Sport-type frontend migration](#sport-type-frontend-migration)
-- [Exact money decision](adr/0001-exact-money-representation.md)
 - [Application authentication](authentication-applications.md) and [registry](../pkg/config/auth_registry.go)
 - [Authentication routes](../internal/domain/auth/adapter.http.go) and [application handlers](../internal/domain/auth/adapter.http.applications.go)
 - [Delegated scope middleware](../internal/domain/middleware/adapter.http.external.go)
