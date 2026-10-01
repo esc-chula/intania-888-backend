@@ -153,7 +153,7 @@ func LoadAuthRegistry(path, environment, cors string, resolveSecret func(string)
 
 // Validate checks destinations and resolves explicitly referenced application secrets.
 func (r *AuthRegistry) Validate(environment, cors string) error {
-	production := environment == "production"
+	production := strings.EqualFold(strings.TrimSpace(environment), "production")
 	if r.Version != authRegistryVersion || len(r.Applications) == 0 {
 		return fmt.Errorf("auth registry requires version %d and applications", authRegistryVersion)
 	}

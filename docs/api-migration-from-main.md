@@ -104,11 +104,30 @@ POST/PUT/PATCH/DELETE requests. Reload `/auth/me` after a page refresh.
 | Logout returns `503` | Revocation is unconfirmed; retain state and allow retry. |
 
 Logout requires credentials, an allowed Origin, and CSRF for an active session.
-An absent or expired session also returns `204`. Local HTTP development uses
-the HttpOnly `session` cookie; production uses `__Host-session` with HTTPS,
-`Secure`, `HttpOnly`, `Path=/`, and no `Domain` attribute. Both use `SameSite=Lax`.
+An absent or expired session also returns `204`. Development uses the `session`
+cookie with `SameSite=None`; production uses `__Host-session` with `SameSite=Lax`.
+Both use `Secure`, `HttpOnly`, `Path=/`, and no `Domain` attribute. The same policy
+applies when creating, renewing, and clearing session and OAuth transaction cookies.
 Configure the exact frontend origin in backend CORS/origin settings; the browser
 supplies the `Origin` header.
+
+For a hosted development API used from a localhost frontend:
+
+- Set `SERVER_ENV=development` and serve the API through HTTPS.
+- Set `SERVER_URL` and the registry's `google.callback_uri` to the public API
+  hostname, and register that callback with Google. Login and callback must use
+  the same API hostname so the browser sends its host-only binding cookie.
+- Set the cookie application's `frontend_origin` to the developer's frontend
+  origin, for example `http://localhost:3000`, and include it in
+  `CORS_ALLOW_ORIGINS`. Frontend requests must use `credentials: "include"`.
+- Keep registered callback URLs, origin checks, and CSRF protection enabled.
+  The frontend and API do not need to share a domain.
+
+Browsers require `Secure` with `SameSite=None`. HTTP localhost has a browser-specific
+exception; use local HTTPS for consistent browser behavior. Third-party-cookie
+blocking can still prevent requests from localhost to the hosted API from carrying
+the session. A local backend proxy or BFF is the fallback for those browsers;
+removing origin checks or adding a cookie Domain does not bypass browser policy.
 
 ### Registered applications and backend delegation
 

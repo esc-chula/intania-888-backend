@@ -18,6 +18,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/httpcookie"
 	"github.com/esc-chula/intania-888-backend/internal/identity"
 	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
@@ -695,8 +696,8 @@ func (h *ApplicationHTTPHandler) cookie(c *fiber.Ctx, name, value string, second
 		Path:     "/",
 		MaxAge:   seconds,
 		HTTPOnly: true,
-		Secure:   h.production,
-		SameSite: fiber.CookieSameSiteLaxMode,
+		Secure:   true,
+		SameSite: httpcookie.SameSite(h.production),
 	})
 }
 
@@ -707,7 +708,7 @@ func (h *ApplicationHTTPHandler) clear(c *fiber.Ctx, name string) {
 		MaxAge:   -1,
 		Expires:  time.Unix(1, 0),
 		HTTPOnly: true,
-		Secure:   h.production,
-		SameSite: fiber.CookieSameSiteLaxMode,
+		Secure:   true,
+		SameSite: httpcookie.SameSite(h.production),
 	})
 }

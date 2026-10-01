@@ -345,7 +345,15 @@ The frontend must use `credentials: "include"` for API requests. The only browse
 3. Call `GET /api/v1/auth/me` with credentials. Keep the returned `csrf_token` in memory and send it as `X-CSRF-Token` on protected mutations. Browsers supply the Origin header; configure its exact value in CORS.
 4. Call `POST /api/v1/auth/logout` with credentials and CSRF. A `204` confirms logout, including an absent or expired session. A `503` leaves revocation unconfirmed; retain state and retry.
 
-Development uses the HttpOnly `session` cookie and separate `oauth-tx-<state>` cookies on localhost HTTP. Production uses `__Host-session` and `__Host-oauth-tx-<state>` with Secure, HttpOnly, Path=/, SameSite=Lax, and no Domain attribute. Separate transaction cookies allow concurrent login attempts.
+Development uses `session` and separate `oauth-tx-<state>` cookies with
+`SameSite=None; Secure`, allowing localhost frontends to call a hosted HTTPS
+development API. Production uses `__Host-session` and `__Host-oauth-tx-<state>`
+with `SameSite=Lax; Secure`. Both environments use HttpOnly, Path=/, and no Domain
+attribute, including renewal and deletion. Configure the exact frontend origin
+in CORS and the application registry; retain CSRF and callback allowlists.
+Browser third-party-cookie restrictions still apply. Use local HTTPS for
+consistent browser support or a local proxy/BFF when cross-site cookies are
+blocked. Separate transaction cookies allow concurrent login attempts.
 
 A `401` on a protected browser route means authentication is missing or expired. A dependency `503` permits retry without discarding browser state. The browser does not use `/auth/refresh` or store bearer credentials.
 

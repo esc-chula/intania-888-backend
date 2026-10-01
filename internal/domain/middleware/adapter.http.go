@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/httpcookie"
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
 	"github.com/esc-chula/intania-888-backend/internal/identity"
 	"github.com/esc-chula/intania-888-backend/internal/security"
@@ -97,8 +98,8 @@ func (h *HTTPHandler) AuthMiddleware(c *fiber.Ctx) error {
 		Path:     "/",
 		MaxAge:   h.sessionIdleTTL,
 		HTTPOnly: true,
-		Secure:   h.production,
-		SameSite: fiber.CookieSameSiteLaxMode,
+		Secure:   true,
+		SameSite: httpcookie.SameSite(h.production),
 	})
 	httpidentity.SetProfile(c, user)
 	httpidentity.SetSession(c, id, session.CSRFToken)
@@ -135,7 +136,7 @@ func clearBrowserSessionCookie(c *fiber.Ctx, production bool) {
 		Path:     "/",
 		MaxAge:   -1,
 		HTTPOnly: true,
-		Secure:   production,
-		SameSite: fiber.CookieSameSiteLaxMode,
+		Secure:   true,
+		SameSite: httpcookie.SameSite(production),
 	})
 }

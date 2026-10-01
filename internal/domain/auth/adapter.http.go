@@ -3,11 +3,11 @@ package auth
 import (
 	"crypto/subtle"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/httpcookie"
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
 
 	"github.com/gofiber/fiber/v2"
@@ -138,8 +138,8 @@ func (h *HTTPHandler) clearCookie(c *fiber.Ctx, name string, httpOnly bool) {
 		Expires:  time.Unix(1, 0),
 		MaxAge:   -1,
 		HTTPOnly: httpOnly,
-		Secure:   strings.HasPrefix(name, "__Host-"),
-		SameSite: fiber.CookieSameSiteLaxMode,
+		Secure:   true,
+		SameSite: httpcookie.SameSite(h.production),
 	})
 }
 

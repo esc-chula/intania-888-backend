@@ -49,9 +49,22 @@ func newHTTPConfig(env string) config.Config {
 
 func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 	for _, tc := range []struct {
-		env, name  string
-		production bool
-	}{{"development", "session", false}, {"production", "__Host-session", true}} {
+		env, name, sameSite string
+		production          bool
+	}{
+		{
+			env:        "development",
+			name:       "session",
+			sameSite:   "None",
+			production: false,
+		},
+		{
+			env:        "production",
+			name:       "__Host-session",
+			sameSite:   "Lax",
+			production: true,
+		},
+	} {
 		t.Run(tc.env, func(t *testing.T) {
 			h := &ApplicationHTTPHandler{production: tc.production}
 			app := newFiberTestApp()
@@ -77,15 +90,12 @@ func TestLoginAndCallbackCookiePolicy(t *testing.T) {
 			cookies := strings.Join(response.Header.Values("Set-Cookie"), "\n")
 			if !strings.Contains(cookies, tc.name+"=opaque") ||
 				!strings.Contains(cookies, "HttpOnly") ||
-				!strings.Contains(cookies, "SameSite=Lax") ||
+				!strings.Contains(cookies, "SameSite="+tc.sameSite) ||
 				strings.Contains(cookies, "Domain=") {
 				t.Fatalf("bad cookies: %s", cookies)
 			}
-			if tc.production && !strings.Contains(cookies, "secure") {
+			if !strings.Contains(cookies, "secure") {
 				t.Fatalf("missing Secure: %s", cookies)
-			}
-			if !tc.production && strings.Contains(cookies, "secure") {
-				t.Fatalf("local cookie requires HTTPS: %s", cookies)
 			}
 		})
 	}
