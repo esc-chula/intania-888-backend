@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -135,6 +136,7 @@ func clearBrowserSessionCookie(c *fiber.Ctx, production bool) {
 		Name:     security.SessionCookieName(production),
 		Path:     "/",
 		MaxAge:   -1,
+		Expires:  time.Unix(1, 0),
 		HTTPOnly: true,
 		Secure:   true,
 		SameSite: httpcookie.SameSite(production),
