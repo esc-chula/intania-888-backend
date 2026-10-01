@@ -6,8 +6,9 @@ client impact, the reason for the redesign, and the required action.
 
 ## Release at a glance
 
-> **Breaking release:** deploy this backend with a compatible frontend. The
-> legacy browser client sends Bearer tokens and numeric money; protected browser
+> **Breaking release:** deploy this backend with a compatible frontend and a
+> new, empty database. The release intentionally does not migrate legacy data.
+> The legacy browser client sends Bearer tokens and numeric money; protected browser
 > operations now use cookie sessions and CSRF protection, and exact decimals are
 > strings. Shared catalogue, fixture, and standings reads are public.
 
@@ -848,12 +849,11 @@ are listed here with their current access behavior. Origin checks and the global
   callback in the auth YAML registry, per-application destinations, matching
   backend client secrets, and Redis session/delegation storage. Check the
   [development/production cookie requirements](#browser-authentication-and-request-protection).
-- [ ] Prepare production data using the database archive-and-reset rollout:
-  restore-test the archive, provision a fresh database, apply Goose migrations,
-  and seed required reference data. This release does not convert legacy rows
-  in place. Do not use migration `down` or `reset` as an upgrade step.
-- [ ] Apply `00004_match_locations.sql`, then run `make seed` to populate the
-  default location catalogue. See
+- [ ] Provision a new, empty production database. Apply the Goose migrations
+  and run `make seed` to populate required reference data. Existing database
+  rows are intentionally outside this release's deployment path.
+- [ ] Confirm `00004_match_locations.sql` was applied and the default location
+  catalogue was seeded. See
   [Locations and match venues](#location-catalogue-and-match-venues).
 - [ ] Recreate local databases from the revised fresh schema before enabling
   sport management; confirm restrictive sport references on matches, groups,
