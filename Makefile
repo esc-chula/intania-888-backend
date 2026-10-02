@@ -18,13 +18,14 @@ GO_PACKAGES := ./cmd/... ./docs/... ./internal/... ./pkg/...
 GOLANGCI_VERSION := $(shell cat .golangci-version)
 DESTRUCTIVE_MIGRATION_CONFIRMATION := I_UNDERSTAND_DATA_WILL_BE_LOST
 
-.PHONY: help dev deps migrate migrate-up migrate-status migrate-down migrate-reset seed test test-race test-integration \
+.PHONY: help dev run deps migrate migrate-up migrate-status migrate-down migrate-reset seed test test-race test-integration \
 	build fmt fmt-check lint openapi-check tidy ci check-env check-air check-docker check-golangci
 
 help:
 	@printf '%s\n' \
 		'Available commands:' \
 		'  make dev                                      Start Compose dependencies, migrate, and run Air' \
+		'  make run                                      Run the API directly with go run (no Air)' \
 		'  make deps                                     Start PostgreSQL and Redis dependencies' \
 		'  make migrate                                   Apply migrations (alias for migrate-up)' \
 		'  make migrate-status                            Show migration status' \
@@ -76,6 +77,9 @@ deps: check-docker
 dev: check-env check-air deps
 	$(MAKE) APP_ENV=dev migrate
 	APP_ENV=dev $(AIR) -c $(AIR_CONFIG)
+
+run: check-env
+	APP_ENV=$(APP_ENV) $(GO) run ./cmd
 
 migrate: migrate-up
 

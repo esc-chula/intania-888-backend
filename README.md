@@ -67,13 +67,13 @@ migrations.
    make seed
    ```
 
-To run without Air, install the dependencies and migrations first, then start
-the Go process directly:
+To run without Air, start the dependencies and apply migrations first, then run
+the API directly:
 
 ```sh
 make deps
 make migrate-up
-APP_ENV=dev go run ./cmd/main.go
+make run
 ```
 
 The example Compose setup publishes PostgreSQL on port `5432` and Redis on
@@ -95,6 +95,7 @@ setup; its browser talks to its backend, which exchanges credentials with 888.
 | Command | Purpose |
 | --- | --- |
 | `make dev` | Start dependencies, migrate the database, and run Air |
+| `make run` | Run the API directly with `go run` (Air is not required) |
 | `make deps` | Start PostgreSQL and Redis |
 | `make migrate-status` | Show the Goose migration status |
 | `make migrate-up` | Apply pending migrations |
