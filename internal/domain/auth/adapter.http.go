@@ -55,9 +55,13 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Han
 	router.Get("/me", authenticate, h.GetMe)
 }
 
-// RegisterExternalRoutes registers the profile route behind scoped delegated authentication.
-func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, requireScope func(string) fiber.Handler) {
-	router.Get("/me", requireScope(config.ScopeProfileRead), h.GetExternalMe)
+// RegisterExternalRoutes registers the profile route with scoped authentication and its user limit.
+func (h *HTTPHandler) RegisterExternalRoutes(
+	router fiber.Router,
+	requireScope func(string) fiber.Handler,
+	profileRateLimit fiber.Handler,
+) {
+	router.Get("/me", requireScope(config.ScopeProfileRead), profileRateLimit, h.GetExternalMe)
 }
 
 // Logout checks CSRF for an active browser session, revokes it, and clears its cookie.
