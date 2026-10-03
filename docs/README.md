@@ -37,11 +37,14 @@ browser session or run account allowlist/blacklist checks:
 | Sports | `GET /sport-types`, `GET /sport-types/{id}` | Sport catalogue or one `{ id, title }` resource |
 | Standings | `GET /colors/leaderboards`, `GET /colors/group-stage` | Color leaderboards or group-stage standings |
 
-The API-wide limit still allows 200 requests per client IP per minute. Browser
-requests with an `Origin` must use an exact configured origin; safe GET requests
-without an `Origin` are accepted. CORS still grants access only to configured
-origins. An unconfigured `Origin` returns `403 FORBIDDEN`, and an exceeded rate
-limit returns `429 TOO_MANY_REQUESTS`.
+Non-external API routes allow 300 requests per client IP per minute. External
+routes share a 10,000-request-per-minute limit per client ID; `/external/me`
+allows 60 requests per minute per user, and `/external/deduct-coin` allows 10
+requests per minute per user.
+Browser requests with an `Origin` must use an exact configured origin; safe GET
+requests without an `Origin` are accepted. CORS still grants access only to
+configured origins. An unconfigured `Origin` returns `403 FORBIDDEN`, and an
+exceeded rate limit returns `429 TOO_MANY_REQUESTS`.
 
 This public access applies only to these shared reads. Account-specific,
 game/history, billing, and administrative routes keep their documented access
