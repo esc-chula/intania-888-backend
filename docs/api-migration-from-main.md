@@ -282,7 +282,7 @@ allowlist and blacklist account checks are not run for these requests.
 administrator mutations protected by the browser session, admin permission,
 allowed Origin, and CSRF token. Public access applies only to the listed reads;
 account, bill, game/history, and admin reads retain their documented access
-requirements. The global IP rate limit still applies at 200 requests per minute.
+requirements. The global IP rate limit still applies at 300 requests per minute.
 For browser requests, a supplied `Origin` must exactly match a configured origin;
 safe GET requests without an `Origin` are accepted. CORS continues to grant only
 configured origins.
@@ -1008,7 +1008,7 @@ controlled accounts and resources against the prepared deployment.
 | Sign in, then reload the frontend.                                               | `/auth/me` loads profile and CSRF state using the session cookie.                                            |
 | Fetch locations, sports, fixtures, server time, and standings while signed out.  | The listed public reads succeed without session credentials; account allowlist/blacklist checks are not run. |
 | Request a public read with a configured, unconfigured, then absent Origin.       | Configured Origin succeeds with CORS; unconfigured Origin returns `403`; safe GET without Origin succeeds.   |
-| Exceed the API request limit from one client IP.                                 | The request after 200 requests in the one-minute window returns `429 TOO_MANY_REQUESTS`.                     |
+| Exceed the API request limit from one client IP.                                 | The request after 300 requests in the one-minute window returns `429 TOO_MANY_REQUESTS`.                     |
 | Perform a protected mutation with valid Origin/CSRF.                             | Authorized request succeeds.                                                                                 |
 | Repeat a protected mutation without CSRF.                                        | `403 FORBIDDEN`; no mutation is accepted.                                                                    |
 | Request a protected route with an expired session.                               | `401 UNAUTHORIZED`; frontend offers login.                                                                   |
