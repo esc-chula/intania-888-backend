@@ -2,39 +2,27 @@ package server
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
-	"html/template"
-	"net/url"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/docs"
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
-
-	swagger "github.com/arsmn/fiber-swagger/v2"
 )
 
 const (
 	shutdownTimeout  = 10 * time.Second
 	readinessTimeout = time.Second
 )
-
-//go:embed swagger-session.js
-var swaggerSessionScript []byte
 
 // ReadinessCheck verifies that one application dependency can serve requests.
 type ReadinessCheck func(context.Context) error
@@ -83,57 +71,6 @@ func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger, readinessChecks .
 		swaggerAPIBaseURL: swaggerAPIBaseURL,
 		swaggerAPIOrigin:  swaggerAPIOrigin,
 	}, nil
-}
-
-func configureOpenAPIDocument(cfg config.Config) ([]byte, string, string, error) {
-	if !cfg.GetSwagger().Enabled {
-		return nil, "", "", nil
-	}
-
-	rawURL := strings.TrimSpace(cfg.GetServer().URL)
-	if rawURL == "" {
-		return nil, "", "", fmt.Errorf("SERVER_URL is required when Swagger is enabled")
-	}
-
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return nil, "", "", fmt.Errorf("SERVER_URL must be a full URL with scheme and host")
-	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return nil, "", "", fmt.Errorf("SERVER_URL must use http or https")
-	}
-	if parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
-		return nil, "", "", fmt.Errorf("SERVER_URL must not contain credentials, query parameters, or fragments")
-	}
-
-	document, err := docs.ReadOpenAPI()
-	if err != nil {
-		return nil, "", "", fmt.Errorf("read OpenAPI document: %w", err)
-	}
-	var specification map[string]any
-	if err := yaml.Unmarshal(document, &specification); err != nil {
-		return nil, "", "", fmt.Errorf("parse OpenAPI document: %w", err)
-	}
-
-	basePath := strings.TrimRight(parsedURL.EscapedPath(), "/")
-	if basePath == "" {
-		basePath = "/api/v1"
-	}
-	serverURL := parsedURL.Scheme + "://" + parsedURL.Host + basePath
-	specification["servers"] = []any{
-		map[string]any{"url": serverURL},
-	}
-	serverOrigin, err := canonicalOrigin(parsedURL.Scheme + "://" + parsedURL.Host)
-	if err != nil {
-		return nil, "", "", fmt.Errorf("parse Swagger API origin: %w", err)
-	}
-
-	document, err = yaml.Marshal(specification)
-	if err != nil {
-		return nil, "", "", fmt.Errorf("render OpenAPI document: %w", err)
-	}
-
-	return document, serverURL, serverOrigin, nil
 }
 
 // Start listens on the configured address and blocks until an interrupt or termination signal.
@@ -187,16 +124,26 @@ func (s *FiberHTTPServer) shutdown(ctx context.Context) error {
 // InitHTTPServer installs request IDs, documentation routes, and shared API middleware.
 // It returns the /api/v1 router for feature registration and should be called once at startup.
 func (s *FiberHTTPServer) InitHTTPServer() fiber.Router {
-	s.app.Use(apierror.RequestID())
-	s.app.Get("/healthz", func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"})
-	})
-	s.app.Get("/readyz", s.readinessHandler())
-	s.registerSwagger()
+	s.registerRootHTTPFeatures()
 
-	// set global prefix
 	router := s.app.Group("/api/v1")
+	s.registerAPIMiddleware(router)
+	s.registerAPIRoutes(router)
 
+	return router
+}
+
+func (s *FiberHTTPServer) registerRootHTTPFeatures() {
+	s.app.Use(apierror.RequestID())
+
+	// Register health/readiness Checks
+	s.app.Get("/healthz", s.healthcheckHandler())
+	s.app.Get("/readyz", s.readinessHandler())
+
+	s.registerSwagger()
+}
+
+func (s *FiberHTTPServer) registerAPIMiddleware(router fiber.Router) {
 	// apply origin guard
 	router.Use(s.OriginGuard())
 
@@ -221,23 +168,17 @@ func (s *FiberHTTPServer) InitHTTPServer() fiber.Router {
 		TimeZone:   "Asia/Bangkok",
 	}))
 
-	router.Use(limiter.New(limiter.Config{
-		Max:        200,
-		Expiration: 60 * time.Second,
-		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP()
-		},
-		LimitReached: func(c *fiber.Ctx) error {
-			return apierror.New(fiber.StatusTooManyRequests, apierror.CodeTooManyRequests, "Too many requests")
-		},
-	}))
+	registerRateLimiters(router)
+}
 
-	// healthcheck
+func (s *FiberHTTPServer) registerAPIRoutes(router fiber.Router) {
 	router.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("server is running !")
 	})
+}
 
-	return router
+func (s *FiberHTTPServer) healthcheckHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error { return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"}) }
 }
 
 func (s *FiberHTTPServer) readinessHandler() fiber.Handler {
@@ -255,151 +196,4 @@ func (s *FiberHTTPServer) readinessHandler() fiber.Handler {
 
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ready"})
 	}
-}
-
-func (s *FiberHTTPServer) registerSwagger() {
-	swaggerConfig := s.cfg.GetSwagger()
-	if !swaggerConfig.Enabled {
-		return
-	}
-
-	if swaggerConfig.RequireAuth {
-		s.app.Use("/swagger/*", basicauth.New(basicauth.Config{
-			Users: map[string]string{
-				swaggerConfig.Username: swaggerConfig.Password,
-			},
-			Unauthorized: func(c *fiber.Ctx) error {
-				c.Set(fiber.HeaderWWWAuthenticate, `Basic realm="Restricted"`)
-
-				return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
-			},
-		}))
-	}
-
-	s.app.Get("/swagger/openapi.yaml", func(c *fiber.Ctx) error {
-		c.Set(fiber.HeaderContentType, "application/yaml; charset=utf-8")
-		c.Set(fiber.HeaderCacheControl, "no-store")
-
-		return c.Send(s.openAPIDocument)
-	})
-	s.app.Get("/swagger/doc.json", func(c *fiber.Ctx) error {
-		return c.Redirect("/swagger/openapi.yaml", fiber.StatusMovedPermanently)
-	})
-	s.app.Get("/swagger/swagger-session.js", func(c *fiber.Ctx) error {
-		c.Set(fiber.HeaderContentType, "application/javascript; charset=utf-8")
-		c.Set(fiber.HeaderCacheControl, "no-store")
-		return c.Send(swaggerSessionScript)
-	})
-
-	swaggerHandler := swagger.New(swagger.Config{
-		URL:                    "/swagger/openapi.yaml",
-		Title:                  "Intania 888 API",
-		WithCredentials:        true,
-		TryItOutEnabled:        true,
-		DisplayRequestDuration: true,
-		RequestInterceptor:     template.JS("window.IntaniaSwaggerSession.requestInterceptor"),
-		ResponseInterceptor:    template.JS("window.IntaniaSwaggerSession.responseInterceptor"),
-		OnComplete:             template.JS("window.IntaniaSwaggerSession.onComplete"),
-	})
-	s.app.Get("/swagger/*", func(c *fiber.Ctx) error {
-		if c.Path() != "/swagger/index.html" {
-			return swaggerHandler(c)
-		}
-
-		if err := swaggerHandler(c); err != nil {
-			return err
-		}
-
-		responseBody := c.Response().Body()
-		// Load the embedded helper after Swagger's bundles and before initialization.
-		marker := []byte("    <script>\n    window.onload = function() {")
-		loginClientID := s.cfg.GetOAuth().SwaggerApplicationID(s.swaggerAPIOrigin)
-
-		injectedScript := fmt.Sprintf(
-			"    <script src=\"/swagger/swagger-session.js\" data-api-base=\"%s\" data-login-client-id=\"%s\"></script>\n%s",
-			template.HTMLEscapeString(s.swaggerAPIBaseURL),
-			template.HTMLEscapeString(loginClientID),
-			marker,
-		)
-		updatedBody := strings.Replace(
-			string(responseBody),
-			string(marker),
-			injectedScript,
-			1,
-		)
-		if updatedBody == string(responseBody) {
-			return fmt.Errorf("inject Swagger session script: index template marker not found")
-		}
-
-		return c.SendString(updatedBody)
-	})
-}
-
-// OriginGuard enforces exact configured browser origins and permits safe reads without Origin.
-// External routes and the OAuth callback are exempt from this browser origin policy.
-func (s *FiberHTTPServer) OriginGuard() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		if isExternalPath(c.Path()) || c.Path() == "/api/v1/auth/callback" ||
-			(c.Method() == fiber.MethodPost && (c.Path() == "/api/v1/auth/token" || c.Path() == "/api/v1/auth/revoke")) {
-			return c.Next()
-		}
-
-		origin := strings.TrimSpace(c.Get(fiber.HeaderOrigin))
-		if origin == "" && (c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead) {
-			return c.Next()
-		}
-		if !s.isAllowedOrigin(origin) {
-			return apierror.New(fiber.StatusForbidden, apierror.CodeForbidden, "Origin is not allowed")
-		}
-
-		return c.Next()
-	}
-}
-
-func (s *FiberHTTPServer) isAllowedOrigin(origin string) bool {
-	canonical, err := canonicalOrigin(origin)
-	if err != nil {
-		return false
-	}
-	_, ok := s.allowedOrigins[canonical]
-
-	return ok
-}
-
-func isExternalPath(path string) bool {
-	return path == "/api/v1/external" || strings.HasPrefix(path, "/api/v1/external/")
-}
-
-func parseAllowedOrigins(rawOrigins string) (map[string]struct{}, error) {
-	allowedOrigins := make(map[string]struct{})
-	for _, rawOrigin := range strings.Split(rawOrigins, ",") {
-		rawOrigin = strings.TrimSpace(rawOrigin)
-		if rawOrigin == "" {
-			continue
-		}
-		if rawOrigin == "*" {
-			return nil, fmt.Errorf("CORS_ALLOW_ORIGINS cannot use wildcard origins with credentials")
-		}
-		origin, err := canonicalOrigin(rawOrigin)
-		if err != nil {
-			return nil, fmt.Errorf("invalid configured CORS origin %q", rawOrigin)
-		}
-		allowedOrigins[origin] = struct{}{}
-	}
-
-	return allowedOrigins, nil
-}
-
-func canonicalOrigin(rawOrigin string) (string, error) {
-	parsed, err := url.Parse(rawOrigin)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil ||
-		parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", fmt.Errorf("origin must contain only scheme, host, and port")
-	}
-	scheme := strings.ToLower(parsed.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return "", fmt.Errorf("origin scheme must be http or https")
-	}
-
-	return scheme + "://" + strings.ToLower(parsed.Host), nil
 }
