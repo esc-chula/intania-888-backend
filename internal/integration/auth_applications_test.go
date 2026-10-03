@@ -258,7 +258,13 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
 	router := app.Group("/api/v1")
 	h.RegisterRoutes(router, mid.AuthMiddleware)
-	h.RegisterExternalRoutes(router.Group("/external"), mid.RequireExternalScope)
+	h.RegisterExternalRoutes(
+		router.Group("/external"),
+		mid.RequireExternalScope,
+		func(c *fiber.Ctx) error {
+			return c.Next()
+		},
+	)
 	router.Post(
 		"/external/deduct-coin",
 		mid.RequireExternalScope(config.ScopeCoinsSpend),
