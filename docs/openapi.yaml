@@ -9,8 +9,11 @@ info:
     \ accepted for these decimal values. \n\nAPI failures use the shared apierror.Response shape: code, message,\
     \ request_id, and optional field-level details. The same request ID is returned in the X-Request-ID header.\
     \ Dates and timestamps use the formats documented by each field. The /external/* backend integration\
-    \ requires scoped Bearer credentials.\n\nThe API is\
-    \ rate limited to 200 requests per minute per client IP. Exceeding the limit returns 429 TOO_MANY_REQUESTS."
+    \ requires scoped Bearer credentials.\n\nNon-external API routes are\
+    \ limited to 300 requests per minute per client IP. External routes share a\
+    \ 10,000-request-per-minute limit per client ID. /external/me allows 60 requests per minute per user, and\
+    \ /external/deduct-coin allows 10 requests per minute per user. Exceeding an applicable limit returns 429\
+    \ TOO_MANY_REQUESTS."
   title: Intania 888 API
   version: 1.0.0-breaking
 servers:
@@ -440,7 +443,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -500,7 +503,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -626,7 +629,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -751,7 +754,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -858,7 +861,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -989,7 +992,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1062,7 +1065,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1201,7 +1204,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1293,7 +1296,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1438,7 +1441,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1522,7 +1525,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1613,7 +1616,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1693,7 +1696,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1763,7 +1766,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -1890,7 +1893,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -2011,7 +2014,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -2111,7 +2114,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -2247,7 +2250,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -2399,7 +2402,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -2582,7 +2585,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -2668,7 +2671,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -2771,7 +2774,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -2896,7 +2899,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3021,7 +3024,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute. The body uses apierror.Response.
+          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3122,7 +3125,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3221,7 +3224,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3334,7 +3337,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3424,7 +3427,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3542,7 +3545,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3690,7 +3693,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3823,7 +3826,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3896,7 +3899,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -3973,7 +3976,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4097,7 +4100,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4242,7 +4245,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4326,7 +4329,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4479,7 +4482,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4580,7 +4583,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4651,7 +4654,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4724,7 +4727,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4815,7 +4818,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -4926,7 +4929,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -5063,7 +5066,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -5195,7 +5198,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -5269,7 +5272,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -5359,7 +5362,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -5478,7 +5481,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -5610,7 +5613,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -5736,7 +5739,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The client IP exceeded the API limit of 300 requests per minute.
           headers:
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
@@ -5781,7 +5784,8 @@ paths:
       summary: Read the delegated account profile
       description: Requires profile.read. The account comes from the delegated bearer token. Returns profile only,
         without csrf_token. The credential must match an active client registration and delegation. Browser Origin
-        guard and CSRF do not apply; browser CORS still applies to browser reads.
+        guard and CSRF do not apply; browser CORS still applies to browser reads. The shared client limit is 10,000
+        requests per minute per client ID; this route allows 60 requests per minute per user.
       security:
       - BearerAuth: []
       responses:
@@ -5820,7 +5824,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
         '429':
-          description: 'TOO_MANY_REQUESTS: shared per-IP rate limit.'
+          description: 'TOO_MANY_REQUESTS: shared external client limit of 10,000 requests per minute per client ID
+            or profile limit of 60 requests per minute per user.'
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
@@ -5861,6 +5866,8 @@ paths:
       description: Requires coins.spend. Strict JSON amount uses the money-string contract; no user_id is accepted.
         Locks the authenticated account and checks its balance in one 888 database transaction. No idempotency key,
         reservation, refund, or cross-database rollback contract exists; do not blindly retry an ambiguous response.
+        The shared client limit is 10,000 requests per minute per client ID; this route allows 10 requests per minute
+        per user.
       security:
       - BearerAuth: []
       requestBody:
@@ -5906,7 +5913,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
         '429':
-          description: 'TOO_MANY_REQUESTS: shared per-IP rate limit.'
+          description: 'TOO_MANY_REQUESTS: shared external client limit of 10,000 requests per minute per client ID
+            or transaction limit of 10 requests per minute per user.'
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
