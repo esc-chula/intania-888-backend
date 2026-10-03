@@ -159,9 +159,18 @@ func (h *HTTPHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	return c.JSON(httpidentity.Response(updatedUser))
 }
 
-// RegisterExternalRoutes declares the delegated permission required to spend coins.
-func (h *HTTPHandler) RegisterExternalRoutes(router fiber.Router, requireScope func(string) fiber.Handler) {
-	router.Post("/deduct-coin", requireScope(config.ScopeCoinsSpend), h.DeductCoin)
+// RegisterExternalRoutes declares the delegated permission and user limit for coin deductions.
+func (h *HTTPHandler) RegisterExternalRoutes(
+	router fiber.Router,
+	requireScope func(string) fiber.Handler,
+	transactionRateLimit fiber.Handler,
+) {
+	router.Post(
+		"/deduct-coin",
+		requireScope(config.ScopeCoinsSpend),
+		transactionRateLimit,
+		h.DeductCoin,
+	)
 }
 
 // DeductCoin deducts coins for an authenticated external client.

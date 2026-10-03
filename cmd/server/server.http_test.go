@@ -389,13 +389,13 @@ func TestRateLimitAppliesToPublicAPIReads(t *testing.T) {
 		return c.SendStatus(http.StatusNoContent)
 	})
 
-	for requestNumber := 1; requestNumber <= 201; requestNumber++ {
+	for requestNumber := 1; requestNumber <= 301; requestNumber++ {
 		response, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/public-read", nil))
 		if err != nil {
 			t.Fatalf("request %d error = %v", requestNumber, err)
 		}
 		want := http.StatusNoContent
-		if requestNumber == 201 {
+		if requestNumber == 301 {
 			want = http.StatusTooManyRequests
 		}
 		if response.StatusCode != want {
