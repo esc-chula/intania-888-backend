@@ -144,10 +144,10 @@ func TestLocationHTTPCRUDAndReferencedDeletion(t *testing.T) {
 		status int
 		want   string
 	}{
-		{"POST", "/locations/admin", `{"id":"new.id:1","title":" Venue "}`, 201, `{"id":"new.id:1","title":"Venue"}`},
-		{"GET", "/locations/new.id:1", "", 200, `{"id":"new.id:1","title":"Venue"}`},
-		{"PATCH", "/locations/admin/new.id:1", `{"title":" New name "}`, 200, `{"id":"new.id:1","title":"New name"}`},
-		{"DELETE", "/locations/admin/new.id:1", "", 204, ""},
+		{"POST", "/locations/admin", `{"id":"new_ID-1","title":" Venue "}`, 201, `{"id":"new_ID-1","title":"Venue"}`},
+		{"GET", "/locations/new_ID-1", "", 200, `{"id":"new_ID-1","title":"Venue"}`},
+		{"PATCH", "/locations/admin/new_ID-1", `{"title":" New name "}`, 200, `{"id":"new_ID-1","title":"New name"}`},
+		{"DELETE", "/locations/admin/new_ID-1", "", 204, ""},
 		{"DELETE", "/locations/admin/USED", "", 409, "LOCATION_IN_USE"},
 		{"GET", "/locations/MISSING", "", 404, "RESOURCE_NOT_FOUND"},
 	}
@@ -189,7 +189,7 @@ func TestLocationReadsArePublicAndMutationsStillAuthenticate(t *testing.T) {
 		}
 	}
 
-	status, body := locationResponse(t, app, locationRequest(http.MethodPost, "/locations/admin", `{"id":"new.id:1","title":"Venue"}`))
+	status, body := locationResponse(t, app, locationRequest(http.MethodPost, "/locations/admin", `{"id":"new_ID-1","title":"Venue"}`))
 	if status != fiber.StatusUnauthorized || !strings.Contains(string(body), `"code":"UNAUTHORIZED"`) {
 		t.Fatalf("protected POST = %d %s; want authentication failure", status, body)
 	}
@@ -203,7 +203,7 @@ func TestLocationReadsArePublicAndMutationsStillAuthenticate(t *testing.T) {
 			return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator access required")
 		},
 	)
-	status, body = locationResponse(t, app, locationRequest(http.MethodPost, "/locations/admin", `{"id":"new.id:1","title":"Venue"}`))
+	status, body = locationResponse(t, app, locationRequest(http.MethodPost, "/locations/admin", `{"id":"new_ID-1","title":"Venue"}`))
 	if status != fiber.StatusForbidden || !strings.Contains(string(body), `"code":"FORBIDDEN"`) {
 		t.Fatalf("admin-protected POST = %d %s; want administrator failure", status, body)
 	}
@@ -213,10 +213,34 @@ func TestLocationHTTPRejectsInvalidRequests(t *testing.T) {
 	for _, test := range []struct{ method, path, body string }{
 		{"POST", "/locations/admin", `{}`},
 		{"POST", "/locations/admin", `{"id":"กีฬา","title":"Venue"}`},
-		{"POST", "/locations/admin", `{"id":"new.id:1","title":"  "}`},
+		{"POST", "/locations/admin", `{"id":" S ","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"a/b","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"a?b","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"a%b","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"a.b","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"a:b","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"a\u0000b","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"a\tb","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"a\u007fb","title":"Valid title"}`},
+		{"POST", "/locations/admin", `{"id":"new_ID-1","title":"  "}`},
 		{"PATCH", "/locations/admin/USED", `{}`},
 		{"PATCH", "/locations/admin/USED", `{"title":"` + strings.Repeat("ก", 101) + `"}`},
 		{"GET", "/locations/กีฬา", ""},
+		{"GET", "/locations/%20S%20", ""},
+		{"PATCH", "/locations/admin/%20S%20", `{"title":"Valid title"}`},
+		{"DELETE", "/locations/admin/%20S%20", ""},
+		{"GET", "/locations/a%2Fb", ""},
+		{"PATCH", "/locations/admin/a%2Fb", `{"title":"Valid title"}`},
+		{"DELETE", "/locations/admin/a%2Fb", ""},
+		{"GET", "/locations/a%3Fb", ""},
+		{"PATCH", "/locations/admin/a%3Fb", `{"title":"Valid title"}`},
+		{"DELETE", "/locations/admin/a%3Fb", ""},
+		{"GET", "/locations/a%25b", ""},
+		{"PATCH", "/locations/admin/a%25b", `{"title":"Valid title"}`},
+		{"DELETE", "/locations/admin/a%25b", ""},
+		{"GET", "/locations/a%00b", ""},
+		{"PATCH", "/locations/admin/a%00b", `{"title":"Valid title"}`},
+		{"DELETE", "/locations/admin/a%00b", ""},
 	} {
 		t.Run(test.method+test.path+test.body, func(t *testing.T) {
 			status, body := locationResponse(t, locationTestApp(newMemoryRepository()), locationRequest(test.method, test.path, test.body))

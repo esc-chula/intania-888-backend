@@ -1,5 +1,7 @@
 package sporttype
 
+import "github.com/esc-chula/intania-888-backend/internal/catalogueid"
+
 // Response is the sport catalogue identifier and title returned by HTTP.
 type Response struct {
 	ID    string `json:"id"`
@@ -15,8 +17,8 @@ type CreateRequest struct {
 // ValidateRequest validates ASCII identifiers and trimmed Unicode titles.
 func (r CreateRequest) ValidateRequest() map[string]string {
 	details := titleDetails(r.Title)
-	if !validID(r.ID) {
-		details["id"] = "must be a nonempty ASCII string of at most 100 characters"
+	if !catalogueid.Valid(r.ID) {
+		details["id"] = "must contain 1–100 ASCII letters, digits, underscores, or hyphens"
 	}
 
 	return details

@@ -1,5 +1,7 @@
 package location
 
+import "github.com/esc-chula/intania-888-backend/internal/catalogueid"
+
 // Response is the location identifier and display title returned by HTTP.
 type Response struct {
 	ID    string `json:"id"`
@@ -18,8 +20,8 @@ func (r CreateRequest) ValidateRequest() map[string]string {
 	if details == nil {
 		details = make(map[string]string)
 	}
-	if !validID(r.ID) {
-		details["id"] = "must be a nonempty ASCII string of at most 100 characters"
+	if !catalogueid.Valid(r.ID) {
+		details["id"] = "must contain 1–100 ASCII letters, digits, underscores, or hyphens"
 	}
 
 	if len(details) == 0 {

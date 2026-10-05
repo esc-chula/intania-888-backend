@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"go.uber.org/zap"
+
+	"github.com/esc-chula/intania-888-backend/internal/catalogueid"
 )
 
 // Service provides the sport catalogue and validates management operations.
@@ -39,7 +41,7 @@ func (s *Service) GetAllSportTypes(ctx context.Context) ([]*SportType, error) {
 
 // GetSportType returns one entry with a valid catalogue identifier.
 func (s *Service) GetSportType(ctx context.Context, id string) (*SportType, error) {
-	if !validID(id) {
+	if !catalogueid.Valid(id) {
 		return nil, ErrInvalidSportType
 	}
 
@@ -48,7 +50,7 @@ func (s *Service) GetSportType(ctx context.Context, id string) (*SportType, erro
 
 // CreateSportType validates the immutable ID and normalizes the display title.
 func (s *Service) CreateSportType(ctx context.Context, input SportType) (*SportType, error) {
-	if !validID(input.ID) {
+	if !catalogueid.Valid(input.ID) {
 		return nil, ErrInvalidSportType
 	}
 	title, err := normalizeTitle(input.Title)
@@ -63,7 +65,7 @@ func (s *Service) CreateSportType(ctx context.Context, input SportType) (*SportT
 
 // UpdateSportType changes only the title of an existing entry.
 func (s *Service) UpdateSportType(ctx context.Context, id, title string) (*SportType, error) {
-	if !validID(id) {
+	if !catalogueid.Valid(id) {
 		return nil, ErrInvalidSportType
 	}
 	normalized, err := normalizeTitle(title)
@@ -76,7 +78,7 @@ func (s *Service) UpdateSportType(ctx context.Context, id, title string) (*Sport
 
 // DeleteSportType removes an entry only when database constraints permit it.
 func (s *Service) DeleteSportType(ctx context.Context, id string) error {
-	if !validID(id) {
+	if !catalogueid.Valid(id) {
 		return ErrInvalidSportType
 	}
 

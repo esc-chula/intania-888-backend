@@ -1554,21 +1554,21 @@ paths:
         required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use
         one configured on the server.
       parameters:
-      - description: Optional nonempty ASCII sport-type ID used to filter standings.
+      - description: Optional sport-type ID (1–100 ASCII letters, digits, underscores, or hyphens).
         in: query
         name: type_id
         schema:
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
-      - description: Optional nonempty ASCII group ID used to filter group-stage standings.
+      - description: Optional group ID (1–100 ASCII letters, digits, underscores, or hyphens).
         in: query
         name: group_id
         schema:
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
       responses:
         '200':
@@ -1642,13 +1642,13 @@ paths:
         results to one sport. No session is required. Account allowlist and blacklist checks do not apply. Browser
         requests with an Origin must use one configured on the server.
       parameters:
-      - description: Optional nonempty ASCII sport-type ID used to filter standings.
+      - description: Optional sport-type ID (1–100 ASCII letters, digits, underscores, or hyphens).
         in: query
         name: type_id
         schema:
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
       responses:
         '200':
@@ -2505,7 +2505,7 @@ paths:
         schema:
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
       responses:
         '200':
@@ -2708,7 +2708,7 @@ paths:
         schema:
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
       - description: Session-bound token returned by GET /auth/me; required for browser mutations.
         in: header
@@ -2832,7 +2832,7 @@ paths:
         schema:
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
       - description: Session-bound token returned by GET /auth/me; required for browser mutations.
         in: header
@@ -4646,7 +4646,7 @@ paths:
         schema:
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
       responses:
         '200':
@@ -4728,7 +4728,7 @@ paths:
     post:
       operationId: createSportType
       description: Administrator-only. Creates a sport type. IDs and trimmed titles must each contain 1–100 characters;
-        IDs accept all ASCII characters. Duplicate titles are allowed.
+        IDs accept ASCII letters, digits, underscores, and hyphens. Duplicate titles are allowed.
       parameters:
       - description: Session-bound token returned by GET /auth/me. Required for browser mutations.
         in: header
@@ -4864,7 +4864,7 @@ paths:
         schema:
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
       - description: Session-bound token returned by GET /auth/me. Required for browser mutations.
         in: header
@@ -6080,11 +6080,11 @@ components:
       description: Fields required to add a location to the catalogue.
       properties:
         id:
-          description: Stable identifier; use 1–100 ASCII characters.
+          description: Stable identifier; use 1–100 ASCII letters, digits, underscores, or hyphens.
           example: NEW_COURT
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
         title:
           description: Display name, trimmed to 1–100 characters. Duplicate titles are allowed.
@@ -6147,11 +6147,11 @@ components:
       description: CreateSportTypeRequest representation used by this API.
       properties:
         id:
-          description: 1–100 ASCII characters.
+          description: 1–100 ASCII letters, digits, underscores, or hyphens.
           example: BADMINTON_ALL
           maxLength: 100
           minLength: 1
-          pattern: '^[\x00-\x7F]+$'
+          pattern: ^[A-Za-z0-9_-]+$
           type: string
         title:
           description: Trimmed display title, 1–100 characters; duplicate titles are allowed.
@@ -6192,7 +6192,8 @@ components:
       description: A configured venue available for match scheduling.
       properties:
         id:
-          description: Stable identifier referenced by matches. IDs use 1–100 ASCII characters.
+          description: Stable identifier referenced by matches. IDs use 1–100 ASCII letters, digits, underscores,
+            or hyphens.
           example: CIVIL_COURT
           type: string
         title:

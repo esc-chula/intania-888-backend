@@ -2,6 +2,7 @@ package color
 
 import (
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/catalogueid"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -62,13 +63,8 @@ func validateOptionalID(field, value string, supplied bool) error {
 	if !supplied {
 		return nil
 	}
-	if len(value) == 0 || len(value) > 100 {
-		return apierror.Invalid(map[string]string{field: "must be a nonempty ASCII string of at most 100 characters"})
-	}
-	for _, char := range value {
-		if char > 127 {
-			return apierror.Invalid(map[string]string{field: "must be a nonempty ASCII string of at most 100 characters"})
-		}
+	if !catalogueid.Valid(value) {
+		return apierror.Invalid(map[string]string{field: "must contain 1–100 ASCII letters, digits, underscores, or hyphens"})
 	}
 
 	return nil

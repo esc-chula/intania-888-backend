@@ -124,13 +124,13 @@ func TestSportTypeHTTPCRUD(t *testing.T) {
 		status             int
 		want               string
 	}{
-		{"POST", "/sport-types/admin", `{"id":"new.id:1","title":" Sport "}`, 201, `{"id":"new.id:1","title":"Sport"}`},
-		{"GET", "/sport-types/new.id:1", "", 200, `{"id":"new.id:1","title":"Sport"}`},
-		{"PATCH", "/sport-types/admin/new.id:1", `{"title":" Renamed "}`, 200, `{"id":"new.id:1","title":"Renamed"}`},
-		{"DELETE", "/sport-types/admin/new.id:1", "", 204, ""},
-		{"GET", "/sport-types/new.id:1", "", 404, "RESOURCE_NOT_FOUND"},
-		{"PATCH", "/sport-types/admin/new.id:1", `{"title":"Sport"}`, 404, "RESOURCE_NOT_FOUND"},
-		{"DELETE", "/sport-types/admin/new.id:1", "", 404, "RESOURCE_NOT_FOUND"},
+		{"POST", "/sport-types/admin", `{"id":"new_ID-1","title":" Sport "}`, 201, `{"id":"new_ID-1","title":"Sport"}`},
+		{"GET", "/sport-types/new_ID-1", "", 200, `{"id":"new_ID-1","title":"Sport"}`},
+		{"PATCH", "/sport-types/admin/new_ID-1", `{"title":" Renamed "}`, 200, `{"id":"new_ID-1","title":"Renamed"}`},
+		{"DELETE", "/sport-types/admin/new_ID-1", "", 204, ""},
+		{"GET", "/sport-types/new_ID-1", "", 404, "RESOURCE_NOT_FOUND"},
+		{"PATCH", "/sport-types/admin/new_ID-1", `{"title":"Sport"}`, 404, "RESOURCE_NOT_FOUND"},
+		{"DELETE", "/sport-types/admin/new_ID-1", "", 404, "RESOURCE_NOT_FOUND"},
 		{"POST", "/sport-types/admin", `{"id":"S","title":"Other"}`, 409, "CONFLICT"},
 		{"DELETE", "/sport-types/admin/USED", "", 409, "SPORT_TYPE_IN_USE"},
 	}
@@ -166,6 +166,15 @@ func TestSportTypeHTTPRejectsInvalidRequests(t *testing.T) {
 		{"POST", "/sport-types/admin", `{}`},
 		{"POST", "/sport-types/admin", `{"id":null,"title":"Sport"}`},
 		{"POST", "/sport-types/admin", `{"id":"กีฬา","title":"Sport"}`},
+		{"POST", "/sport-types/admin", `{"id":" S ","title":"Valid title"}`},
+		{"POST", "/sport-types/admin", `{"id":"a/b","title":"Valid title"}`},
+		{"POST", "/sport-types/admin", `{"id":"a?b","title":"Valid title"}`},
+		{"POST", "/sport-types/admin", `{"id":"a%b","title":"Valid title"}`},
+		{"POST", "/sport-types/admin", `{"id":"a.b","title":"Valid title"}`},
+		{"POST", "/sport-types/admin", `{"id":"a:b","title":"Valid title"}`},
+		{"POST", "/sport-types/admin", `{"id":"a\u0000b","title":"Valid title"}`},
+		{"POST", "/sport-types/admin", `{"id":"a\tb","title":"Valid title"}`},
+		{"POST", "/sport-types/admin", `{"id":"a\u007fb","title":"Valid title"}`},
 		{"POST", "/sport-types/admin", `{"id":"S2","title":null}`},
 		{"POST", "/sport-types/admin", `{"id":"S2","title":"Sport","extra":true}`},
 		{"POST", "/sport-types/admin", `[]`},
@@ -176,6 +185,21 @@ func TestSportTypeHTTPRejectsInvalidRequests(t *testing.T) {
 		{"PATCH", "/sport-types/admin/S", `{"title":"Sport","id":"S2"}`},
 		{"PATCH", "/sport-types/admin/S", `{"title":"` + strings.Repeat("ก", 101) + `"}`},
 		{"GET", "/sport-types/กีฬา", ""},
+		{"GET", "/sport-types/%20S%20", ""},
+		{"PATCH", "/sport-types/admin/%20S%20", `{"title":"Valid title"}`},
+		{"DELETE", "/sport-types/admin/%20S%20", ""},
+		{"GET", "/sport-types/a%2Fb", ""},
+		{"PATCH", "/sport-types/admin/a%2Fb", `{"title":"Valid title"}`},
+		{"DELETE", "/sport-types/admin/a%2Fb", ""},
+		{"GET", "/sport-types/a%3Fb", ""},
+		{"PATCH", "/sport-types/admin/a%3Fb", `{"title":"Valid title"}`},
+		{"DELETE", "/sport-types/admin/a%3Fb", ""},
+		{"GET", "/sport-types/a%25b", ""},
+		{"PATCH", "/sport-types/admin/a%25b", `{"title":"Valid title"}`},
+		{"DELETE", "/sport-types/admin/a%25b", ""},
+		{"GET", "/sport-types/a%00b", ""},
+		{"PATCH", "/sport-types/admin/a%00b", `{"title":"Valid title"}`},
+		{"DELETE", "/sport-types/admin/a%00b", ""},
 		{"DELETE", "/sport-types/admin/กีฬา", ""},
 	}
 	for _, test := range tests {
@@ -192,7 +216,7 @@ func TestSportTypeHTTPRejectsInvalidRequests(t *testing.T) {
 
 func TestSportTypeHTTPAuthenticationAdminOriginAndCSRF(t *testing.T) {
 	mutations := []struct{ method, path, body string }{
-		{"POST", "/sport-types/admin", `{"id":"new.id:1","title":"Sport"}`},
+		{"POST", "/sport-types/admin", `{"id":"new_ID-1","title":"Sport"}`},
 		{"PATCH", "/sport-types/admin/S", `{"title":"Renamed"}`},
 		{"DELETE", "/sport-types/admin/S", ""},
 	}
