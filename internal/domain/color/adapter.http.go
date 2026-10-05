@@ -7,7 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// HTTPHandler exposes color and group-stage leaderboard queries.
+// HTTPHandler exposes color, group-stage, and member-based ranking queries.
 type HTTPHandler struct {
 	service ServicePort
 }
@@ -17,11 +17,13 @@ func NewHTTPHandler(service ServicePort) *HTTPHandler {
 	return &HTTPHandler{service: service}
 }
 
-// RegisterRoutes exposes the leaderboard and group-stage read routes.
+// RegisterRoutes exposes the leaderboard, ranking, and group-stage read routes.
 func (h *HTTPHandler) RegisterRoutes(router fiber.Router) {
 	router = router.Group("/colors")
 
 	router.Get("/leaderboards", h.GetAllLeaderboards)
+	router.Get("/leaderboards/coins", h.GetCoinRanking)
+	router.Get("/leaderboards/predictions", h.GetPredictionRanking)
 	router.Get("/group-stage", h.GetGroupStageTable)
 }
 
@@ -38,6 +40,26 @@ func (h *HTTPHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(responses(colors))
+}
+
+// GetCoinRanking returns colors ordered by the total coins of their members.
+func (h *HTTPHandler) GetCoinRanking(c *fiber.Ctx) error {
+	rows, err := h.service.GetCoinRanking(c.UserContext())
+	if err != nil {
+		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to get color coin ranking")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(coinRankResponses(rows))
+}
+
+// GetPredictionRanking returns colors ordered by the correct predictions of their members.
+func (h *HTTPHandler) GetPredictionRanking(c *fiber.Ctx) error {
+	rows, err := h.service.GetPredictionRanking(c.UserContext())
+	if err != nil {
+		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to get color prediction ranking")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(predictionRankResponses(rows))
 }
 
 // GetGroupStageTable validates optional sport and group identifiers and returns group-stage standings.

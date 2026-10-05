@@ -2,11 +2,14 @@ package color
 
 import (
 	"context"
+	"math"
+	"sort"
 
 	"go.uber.org/zap"
 )
 
-// Service derives leaderboard loss counts from completed-match aggregate projections.
+// Service derives leaderboard loss counts from completed-match aggregate projections and
+// ranks colors by member coins and predictions.
 type Service struct {
 	colorRepo Repository
 	log       *zap.Logger
@@ -44,6 +47,59 @@ func (s *Service) GetGroupStageTable(ctx context.Context, typeID, groupID string
 	s.log.Named("GetGroupStageTable").Info("Retrieved group stage successful", zap.Int("count", len(results)))
 
 	return results, nil
+}
+
+// GetCoinRanking ranks colors by total coins, then by color ID.
+func (s *Service) GetCoinRanking(ctx context.Context) ([]*CoinRank, error) {
+	rows, err := s.colorRepo.CoinStandings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if c := rows[i].TotalCoin.Compare(rows[j].TotalCoin); c != 0 {
+			return c > 0
+		}
+
+		return rows[i].ID < rows[j].ID
+	})
+
+	ranks := make([]*CoinRank, len(rows))
+	for i, row := range rows {
+		ranks[i] = &CoinRank{Rank: i + 1, CoinStanding: *row}
+	}
+
+	return ranks, nil
+}
+
+// GetPredictionRanking ranks colors by correct predictions, then fewer wrong
+// predictions, then color ID.
+func (s *Service) GetPredictionRanking(ctx context.Context) ([]*PredictionRank, error) {
+	rows, err := s.colorRepo.PredictionStandings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Correct != rows[j].Correct {
+			return rows[i].Correct > rows[j].Correct
+		}
+		if rows[i].Wrong != rows[j].Wrong {
+			return rows[i].Wrong < rows[j].Wrong
+		}
+
+		return rows[i].ID < rows[j].ID
+	})
+
+	ranks := make([]*PredictionRank, len(rows))
+	for i, row := range rows {
+		total := row.Correct + row.Wrong
+		accuracy := 0.0
+		if total > 0 {
+			accuracy = math.Round(float64(row.Correct)/float64(total)*10000) / 100
+		}
+		ranks[i] = &PredictionRank{Rank: i + 1, PredictionStanding: *row, Total: total, Accuracy: accuracy}
+	}
+
+	return ranks, nil
 }
 
 func leaderboards(rows []*Standing) []*Leaderboard {

@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	persistence "github.com/esc-chula/intania-888-backend/internal/persistence/model"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
 // GORMRepository queries completed-match aggregates without applying response formatting.
@@ -118,4 +119,67 @@ func (r *GORMRepository) GetGroupStageTable(ctx context.Context, typeID, groupID
 	}
 
 	return rows, nil
+}
+
+// CoinStandings sums USER coins per color across the color's groups, including
+// colors with no members.
+func (r *GORMRepository) CoinStandings(ctx context.Context) ([]*CoinStanding, error) {
+	var rows []struct {
+		ID          string
+		Title       string
+		TotalCoin   int64
+		MemberCount int64
+	}
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT c.id AS id, c.title AS title,
+			COALESCE(SUM(u.remaining_coin), 0)::bigint AS total_coin,
+			COUNT(u.id) AS member_count
+		FROM colors c
+		LEFT JOIN intania_groups g ON g.color_id = c.id
+		LEFT JOIN users u ON u.group_id = g.id AND u.role_id = 'USER'
+		GROUP BY c.id, c.title
+	`).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*CoinStanding, len(rows))
+	for i, row := range rows {
+		coin, err := value.NewMoneyFromMinor(row.TotalCoin)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = &CoinStanding{ID: row.ID, Title: row.Title, TotalCoin: coin, MemberCount: row.MemberCount}
+	}
+
+	return result, nil
+}
+
+// PredictionStandings counts correct and wrong bill lines per color. Only WON and
+// LOST bills count, and only lines whose match has a winner: a draw line is
+// skipped by settlement, so it is neither correct nor wrong here.
+func (r *GORMRepository) PredictionStandings(ctx context.Context) ([]*PredictionStanding, error) {
+	var rows []PredictionStanding
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT c.id AS id, c.title AS title,
+			COUNT(*) FILTER (WHERE m.winner_id = bl.betting_on) AS correct,
+			COUNT(*) FILTER (WHERE m.winner_id IS NOT NULL AND m.winner_id <> bl.betting_on) AS wrong
+		FROM colors c
+		LEFT JOIN intania_groups g ON g.color_id = c.id
+		LEFT JOIN users u ON u.group_id = g.id AND u.role_id = 'USER'
+		LEFT JOIN bill_heads bh ON bh.user_id = u.id AND bh.status IN ('WON', 'LOST')
+		LEFT JOIN bill_lines bl ON bl.bill_id = bh.id
+		LEFT JOIN matches m ON m.id = bl.match_id
+		GROUP BY c.id, c.title
+	`).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*PredictionStanding, len(rows))
+	for i := range rows {
+		result[i] = &rows[i]
+	}
+
+	return result, nil
 }
