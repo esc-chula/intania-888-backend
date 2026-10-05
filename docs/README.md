@@ -70,9 +70,8 @@ read routes are public; location changes are administrator-only:
 | `DELETE /locations/admin/{id}` | Admin | `204`, empty body, if unused |
 
 Location mutations require a browser session, admin permission, allowed Origin,
-and `X-CSRF-Token`. IDs are immutable and contain 1–100 ASCII letters, digits,
-underscores, or hyphens. Titles are trimmed and must contain 1–100 Unicode
-characters. Duplicate titles are allowed. Create and rename requests are:
+and `X-CSRF-Token`. IDs are immutable and contain 1–100 ASCII characters. Titles
+are trimmed and must contain 1–100 Unicode characters. Duplicate titles are allowed. Create and rename requests are:
 
 ```json
 { "id": "COURT_A", "title": "Court A" }
@@ -133,9 +132,8 @@ Create accepts only `id` and `title`:
 { "id": "BADMINTON_ALL", "title": "Badminton" }
 ```
 
-IDs are immutable and contain 1–100 ASCII letters, digits, underscores, or
-hyphens. IDs are not trimmed. Create and PATCH trim the title and require 1–100
-Unicode characters. PATCH accepts only `{ "title": "New title" }`. Duplicate
+IDs are immutable and contain 1–100 ASCII characters. IDs are not trimmed.
+Create and PATCH trim the title and require 1–100 Unicode characters. PATCH accepts only `{ "title": "New title" }`. Duplicate
 titles are allowed; an existing ID returns `409 CONFLICT`. Missing resources
 return `404 RESOURCE_NOT_FOUND`. Unknown fields and invalid bodies use the
 shared `400 INVALID_REQUEST` contract.

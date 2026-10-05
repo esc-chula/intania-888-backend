@@ -39,8 +39,8 @@ func (s *contractService) GetGroupStageTable(ctx context.Context, typeID, groupI
 }
 
 func TestColorHTTPPreservesRowsEmptyListsFiltersAndContext(t *testing.T) {
-	const typeID = "c2b3f5a1-5fd6-4fa7-b313-86c70e3a2790"
-	const groupID = "c52ca5b8-5036-4fb5-af9f-a7a6e9ca091d"
+	const typeID = "sport.type:1"
+	const groupID = "group.1:all"
 	tests := []struct {
 		name string
 		path string
@@ -130,8 +130,12 @@ func TestColorHTTPPreservesValidationAndDependencyErrorContract(t *testing.T) {
 		wantCode   string
 		wantCalls  int
 	}{
-		{"invalid type", "/colors/leaderboards?type_id=invalid", nil, 400, "INVALID_REQUEST", 0},
-		{"invalid group", "/colors/group-stage?group_id=invalid", nil, 400, "INVALID_REQUEST", 0},
+		{"invalid type", "/colors/leaderboards?type_id=%E0%B8%81", nil, 400, "INVALID_REQUEST", 0},
+		{"invalid group", "/colors/group-stage?group_id=%80", nil, 400, "INVALID_REQUEST", 0},
+		{"empty type", "/colors/leaderboards?type_id=", nil, 400, "INVALID_REQUEST", 0},
+		{"empty group", "/colors/group-stage?group_id=", nil, 400, "INVALID_REQUEST", 0},
+		{"long type", "/colors/leaderboards?type_id=" + strings.Repeat("a", 101), nil, 400, "INVALID_REQUEST", 0},
+		{"long group", "/colors/group-stage?group_id=" + strings.Repeat("a", 101), nil, 400, "INVALID_REQUEST", 0},
 		{"storage failure", "/colors/leaderboards", errors.New("database secret"), 500, "INTERNAL_ERROR", 1},
 	}
 	for _, test := range tests {

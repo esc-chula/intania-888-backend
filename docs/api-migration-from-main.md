@@ -320,9 +320,8 @@ Create a location with an immutable ID and display title:
 ```
 
 Rename it with `PATCH /locations/admin/COURT_A` and a body containing only
-`{ "title": "North Court" }`. IDs accept 1–100 ASCII letters, digits,
-underscores, or hyphens. Titles are trimmed and must contain 1–100 Unicode
-characters; duplicate titles are allowed. A duplicate ID returns `409 CONFLICT`.
+`{ "title": "North Court" }`. IDs accept 1–100 ASCII characters. Titles are
+trimmed and must contain 1–100 Unicode characters; duplicate titles are allowed. A duplicate ID returns `409 CONFLICT`.
 An invalid ID or title returns `400 INVALID_REQUEST`; a missing location returns
 `404 RESOURCE_NOT_FOUND`.
 
@@ -818,9 +817,8 @@ style entry. Renames change labels without changing selected IDs. When a
 selected unused sport is deleted, clear the stale selection after refreshing
 the catalogue.
 
-Validate IDs as 1–100 ASCII letters, digits, underscores, or hyphens; validate
-trimmed titles as 1–100 Unicode characters (count code points, not UTF-16 code
-units). Do not derive IDs from editable titles. Create sends `{ id, title }`,
+Validate IDs as 1–100 ASCII characters; validate trimmed titles as 1–100 Unicode
+characters (count code points, not UTF-16 code units). Do not derive IDs from editable titles. Create sends `{ id, title }`,
 rename sends only `{ title }`, and unknown fields are rejected. Use the shared
 API client, encode IDs as path segments, and preserve the shared error envelope.
 Public reads still use the configured-Origin and global IP rate-limit behavior;

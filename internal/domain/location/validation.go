@@ -11,9 +11,7 @@ func validID(id string) bool {
 	}
 
 	for _, char := range id {
-		letter := (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z')
-		digit := char >= '0' && char <= '9'
-		if !letter && !digit && char != '_' && char != '-' {
+		if char > 127 {
 			return false
 		}
 	}

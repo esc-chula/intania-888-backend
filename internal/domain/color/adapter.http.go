@@ -1,8 +1,6 @@
 package color
 
 import (
-	"github.com/google/uuid"
-
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 
 	"github.com/gofiber/fiber/v2"
@@ -29,7 +27,7 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router) {
 // GetAllLeaderboards validates the optional sport identifier and returns the color standings.
 func (h *HTTPHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 	typeID := c.Query("type_id", "")
-	if err := validateOptionalID("type_id", typeID); err != nil {
+	if err := validateOptionalID("type_id", typeID, c.Context().QueryArgs().Has("type_id")); err != nil {
 		return err
 	}
 
@@ -45,10 +43,10 @@ func (h *HTTPHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 func (h *HTTPHandler) GetGroupStageTable(c *fiber.Ctx) error {
 	typeID := c.Query("type_id", "")
 	groupID := c.Query("group_id", "")
-	if err := validateOptionalID("type_id", typeID); err != nil {
+	if err := validateOptionalID("type_id", typeID, c.Context().QueryArgs().Has("type_id")); err != nil {
 		return err
 	}
-	if err := validateOptionalID("group_id", groupID); err != nil {
+	if err := validateOptionalID("group_id", groupID, c.Context().QueryArgs().Has("group_id")); err != nil {
 		return err
 	}
 
@@ -60,12 +58,17 @@ func (h *HTTPHandler) GetGroupStageTable(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(responses(colors))
 }
 
-func validateOptionalID(field, value string) error {
-	if value == "" {
+func validateOptionalID(field, value string, supplied bool) error {
+	if !supplied {
 		return nil
 	}
-	if _, err := uuid.Parse(value); err != nil {
-		return apierror.Invalid(map[string]string{field: "must be a valid ID"})
+	if len(value) == 0 || len(value) > 100 {
+		return apierror.Invalid(map[string]string{field: "must be a nonempty ASCII string of at most 100 characters"})
+	}
+	for _, char := range value {
+		if char > 127 {
+			return apierror.Invalid(map[string]string{field: "must be a nonempty ASCII string of at most 100 characters"})
+		}
 	}
 
 	return nil

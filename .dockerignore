@@ -1,0 +1,5 @@
+.git
+.env*
+config/auth.pi.yaml
+bin
+tmp
