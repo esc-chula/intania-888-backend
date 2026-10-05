@@ -16,7 +16,7 @@ type CreateRequest struct {
 func (r CreateRequest) ValidateRequest() map[string]string {
 	details := titleDetails(r.Title)
 	if !validID(r.ID) {
-		details["id"] = "must contain 1–100 ASCII letters, digits, underscores, or hyphens"
+		details["id"] = "must be a nonempty ASCII string of at most 100 characters"
 	}
 
 	return details

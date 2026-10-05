@@ -124,9 +124,11 @@ func TestSportTypeValidationAndNormalization(t *testing.T) {
 		{"Unicode title boundary", "THAI", strings.Repeat("ก", 100), true},
 		{"empty ID", "", "Sport", false},
 		{"long ID", strings.Repeat("A", 101), "Sport", false},
-		{"spaces in ID", " S ", "Sport", false},
+		{"spaces in ID", " S ", "Sport", true},
 		{"Unicode ID", "กีฬา", "Sport", false},
-		{"punctuation ID", "sport.type", "Sport", false},
+		{"non-ASCII byte", "\x80", "Sport", false},
+		{"ASCII boundary", "\x7f", "Sport", true},
+		{"punctuation ID", "sport.type", "Sport", true},
 		{"empty title", "S2", "", false},
 		{"blank title", "S2", " \t\n ", false},
 		{"long title", "S2", strings.Repeat("ก", 101), false},
@@ -234,13 +236,13 @@ func TestSportTypeInvalidOperationsDoNotReachStorage(t *testing.T) {
 	ctx := context.Background()
 	operations := []func() error{
 		func() error {
-			_, err := service.GetSportType(ctx, "bad.id")
+			_, err := service.GetSportType(ctx, "กีฬา")
 
 			return err
 		},
 
 		func() error {
-			_, err := service.UpdateSportType(ctx, "bad.id", "Sport")
+			_, err := service.UpdateSportType(ctx, "กีฬา", "Sport")
 
 			return err
 		},
@@ -251,7 +253,7 @@ func TestSportTypeInvalidOperationsDoNotReachStorage(t *testing.T) {
 			return err
 		},
 		func() error {
-			return service.DeleteSportType(ctx, "bad.id")
+			return service.DeleteSportType(ctx, "กีฬา")
 		},
 	}
 	for _, operation := range operations {

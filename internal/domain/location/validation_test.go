@@ -6,13 +6,13 @@ import (
 )
 
 func TestLocationValidation(t *testing.T) {
-	for _, id := range []string{"A", "INDOOR_STADIUM_1", "venue-1"} {
+	for _, id := range []string{"A", "INDOOR_STADIUM_1", "venue-1", "bad.id", " S ", "\x7f"} {
 		if !validID(id) {
 			t.Errorf("validID(%q) = false", id)
 		}
 	}
 
-	for _, id := range []string{"", "bad.id", "สถานที่", strings.Repeat("a", 101)} {
+	for _, id := range []string{"", "\x80", "สถานที่", strings.Repeat("a", 101)} {
 		if validID(id) {
 			t.Errorf("validID(%q) = true", id)
 		}

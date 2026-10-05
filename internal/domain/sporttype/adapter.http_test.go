@@ -124,13 +124,13 @@ func TestSportTypeHTTPCRUD(t *testing.T) {
 		status             int
 		want               string
 	}{
-		{"POST", "/sport-types/admin", `{"id":"NEW","title":" Sport "}`, 201, `{"id":"NEW","title":"Sport"}`},
-		{"GET", "/sport-types/NEW", "", 200, `{"id":"NEW","title":"Sport"}`},
-		{"PATCH", "/sport-types/admin/NEW", `{"title":" Renamed "}`, 200, `{"id":"NEW","title":"Renamed"}`},
-		{"DELETE", "/sport-types/admin/NEW", "", 204, ""},
-		{"GET", "/sport-types/NEW", "", 404, "RESOURCE_NOT_FOUND"},
-		{"PATCH", "/sport-types/admin/NEW", `{"title":"Sport"}`, 404, "RESOURCE_NOT_FOUND"},
-		{"DELETE", "/sport-types/admin/NEW", "", 404, "RESOURCE_NOT_FOUND"},
+		{"POST", "/sport-types/admin", `{"id":"new.id:1","title":" Sport "}`, 201, `{"id":"new.id:1","title":"Sport"}`},
+		{"GET", "/sport-types/new.id:1", "", 200, `{"id":"new.id:1","title":"Sport"}`},
+		{"PATCH", "/sport-types/admin/new.id:1", `{"title":" Renamed "}`, 200, `{"id":"new.id:1","title":"Renamed"}`},
+		{"DELETE", "/sport-types/admin/new.id:1", "", 204, ""},
+		{"GET", "/sport-types/new.id:1", "", 404, "RESOURCE_NOT_FOUND"},
+		{"PATCH", "/sport-types/admin/new.id:1", `{"title":"Sport"}`, 404, "RESOURCE_NOT_FOUND"},
+		{"DELETE", "/sport-types/admin/new.id:1", "", 404, "RESOURCE_NOT_FOUND"},
 		{"POST", "/sport-types/admin", `{"id":"S","title":"Other"}`, 409, "CONFLICT"},
 		{"DELETE", "/sport-types/admin/USED", "", 409, "SPORT_TYPE_IN_USE"},
 	}
@@ -165,7 +165,7 @@ func TestSportTypeHTTPRejectsInvalidRequests(t *testing.T) {
 	tests := []struct{ method, path, body string }{
 		{"POST", "/sport-types/admin", `{}`},
 		{"POST", "/sport-types/admin", `{"id":null,"title":"Sport"}`},
-		{"POST", "/sport-types/admin", `{"id":"bad.id","title":"Sport"}`},
+		{"POST", "/sport-types/admin", `{"id":"กีฬา","title":"Sport"}`},
 		{"POST", "/sport-types/admin", `{"id":"S2","title":null}`},
 		{"POST", "/sport-types/admin", `{"id":"S2","title":"Sport","extra":true}`},
 		{"POST", "/sport-types/admin", `[]`},
@@ -175,8 +175,8 @@ func TestSportTypeHTTPRejectsInvalidRequests(t *testing.T) {
 		{"PATCH", "/sport-types/admin/S", `{"title":123}`},
 		{"PATCH", "/sport-types/admin/S", `{"title":"Sport","id":"S2"}`},
 		{"PATCH", "/sport-types/admin/S", `{"title":"` + strings.Repeat("ก", 101) + `"}`},
-		{"GET", "/sport-types/bad.id", ""},
-		{"DELETE", "/sport-types/admin/bad.id", ""},
+		{"GET", "/sport-types/กีฬา", ""},
+		{"DELETE", "/sport-types/admin/กีฬา", ""},
 	}
 	for _, test := range tests {
 		t.Run(test.method+test.body, func(t *testing.T) {
@@ -192,7 +192,7 @@ func TestSportTypeHTTPRejectsInvalidRequests(t *testing.T) {
 
 func TestSportTypeHTTPAuthenticationAdminOriginAndCSRF(t *testing.T) {
 	mutations := []struct{ method, path, body string }{
-		{"POST", "/sport-types/admin", `{"id":"NEW","title":"Sport"}`},
+		{"POST", "/sport-types/admin", `{"id":"new.id:1","title":"Sport"}`},
 		{"PATCH", "/sport-types/admin/S", `{"title":"Renamed"}`},
 		{"DELETE", "/sport-types/admin/S", ""},
 	}

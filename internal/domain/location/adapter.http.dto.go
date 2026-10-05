@@ -19,7 +19,7 @@ func (r CreateRequest) ValidateRequest() map[string]string {
 		details = make(map[string]string)
 	}
 	if !validID(r.ID) {
-		details["id"] = "must contain 1–100 ASCII letters, digits, underscores, or hyphens"
+		details["id"] = "must be a nonempty ASCII string of at most 100 characters"
 	}
 
 	if len(details) == 0 {
