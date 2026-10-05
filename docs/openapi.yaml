@@ -2430,6 +2430,116 @@ paths:
       summary: Use a steal token
       tags:
       - Event
+  /colors/leaderboards/coins:
+    get:
+      operationId: getColorCoinRanking
+      description: Returns every color ranked by the total coins of USER members in all of its groups, highest first; ties break by color ID. Colors without members total 0.00. No session is required. Account allowlist and blacklist checks do not apply. Browser
+        requests with an Origin must use one configured on the server.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/model.ColorCoinRankDto'
+                type: array
+          description: OK
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: The request Origin is not allowed by the configured browser origin policy.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: The client IP exceeded the API limit of 200 requests per minute.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Internal Server Error. Failure body follows apierror.Response.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+      summary: Get color coin ranking
+      tags:
+      - Color
+  /colors/leaderboards/predictions:
+    get:
+      operationId: getColorPredictionRanking
+      description: Returns every color ranked by correct predictions of its members, highest first, then fewer wrong predictions, then color ID. Predictions are counted per bill line, only for settled (WON or LOST) bills whose match has a winner; drawn, undecided, pending, and voided lines are not counted. No session is required. Account allowlist and blacklist checks do not apply. Browser
+        requests with an Origin must use one configured on the server.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/model.ColorPredictionRankDto'
+                type: array
+          description: OK
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: The request Origin is not allowed by the configured browser origin policy.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: The client IP exceeded the API limit of 200 requests per minute.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Internal Server Error. Failure body follows apierror.Response.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+      summary: Get color prediction ranking
+      tags:
+      - Color
   /locations:
     get:
       operationId: listLocations
@@ -6025,6 +6135,56 @@ components:
       - total_matches
       - won
       type: object
+    model.ColorCoinRankDto:
+      properties:
+        id:
+          description: Color ID.
+          type: string
+        member_count:
+          type: integer
+        rank:
+          description: Position starting at 1.
+          type: integer
+        title:
+          type: string
+        total_coin:
+          description: Sum of member balances as a JSON string with two fractional digits.
+          example: '12345.00'
+          type: string
+      required:
+      - id
+      - member_count
+      - rank
+      - total_coin
+      type: object
+    model.ColorPredictionRankDto:
+      properties:
+        accuracy:
+          description: Percentage of decided predictions that were correct, with two decimals; 0 when none are decided.
+          type: number
+        correct:
+          type: integer
+        id:
+          description: Color ID.
+          type: string
+        rank:
+          description: Position starting at 1.
+          type: integer
+        title:
+          type: string
+        total:
+          description: correct + wrong.
+          type: integer
+        wrong:
+          type: integer
+      required:
+      - accuracy
+      - correct
+      - id
+      - rank
+      - total
+      - wrong
+      type: object
     model.CreateBillLineRequest:
       description: CreateBillLineRequest representation used by this API.
       properties:
@@ -6874,7 +7034,7 @@ tags:
   name: Auth Policy
 - description: Browser bill placement, lookup, and administrator void/refund actions.
   name: Bill
-- description: Public color standings and group-stage results derived from completed matches.
+- description: Public color standings and group-stage results derived from completed matches, plus color rankings by member coins and by correct predictions.
   name: Color
 - description: Daily rewards, slot-machine spins, and steal-token actions.
   name: Event
