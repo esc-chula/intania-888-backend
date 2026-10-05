@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"go.uber.org/zap"
+
+	"github.com/esc-chula/intania-888-backend/internal/catalogueid"
 )
 
 // Service provides the venue catalogue and validates management operations.
@@ -38,7 +40,7 @@ func (s *Service) GetAllLocations(ctx context.Context) ([]*Location, error) {
 
 // GetLocation returns one venue by its stable ID.
 func (s *Service) GetLocation(ctx context.Context, id string) (*Location, error) {
-	if !validID(id) {
+	if !catalogueid.Valid(id) {
 		return nil, ErrInvalidLocation
 	}
 
@@ -47,7 +49,7 @@ func (s *Service) GetLocation(ctx context.Context, id string) (*Location, error)
 
 // CreateLocation validates an immutable ID and normalizes the display title.
 func (s *Service) CreateLocation(ctx context.Context, input Location) (*Location, error) {
-	if !validID(input.ID) {
+	if !catalogueid.Valid(input.ID) {
 		return nil, ErrInvalidLocation
 	}
 
@@ -62,7 +64,7 @@ func (s *Service) CreateLocation(ctx context.Context, input Location) (*Location
 
 // UpdateLocation changes only the title of an existing venue.
 func (s *Service) UpdateLocation(ctx context.Context, id, title string) (*Location, error) {
-	if !validID(id) {
+	if !catalogueid.Valid(id) {
 		return nil, ErrInvalidLocation
 	}
 
@@ -76,7 +78,7 @@ func (s *Service) UpdateLocation(ctx context.Context, id, title string) (*Locati
 
 // DeleteLocation removes a venue only when database constraints permit it.
 func (s *Service) DeleteLocation(ctx context.Context, id string) error {
-	if !validID(id) {
+	if !catalogueid.Valid(id) {
 		return ErrInvalidLocation
 	}
 

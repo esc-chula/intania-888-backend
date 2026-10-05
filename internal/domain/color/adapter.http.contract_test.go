@@ -39,8 +39,8 @@ func (s *contractService) GetGroupStageTable(ctx context.Context, typeID, groupI
 }
 
 func TestColorHTTPPreservesRowsEmptyListsFiltersAndContext(t *testing.T) {
-	const typeID = "sport.type:1"
-	const groupID = "group.1:all"
+	const typeID = "sport_TYPE-1"
+	const groupID = "group_1-all"
 	tests := []struct {
 		name string
 		path string
@@ -136,6 +136,24 @@ func TestColorHTTPPreservesValidationAndDependencyErrorContract(t *testing.T) {
 		{"empty group", "/colors/group-stage?group_id=", nil, 400, "INVALID_REQUEST", 0},
 		{"long type", "/colors/leaderboards?type_id=" + strings.Repeat("a", 101), nil, 400, "INVALID_REQUEST", 0},
 		{"long group", "/colors/group-stage?group_id=" + strings.Repeat("a", 101), nil, 400, "INVALID_REQUEST", 0},
+		{"space type_id", "/colors/leaderboards?type_id=%20S%20", nil, 400, "INVALID_REQUEST", 0},
+		{"space type_id", "/colors/group-stage?type_id=%20S%20", nil, 400, "INVALID_REQUEST", 0},
+		{"space group_id", "/colors/group-stage?group_id=%20S%20", nil, 400, "INVALID_REQUEST", 0},
+		{"slash type_id", "/colors/leaderboards?type_id=a%2Fb", nil, 400, "INVALID_REQUEST", 0},
+		{"slash type_id", "/colors/group-stage?type_id=a%2Fb", nil, 400, "INVALID_REQUEST", 0},
+		{"slash group_id", "/colors/group-stage?group_id=a%2Fb", nil, 400, "INVALID_REQUEST", 0},
+		{"question type_id", "/colors/leaderboards?type_id=a%3Fb", nil, 400, "INVALID_REQUEST", 0},
+		{"question type_id", "/colors/group-stage?type_id=a%3Fb", nil, 400, "INVALID_REQUEST", 0},
+		{"question group_id", "/colors/group-stage?group_id=a%3Fb", nil, 400, "INVALID_REQUEST", 0},
+		{"percent type_id", "/colors/leaderboards?type_id=a%25b", nil, 400, "INVALID_REQUEST", 0},
+		{"percent type_id", "/colors/group-stage?type_id=a%25b", nil, 400, "INVALID_REQUEST", 0},
+		{"percent group_id", "/colors/group-stage?group_id=a%25b", nil, 400, "INVALID_REQUEST", 0},
+		{"NUL type_id", "/colors/leaderboards?type_id=a%00b", nil, 400, "INVALID_REQUEST", 0},
+		{"NUL type_id", "/colors/group-stage?type_id=a%00b", nil, 400, "INVALID_REQUEST", 0},
+		{"NUL group_id", "/colors/group-stage?group_id=a%00b", nil, 400, "INVALID_REQUEST", 0},
+		{"control type_id", "/colors/leaderboards?type_id=a%7Fb", nil, 400, "INVALID_REQUEST", 0},
+		{"control type_id", "/colors/group-stage?type_id=a%7Fb", nil, 400, "INVALID_REQUEST", 0},
+		{"control group_id", "/colors/group-stage?group_id=a%7Fb", nil, 400, "INVALID_REQUEST", 0},
 		{"storage failure", "/colors/leaderboards", errors.New("database secret"), 500, "INTERNAL_ERROR", 1},
 	}
 	for _, test := range tests {
