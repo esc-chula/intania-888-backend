@@ -8,7 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// HTTPHandler exposes color, group-stage, and member-based ranking queries.
+// HTTPHandler exposes color, group-stage, and team ranking queries.
 type HTTPHandler struct {
 	service ServicePort
 }
@@ -43,7 +43,7 @@ func (h *HTTPHandler) GetAllLeaderboards(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(responses(colors))
 }
 
-// GetCoinRanking returns colors ordered by the total coins of their members.
+// GetCoinRanking returns colors ordered by team coins, highest first.
 func (h *HTTPHandler) GetCoinRanking(c *fiber.Ctx) error {
 	rows, err := h.service.GetCoinRanking(c.UserContext())
 	if err != nil {
@@ -53,7 +53,7 @@ func (h *HTTPHandler) GetCoinRanking(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(coinRankResponses(rows))
 }
 
-// GetPredictionRanking returns colors ordered by the correct predictions of their members.
+// GetPredictionRanking returns colors ordered by the correct bets of their members, highest first.
 func (h *HTTPHandler) GetPredictionRanking(c *fiber.Ctx) error {
 	rows, err := h.service.GetPredictionRanking(c.UserContext())
 	if err != nil {

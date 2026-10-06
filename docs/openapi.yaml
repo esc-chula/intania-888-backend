@@ -2433,7 +2433,7 @@ paths:
   /colors/leaderboards/coins:
     get:
       operationId: getColorCoinRanking
-      description: Returns every color ranked by the total coins of USER members in all of its groups, highest first; ties break by color ID. Colors without members total 0.00. No session is required. Account allowlist and blacklist checks do not apply. Browser
+      description: Returns every color ranked by its team coins, highest first; ties break by color ID. For each decided match, only the color's members who bet on it vote. When more of those bettors picked the winner than the loser, the color earns the fixed per-match award (a tie earns nothing, and the margin does not matter). The total is kept on the color and every change is recorded in an append-only ledger, which is corrected when a bill is voided. Drawn matches award nothing. Colors with no awards total 0.00. No session is required. Account allowlist and blacklist checks do not apply. Browser
         requests with an Origin must use one configured on the server.
       responses:
         '200':
@@ -2488,7 +2488,7 @@ paths:
   /colors/leaderboards/predictions:
     get:
       operationId: getColorPredictionRanking
-      description: Returns every color ranked by correct predictions of its members, highest first, then fewer wrong predictions, then color ID. Predictions are counted per bill line, only for settled (WON or LOST) bills whose match has a winner; drawn, undecided, pending, and voided lines are not counted. No session is required. Account allowlist and blacklist checks do not apply. Browser
+      description: Returns every color ranked by the correct bets of its members, highest first, then fewer wrong bets, then color ID. Each bet counts once, whether or not the color won the vote on that match, for every match that has a winner. Bets on drawn or undecided matches and bets in voided bills are not counted. No session is required. Account allowlist and blacklist checks do not apply. Browser
         requests with an Origin must use one configured on the server.
       responses:
         '200':
@@ -6140,20 +6140,17 @@ components:
         id:
           description: Color ID.
           type: string
-        member_count:
-          type: integer
         rank:
           description: Position starting at 1.
           type: integer
         title:
           type: string
         total_coin:
-          description: Sum of member balances as a JSON string with two fractional digits.
-          example: '12345.00'
+          description: Team coins earned, as a JSON string with two fractional digits.
+          example: '300.00'
           type: string
       required:
       - id
-      - member_count
       - rank
       - total_coin
       type: object

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
@@ -20,8 +21,9 @@ type Repository interface {
 
 // TransactionManager runs bill transitions against one database transaction.
 type TransactionManager interface {
-	// WithinTransaction commits successful callbacks and rolls back failures.
-	WithinTransaction(context.Context, func(TransactionRepository) error) error
+	// WithinTransaction commits successful callbacks and rolls back failures. The team coin
+	// repository handed to the callback shares the same transaction.
+	WithinTransaction(context.Context, func(TransactionRepository, teamcoin.Repository) error) error
 }
 
 // TransactionRepository is valid only inside its transaction callback.
@@ -50,6 +52,12 @@ type TransactionRepository interface {
 	UpdateBalance(context.Context, string, value.Money) error
 	// CreateTerminalEvent inserts a void audit event in the same transaction.
 	CreateTerminalEvent(context.Context, TerminalEvent) error
+}
+
+// TeamCoins corrects the team coin ledger when a bill is voided.
+type TeamCoins interface {
+	// Adjust re-evaluates a decided match's ledger after billID was voided.
+	Adjust(ctx context.Context, repo teamcoin.Repository, matchID, billID string) error
 }
 
 // HTTPService is the bill use cases consumed by the HTTP adapter.

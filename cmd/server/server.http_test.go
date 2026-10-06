@@ -60,6 +60,10 @@ func (c swaggerTestConfig) GetDailyReward() config.DailyReward {
 	return config.DailyReward{}
 }
 
+func (c swaggerTestConfig) GetTeamCoin() config.TeamCoin {
+	return config.TeamCoin{}
+}
+
 func newSwaggerTestServer(t *testing.T, swaggerConfig config.Swagger) *FiberHTTPServer {
 	t.Helper()
 

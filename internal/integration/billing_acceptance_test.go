@@ -17,6 +17,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/bill"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/testutil"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
@@ -45,13 +46,16 @@ func newBillingSuite(t *testing.T) *billingSuite {
 		}
 	})
 
+	// The fixed per-match team coin award used by the integration suites.
+	teamCoinsSvc := teamcoin.NewService(value.MustMoneyFromMinor(100_00), time.Now, uuid.NewString)
+
 	billRepo := bill.NewGORMRepository(postgres.DB)
 	matchRepo := match.NewGORMRepository(postgres.DB)
 
 	return &billingSuite{
 		postgres: postgres,
-		bills:    bill.NewService(billRepo, billRepo, time.Now, uuid.NewString),
-		matches:  match.NewService(matchRepo, matchRepo, time.Now, uuid.NewString),
+		bills:    bill.NewService(billRepo, billRepo, time.Now, uuid.NewString, teamCoinsSvc),
+		matches:  match.NewService(matchRepo, matchRepo, time.Now, uuid.NewString, teamCoinsSvc),
 	}
 }
 
@@ -1000,7 +1004,7 @@ func TestBillTransactionCallbackRollsBackBalanceOnError(t *testing.T) {
 	suite.reset(t)
 	repository := bill.NewGORMRepository(suite.postgres.DB)
 	cause := errors.New("reject callback")
-	err := repository.WithinTransaction(context.Background(), func(tx bill.TransactionRepository) error {
+	err := repository.WithinTransaction(context.Background(), func(tx bill.TransactionRepository, _ teamcoin.Repository) error {
 		if _, err := tx.LockBalance(context.Background(), "U1"); err != nil {
 			return err
 		}
@@ -1027,7 +1031,7 @@ func TestMatchTransactionCallbackRollsBackResultAndBalanceOnError(t *testing.T) 
 	suite.reset(t)
 	repository := match.NewGORMRepository(suite.postgres.DB)
 	cause := errors.New("reject callback")
-	err := repository.WithinTransaction(context.Background(), func(tx match.TransactionRepository) error {
+	err := repository.WithinTransaction(context.Background(), func(tx match.TransactionRepository, _ teamcoin.Repository) error {
 		if err := tx.AcquireLifecycleLock(context.Background()); err != nil {
 			return err
 		}

@@ -3,6 +3,8 @@ package bill
 import (
 	"context"
 	"strings"
+
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 )
 
 // VoidBill atomically refunds a pending bill and records its audit event.
@@ -16,7 +18,7 @@ func (s *Service) VoidBill(ctx context.Context, id, actor, reason string) (*Resu
 
 	var bill *Result
 
-	err := s.transactions.WithinTransaction(ctx, func(tx TransactionRepository) error {
+	err := s.transactions.WithinTransaction(ctx, func(tx TransactionRepository, team teamcoin.Repository) error {
 		if err := tx.AcquireLifecycleLock(ctx); err != nil {
 			return err
 		}
@@ -74,6 +76,15 @@ func (s *Service) VoidBill(ctx context.Context, id, actor, reason string) (*Resu
 		if err := tx.CreateTerminalEvent(ctx, event); err != nil {
 			return err
 		}
+
+		// The voided bets no longer count toward their color's vote on matches that
+		// already have a result, so bring the team coin ledger back in line.
+		for _, matchID := range matchIDs {
+			if err := s.teamCoinsSvc.Adjust(ctx, team, matchID, bill.ID); err != nil {
+				return err
+			}
+		}
+
 		bill.Status = StatusVoided
 		payout := bill.Total
 		bill.Payout = &payout

@@ -1,0 +1,105 @@
+package teamcoin
+
+import (
+	"context"
+	"fmt"
+
+	"gorm.io/gorm"
+
+	persistence "github.com/esc-chula/intania-888-backend/internal/persistence/model"
+)
+
+// GORMRepository implements Repository on a database handle, normally a transaction.
+type GORMRepository struct {
+	db *gorm.DB
+}
+
+// NewGORMRepository binds the ledger queries to db. Pass the caller's transaction handle.
+func NewGORMRepository(db *gorm.DB) *GORMRepository {
+	return &GORMRepository{db: db}
+}
+
+// TeamVoteTallies counts bets per color on a match that has a winner. Only USER
+// accounts that belong to a group have a color. Voided bills are excluded, but
+// colors whose bets were all voided still appear so a stale ledger row gets corrected.
+func (s *GORMRepository) TeamVoteTallies(ctx context.Context, matchID string) ([]Tally, error) {
+	var rows []Tally
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT g.color_id AS color_id,
+			COUNT(DISTINCT u.id) FILTER (WHERE bh.status <> 'VOIDED' AND bl.betting_on = m.winner_id) AS vote_right,
+			COUNT(DISTINCT u.id) FILTER (WHERE bh.status <> 'VOIDED' AND bl.betting_on <> m.winner_id) AS vote_wrong,
+			COUNT(*) FILTER (WHERE bh.status <> 'VOIDED' AND bl.betting_on = m.winner_id) AS bets_right,
+			COUNT(*) FILTER (WHERE bh.status <> 'VOIDED' AND bl.betting_on <> m.winner_id) AS bets_wrong
+		FROM bill_lines bl
+		JOIN bill_heads bh ON bh.id = bl.bill_id
+		JOIN matches m ON m.id = bl.match_id AND m.winner_id IS NOT NULL
+		JOIN users u ON u.id = bh.user_id AND u.role_id = 'USER'
+		JOIN intania_groups g ON g.id = u.group_id
+		WHERE bl.match_id = ?
+		GROUP BY g.color_id
+	`, matchID).Scan(&rows).Error
+
+	return rows, err
+}
+
+// TeamCoinBalances sums the ledger rows per color for a match.
+func (s *GORMRepository) TeamCoinBalances(ctx context.Context, matchID string) ([]Balance, error) {
+	var rows []Balance
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT color_id AS color_id,
+			COALESCE(SUM(amount_delta), 0)::bigint AS amount,
+			COALESCE(SUM(bets_right_delta), 0)::bigint AS bets_right,
+			COALESCE(SUM(bets_wrong_delta), 0)::bigint AS bets_wrong
+		FROM team_coin_events
+		WHERE match_id = ?
+		GROUP BY color_id
+	`, matchID).Scan(&rows).Error
+
+	return rows, err
+}
+
+// CreateTeamCoinEvents inserts the ledger rows and applies their deltas to the
+// colors totals. Callers run it inside a transaction so the two never diverge.
+func (s *GORMRepository) CreateTeamCoinEvents(ctx context.Context, events []Event) error {
+	rows := make([]persistence.TeamCoinEvent, len(events))
+	for i, event := range events {
+		var billID *string
+		if event.BillID != "" {
+			id := event.BillID
+			billID = &id
+		}
+		rows[i] = persistence.TeamCoinEvent{
+			ID:             event.ID,
+			MatchID:        event.MatchID,
+			ColorID:        event.ColorID,
+			Kind:           event.Kind,
+			BillID:         billID,
+			AmountDelta:    event.AmountDelta,
+			BetsRightDelta: int(event.BetsRightDelta),
+			BetsWrongDelta: int(event.BetsWrongDelta),
+			VoteRight:      int(event.VoteRight),
+			VoteWrong:      int(event.VoteWrong),
+			CreatedAt:      event.CreatedAt,
+		}
+	}
+
+	if err := s.db.WithContext(ctx).Create(&rows).Error; err != nil {
+		return err
+	}
+
+	for _, event := range events {
+		result := s.db.WithContext(ctx).Exec(`
+			UPDATE colors
+			SET team_coin = team_coin + ?, bets_right = bets_right + ?, bets_wrong = bets_wrong + ?
+			WHERE id = ?
+		`, event.AmountDelta, event.BetsRightDelta, event.BetsWrongDelta, event.ColorID)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return fmt.Errorf("update team coin totals: color %q not found", event.ColorID)
+		}
+	}
+
+	return nil
+}

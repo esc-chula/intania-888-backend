@@ -29,7 +29,9 @@ type Role struct {
 	Users []User `gorm:"foreignKey:RoleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
-// Color maps a team color. Leaderboard queries also populate its aggregate
+// Color maps a team color. TeamCoin uses hundredth units; it and the right/wrong
+// bet counts are running totals that the team coin ledger updates in the same
+// transaction as each event. Leaderboard queries also populate its aggregate
 // match, win, and draw counts.
 type Color struct {
 	ID        string    `gorm:"primaryKey;type:varchar(100)"`
@@ -47,6 +49,10 @@ type Color struct {
 	TotalMatches int `gorm:"type:int;"`
 	Won          int `gorm:"type:int;"`
 	Drawn        int `gorm:"type:int;"`
+
+	TeamCoin  int64 `gorm:"column:team_coin;type:bigint;not null;default:0"`
+	BetsRight int64 `gorm:"column:bets_right;type:bigint;not null;default:0"`
+	BetsWrong int64 `gorm:"column:bets_wrong;type:bigint;not null;default:0"`
 }
 
 // IntaniaGroup maps account membership groups and their team color.
@@ -256,4 +262,21 @@ type BillTerminalEvent struct {
 	ActorID   *string   `gorm:"type:varchar(100)"`
 	Reason    *string   `gorm:"type:varchar(500)"`
 	CreatedAt time.Time ``
+}
+
+// TeamCoinEvent maps one append-only change to a color's team coins for a match.
+// AmountDelta uses hundredth units and may be negative on ADJUSTED rows; the
+// BillID is set only on ADJUSTED rows and names the voided bill that caused them.
+type TeamCoinEvent struct {
+	ID             string    `gorm:"primaryKey;type:varchar(100)"`
+	MatchID        string    `gorm:"type:varchar(100);not null"`
+	ColorID        string    `gorm:"type:varchar(100);not null"`
+	Kind           string    `gorm:"type:varchar(20);not null"`
+	BillID         *string   `gorm:"type:varchar(100)"`
+	AmountDelta    int64     `gorm:"type:bigint;not null"`
+	BetsRightDelta int       `gorm:"type:integer;not null"`
+	BetsWrongDelta int       `gorm:"type:integer;not null"`
+	VoteRight      int       `gorm:"type:integer;not null"`
+	VoteWrong      int       `gorm:"type:integer;not null"`
+	CreatedAt      time.Time ``
 }

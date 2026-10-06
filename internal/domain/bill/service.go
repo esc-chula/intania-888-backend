@@ -9,6 +9,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/betting"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
@@ -18,15 +19,18 @@ type Service struct {
 	transactions TransactionManager
 	now          func() time.Time
 	newID        func() string
+	teamCoinsSvc TeamCoins
 }
 
 // NewService constructs bill use cases with explicit persistence, clock, and ID dependencies.
-func NewService(repo Repository, transactions TransactionManager, now func() time.Time, newID func() string) *Service {
+// teamCoinsSvc corrects the team coin ledger when a bill is voided.
+func NewService(repo Repository, transactions TransactionManager, now func() time.Time, newID func() string, teamCoinsSvc TeamCoins) *Service {
 	return &Service{
 		repo:         repo,
 		transactions: transactions,
 		now:          now,
 		newID:        newID,
+		teamCoinsSvc: teamCoinsSvc,
 	}
 }
 
@@ -51,7 +55,7 @@ func (s *Service) CreateBill(ctx context.Context, userID string, req *CreateInpu
 
 	var made Result
 
-	err := s.transactions.WithinTransaction(ctx, func(tx TransactionRepository) error {
+	err := s.transactions.WithinTransaction(ctx, func(tx TransactionRepository, _ teamcoin.Repository) error {
 		if err := tx.AcquireLifecycleLock(ctx); err != nil {
 			return err
 		}
