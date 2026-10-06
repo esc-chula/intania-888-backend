@@ -20,11 +20,10 @@ func coinRankResponses(rows []*CoinRank) []*CoinRankResponse {
 	result := make([]*CoinRankResponse, len(rows))
 	for i, row := range rows {
 		result[i] = &CoinRankResponse{
-			Rank:        row.Rank,
-			ID:          row.ID,
-			Title:       row.Title,
-			TotalCoin:   row.TotalCoin,
-			MemberCount: row.MemberCount,
+			Rank:      row.Rank,
+			ID:        row.ID,
+			Title:     row.Title,
+			TotalCoin: row.TotalCoin,
 		}
 	}
 

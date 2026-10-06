@@ -72,6 +72,10 @@ func (c applicationAuthConfig) GetDailyReward() config.DailyReward {
 	return config.DailyReward{}
 }
 
+func (c applicationAuthConfig) GetTeamCoin() config.TeamCoin {
+	return config.TeamCoin{}
+}
+
 type applicationUsers struct {
 	mu    sync.Mutex
 	users map[string]identity.User

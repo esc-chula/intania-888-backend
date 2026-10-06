@@ -21,6 +21,8 @@ type Config interface {
 	GetCORS() CORS
 	// GetDailyReward returns the default daily reward as a decimal money string.
 	GetDailyReward() DailyReward
+	// GetTeamCoin returns the fixed team-coin award per won match vote as a decimal money string.
+	GetTeamCoin() TeamCoin
 }
 
 const (
@@ -85,6 +87,12 @@ type Session struct {
 // DailyReward contains the default daily reward amount as a decimal money string.
 type DailyReward struct {
 	DefaultAmount string `mapstructure:"daily_reward_default_amount"`
+}
+
+// TeamCoin contains the fixed award a color earns for each match it wins by vote,
+// as a decimal money string.
+type TeamCoin struct {
+	PerMatchWin string `mapstructure:"team_coin_per_match_win"`
 }
 
 // Swagger controls documentation routes and their optional Basic authentication.

@@ -22,6 +22,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/policy"
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
@@ -47,6 +48,10 @@ func run() (runErr error) {
 	defaultDailyReward, err := value.ParseMoney(cfg.GetDailyReward().DefaultAmount)
 	if err != nil {
 		return fmt.Errorf("invalid DAILY_REWARD_DEFAULT_AMOUNT: %w", err)
+	}
+	teamCoinAward, err := value.ParseMoney(cfg.GetTeamCoin().PerMatchWin)
+	if err != nil {
+		return fmt.Errorf("invalid TEAM_COIN_PER_MATCH_WIN (set it to a decimal such as 100.00): %w", err)
 	}
 
 	isProduction := strings.EqualFold(strings.TrimSpace(cfg.GetServer().Env), "production")
@@ -120,12 +125,14 @@ func run() (runErr error) {
 	authHTTP := auth.NewHTTPHandler(authSvc, midHTTP, cfg, isProduction)
 	authHTTP.ConfigureApplications(authSvc, cacheClient)
 
+	teamCoinsSvc := teamcoin.NewService(teamCoinAward, time.Now, uuid.NewString)
+
 	billRepo := bill.NewGORMRepository(db)
-	billSvc := bill.NewService(billRepo, billRepo, time.Now, uuid.NewString)
+	billSvc := bill.NewService(billRepo, billRepo, time.Now, uuid.NewString, teamCoinsSvc)
 	billHTTP := bill.NewHTTPHandler(billSvc)
 
 	matchRepo := match.NewGORMRepository(db)
-	matchSvc := match.NewService(matchRepo, matchRepo, time.Now, uuid.NewString)
+	matchSvc := match.NewService(matchRepo, matchRepo, time.Now, uuid.NewString, teamCoinsSvc)
 	matchHTTP := match.NewHTTPHandler(matchSvc)
 
 	colorRepo := color.NewGORMRepository(db)

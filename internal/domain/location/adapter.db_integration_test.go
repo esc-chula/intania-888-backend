@@ -78,7 +78,7 @@ func TestLocationPostgresCRUDAndMatchForeignKey(t *testing.T) {
 	}
 	results, err := match.NewService(matchRepo, matchRepo, time.Now, func() string {
 		return "unused"
-	}).GetMatch(ctx, "MATCH")
+	}, nil).GetMatch(ctx, "MATCH")
 	if err != nil || results.LocationID != "VENUE" || results.LocationTitle != "New venue" {
 		t.Fatalf("match location = %+v; err=%v", results, err)
 	}

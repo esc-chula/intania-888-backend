@@ -3,10 +3,12 @@ package match
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
@@ -34,13 +36,14 @@ func TestRateForRejectsInvalidAndOverflowingCounts(t *testing.T) {
 
 type settlementManagerFake struct {
 	transaction TransactionRepository
+	team        teamcoin.Repository
 	context     context.Context
 }
 
-func (f *settlementManagerFake) WithinTransaction(ctx context.Context, callback func(TransactionRepository) error) error {
+func (f *settlementManagerFake) WithinTransaction(ctx context.Context, callback func(TransactionRepository, teamcoin.Repository) error) error {
 	f.context = ctx
 
-	return callback(f.transaction)
+	return callback(f.transaction, f.team)
 }
 
 type settlementRepositoryFake struct {
@@ -51,6 +54,8 @@ type settlementRepositoryFake struct {
 	settlements    []BillSettlement
 	events         []TerminalEvent
 	credited       value.Money
+	tallies        []teamcoin.Tally
+	teamCoinEvents []teamcoin.Event
 }
 
 func (f *settlementRepositoryFake) AcquireLifecycleLock(context.Context) error {
@@ -116,6 +121,20 @@ func (f *settlementRepositoryFake) SettleBill(_ context.Context, item BillSettle
 	return nil
 }
 
+func (f *settlementRepositoryFake) TeamVoteTallies(context.Context, string) ([]teamcoin.Tally, error) {
+	return f.tallies, nil
+}
+
+func (f *settlementRepositoryFake) TeamCoinBalances(context.Context, string) ([]teamcoin.Balance, error) {
+	return nil, nil
+}
+
+func (f *settlementRepositoryFake) CreateTeamCoinEvents(_ context.Context, events []teamcoin.Event) error {
+	f.teamCoinEvents = append(f.teamCoinEvents, events...)
+
+	return nil
+}
+
 func (f *settlementRepositoryFake) CreateTerminalEvent(_ context.Context, item TerminalEvent) error {
 	f.events = append(f.events, item)
 
@@ -129,13 +148,12 @@ func TestSetResultDrawRefundsStakeAndIsIdempotent(t *testing.T) {
 		TeamAID: &a,
 		TeamBID: &b,
 	}}
-	manager := &settlementManagerFake{transaction: repo}
+	manager := &settlementManagerFake{transaction: repo, team: repo}
 	now := time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)
-	service := NewService(nil, manager, func() time.Time {
-		return now
-	}, func() string {
-		return "audit"
-	})
+	clock := func() time.Time { return now }
+	newID := func() string { return "audit" }
+	service := NewService(nil, manager, clock, newID,
+		teamcoin.NewService(value.MustMoneyFromMinor(100_00), clock, newID))
 	ctx := context.WithValue(context.Background(), contextKey{}, "request")
 	if err := service.SetResult(ctx, "M", &ResultInput{Outcome: "draw"}); err != nil {
 		t.Fatal(err)
@@ -169,3 +187,45 @@ func TestSetResultDrawRefundsStakeAndIsIdempotent(t *testing.T) {
 }
 
 type contextKey struct{}
+
+func TestSetResultRecordsTeamCoinsOnceForWinningVotes(t *testing.T) {
+	a, b := "A", "B"
+	repo := &settlementRepositoryFake{
+		match: Snapshot{ID: "M", TeamAID: &a, TeamBID: &b},
+		tallies: []teamcoin.Tally{
+			{ColorID: "GREEN", VoteRight: 40, VoteWrong: 35, BetsRight: 40, BetsWrong: 35},
+			{ColorID: "PINK", VoteRight: 5, VoteWrong: 5, BetsRight: 5, BetsWrong: 5},
+		},
+	}
+	now := time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)
+	ids := 0
+	clock := func() time.Time { return now }
+	newID := func() string {
+		ids++
+
+		return fmt.Sprintf("id-%d", ids)
+	}
+	service := NewService(nil, &settlementManagerFake{transaction: repo, team: repo}, clock, newID,
+		teamcoin.NewService(value.MustMoneyFromMinor(100_00), clock, newID))
+
+	if err := service.SetResult(context.Background(), "M", &ResultInput{Outcome: "winner", WinnerID: &a}); err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.teamCoinEvents) != 2 {
+		t.Fatalf("team coin events = %#v; want one per color", repo.teamCoinEvents)
+	}
+	green, pink := repo.teamCoinEvents[0], repo.teamCoinEvents[1]
+	if green.ColorID != "GREEN" || green.AmountDelta != 100_00 || green.Kind != teamcoin.KindSettled || green.MatchID != "M" || green.CreatedAt != now {
+		t.Fatalf("green event = %#v", green)
+	}
+	if pink.ColorID != "PINK" || pink.AmountDelta != 0 || pink.BetsRightDelta != 5 || pink.BetsWrongDelta != 5 {
+		t.Fatalf("pink event = %#v; a tie earns nothing but its bets still count", pink)
+	}
+
+	if err := service.SetResult(context.Background(), "M", &ResultInput{Outcome: "winner", WinnerID: &a}); err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.teamCoinEvents) != 2 {
+		t.Fatal("repeated result wrote more team coin events")
+	}
+}

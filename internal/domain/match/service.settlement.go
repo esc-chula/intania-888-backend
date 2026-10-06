@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
@@ -42,7 +43,7 @@ func (s *Service) SetResult(ctx context.Context, id string, req *ResultInput) er
 		return ErrInvalidResult
 	}
 
-	return s.transactions.WithinTransaction(ctx, func(tx TransactionRepository) error {
+	return s.transactions.WithinTransaction(ctx, func(tx TransactionRepository, team teamcoin.Repository) error {
 		if err := tx.AcquireLifecycleLock(ctx); err != nil {
 			return err
 		}
@@ -110,6 +111,12 @@ func (s *Service) SetResult(ctx context.Context, id string, req *ResultInput) er
 			current.IsDraw = false
 		}
 		if err := tx.UpdateResult(ctx, &current, s.now()); err != nil {
+			return err
+		}
+
+		// Team coins depend only on the bets, not on which bills are still pending,
+		// so they are recorded even when no pending bill needs settling.
+		if err := s.teamCoinsSvc.Settle(ctx, team, id); err != nil {
 			return err
 		}
 

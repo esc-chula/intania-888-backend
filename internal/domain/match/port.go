@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
@@ -27,8 +28,9 @@ type Repository interface {
 
 // TransactionManager runs a settlement on one transaction-bound repository.
 type TransactionManager interface {
-	// WithinTransaction commits a successful callback and rolls back failures.
-	WithinTransaction(context.Context, func(TransactionRepository) error) error
+	// WithinTransaction commits a successful callback and rolls back failures. The team coin
+	// repository handed to the callback shares the same transaction.
+	WithinTransaction(context.Context, func(TransactionRepository, teamcoin.Repository) error) error
 }
 
 // TransactionRepository is valid only during its transaction callback.
@@ -57,6 +59,12 @@ type TransactionRepository interface {
 	SettleBill(context.Context, BillSettlement) error
 	// CreateTerminalEvent inserts the audit event in the same transaction.
 	CreateTerminalEvent(context.Context, TerminalEvent) error
+}
+
+// TeamCoins records the team coin ledger for a result inside the settlement transaction.
+type TeamCoins interface {
+	// Settle records the vote result of the match that was just decided.
+	Settle(ctx context.Context, repo teamcoin.Repository, matchID string) error
 }
 
 // HTTPService is the set of use cases consumed by the match HTTP adapter.

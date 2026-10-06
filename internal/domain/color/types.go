@@ -21,16 +21,15 @@ type Standing struct {
 	TotalMatches int64
 }
 
-// CoinStanding is a color's coin total before ranking. It sums the balances of
-// USER accounts in every group that belongs to the color.
+// CoinStanding is a color's team coin total before ranking: the fixed award for
+// each match the color won by vote.
 type CoinStanding struct {
-	ID          string
-	Title       string
-	TotalCoin   value.Money
-	MemberCount int64
+	ID        string
+	Title     string
+	TotalCoin value.Money
 }
 
-// PredictionStanding counts decided bill-line predictions by a color's members.
+// PredictionStanding counts the individual bets of a color's members on decided matches.
 type PredictionStanding struct {
 	ID      string
 	Title   string

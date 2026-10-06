@@ -113,6 +113,20 @@ manage sports through `/api/v1/sport-types/admin`; see the
 [API reference](docs/README.md#sport-type-administration) and
 [frontend migration guide](docs/api-migration-from-main.md#sport-type-frontend-migration).
 
+## Team coins
+
+Each color earns "team coins" for every decided match it wins by vote: among the
+color's members who bet on the match, more must have picked the winner than the
+loser (a tie earns nothing, and the margin does not change the award). The fixed
+award per won vote is `TEAM_COIN_PER_MATCH_WIN` (a decimal such as `100.00`; the
+server refuses to start without it, and the value in `.env.example` is a
+placeholder until the organizer sets the real amount). Awards are written to the
+append-only `team_coin_events` ledger when a match result is set and corrected
+when a bill is voided. The running totals (`team_coin`, `bets_right`,
+`bets_wrong`) live on `colors`, like `users.remaining_coin`, and every ledger
+insert updates them in the same transaction. `GET
+/api/v1/colors/leaderboards/coins` and `/predictions` read those totals.
+
 Integration tests use ports `55432` and `56379` by default. Override
 `TEST_POSTGRES_PORT`, `TEST_REDIS_PORT`, or `TEST_COMPOSE_PROJECT` if those
 resources conflict with another local task. These tests reset their dedicated

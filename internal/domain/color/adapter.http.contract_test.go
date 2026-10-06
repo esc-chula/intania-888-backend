@@ -309,13 +309,13 @@ func (s *rankingHTTPService) GetPredictionRanking(context.Context) ([]*Predictio
 
 func TestRankingHTTPResponseShapes(t *testing.T) {
 	service := &rankingHTTPService{
-		coins: []*CoinRank{{Rank: 1, CoinStanding: CoinStanding{ID: "YELLOW", Title: "สีเหลือง", TotalCoin: money(1234500), MemberCount: 3}}},
+		coins: []*CoinRank{{Rank: 1, CoinStanding: CoinStanding{ID: "YELLOW", Title: "สีเหลือง", TotalCoin: money(1234500)}}},
 		predictions: []*PredictionRank{{
 			Rank: 1, PredictionStanding: PredictionStanding{ID: "YELLOW", Correct: 2, Wrong: 1}, Total: 3, Accuracy: 66.67,
 		}},
 	}
 	tests := []struct{ path, want string }{
-		{"/colors/leaderboards/coins", `[{"rank":1,"id":"YELLOW","title":"สีเหลือง","total_coin":"12345.00","member_count":3}]`},
+		{"/colors/leaderboards/coins", `[{"rank":1,"id":"YELLOW","title":"สีเหลือง","total_coin":"12345.00"}]`},
 		{"/colors/leaderboards/predictions", `[{"rank":1,"id":"YELLOW","correct":2,"wrong":1,"total":3,"accuracy":66.67}]`},
 	}
 	for _, test := range tests {

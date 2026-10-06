@@ -19,6 +19,7 @@ type viperConfig struct {
 	Swagger     `mapstructure:",squash"`
 	CORS        `mapstructure:",squash"`
 	DailyReward `mapstructure:",squash"`
+	TeamCoin    `mapstructure:",squash"`
 }
 
 var (
@@ -158,6 +159,11 @@ func (c *viperConfig) GetDailyReward() DailyReward {
 	return c.DailyReward
 }
 
+// GetTeamCoin returns the fixed team-coin award per won match vote as a decimal money string.
+func (c *viperConfig) GetTeamCoin() TeamCoin {
+	return c.TeamCoin
+}
+
 func bindEnvVars(v *viper.Viper) {
 	bind := func(key, env string) {
 		if err := v.BindEnv(key, env); err != nil {
@@ -192,6 +198,7 @@ func bindEnvVars(v *viper.Viper) {
 	bind("session_idle_ttl_seconds", "SESSION_IDLE_TTL_SECONDS")
 	bind("session_absolute_ttl_seconds", "SESSION_ABSOLUTE_TTL_SECONDS")
 	bind("daily_reward_default_amount", "DAILY_REWARD_DEFAULT_AMOUNT")
+	bind("team_coin_per_match_win", "TEAM_COIN_PER_MATCH_WIN")
 
 	bind("swagger_enabled", "SWAGGER_ENABLED")
 	bind("swagger_require_auth", "SWAGGER_REQUIRE_AUTH")

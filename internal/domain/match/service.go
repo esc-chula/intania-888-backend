@@ -15,15 +15,18 @@ type Service struct {
 	transactions TransactionManager
 	now          func() time.Time
 	newID        func() string
+	teamCoinsSvc TeamCoins
 }
 
 // NewService constructs match use cases with explicit repository, clock, and ID dependencies.
-func NewService(repo Repository, transactions TransactionManager, now func() time.Time, newID func() string) *Service {
+// teamCoinsSvc records the team coin ledger whenever a result is set.
+func NewService(repo Repository, transactions TransactionManager, now func() time.Time, newID func() string, teamCoinsSvc TeamCoins) *Service {
 	return &Service{
 		repo:         repo,
 		transactions: transactions,
 		now:          now,
 		newID:        newID,
+		teamCoinsSvc: teamCoinsSvc,
 	}
 }
 

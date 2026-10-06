@@ -11,6 +11,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/billinglock"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	persistence "github.com/esc-chula/intania-888-backend/internal/persistence/model"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
@@ -23,9 +24,9 @@ func NewGORMRepository(db *gorm.DB) *gormRepository {
 }
 
 // WithinTransaction binds all callback methods to a single GORM transaction.
-func (r *gormRepository) WithinTransaction(ctx context.Context, fn func(TransactionRepository) error) error {
+func (r *gormRepository) WithinTransaction(ctx context.Context, fn func(TransactionRepository, teamcoin.Repository) error) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return fn(&gormRepository{db: tx})
+		return fn(&gormRepository{db: tx}, teamcoin.NewGORMRepository(tx))
 	})
 }
 

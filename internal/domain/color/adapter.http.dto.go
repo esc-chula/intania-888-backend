@@ -12,16 +12,15 @@ type Response struct {
 	TotalMatch int64  `json:"total_matches"`
 }
 
-// CoinRankResponse is the HTTP representation of a color's coin ranking row.
+// CoinRankResponse is the HTTP representation of a color's team coin ranking row.
 type CoinRankResponse struct {
-	Rank        int         `json:"rank"`
-	ID          string      `json:"id"`
-	Title       string      `json:"title,omitempty"`
-	TotalCoin   value.Money `json:"total_coin"`
-	MemberCount int64       `json:"member_count"`
+	Rank      int         `json:"rank"`
+	ID        string      `json:"id"`
+	Title     string      `json:"title,omitempty"`
+	TotalCoin value.Money `json:"total_coin"`
 }
 
-// PredictionRankResponse is the HTTP representation of a color's prediction ranking row.
+// PredictionRankResponse is the HTTP representation of a color's bet accuracy row.
 // Accuracy is a percentage with two decimals.
 type PredictionRankResponse struct {
 	Rank     int     `json:"rank"`

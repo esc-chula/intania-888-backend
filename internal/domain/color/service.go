@@ -9,7 +9,7 @@ import (
 )
 
 // Service derives leaderboard loss counts from completed-match aggregate projections and
-// ranks colors by member coins and predictions.
+// ranks colors by team coins and by their members' correct bets.
 type Service struct {
 	colorRepo Repository
 	log       *zap.Logger

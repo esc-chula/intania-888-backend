@@ -65,6 +65,10 @@ func (c authTestConfig) GetDailyReward() config.DailyReward {
 	return config.DailyReward{}
 }
 
+func (c authTestConfig) GetTeamCoin() config.TeamCoin {
+	return config.TeamCoin{}
+}
+
 type memoryAuthRepository struct {
 	mu      sync.Mutex
 	values  map[string][]byte

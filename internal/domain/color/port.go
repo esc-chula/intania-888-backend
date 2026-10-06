@@ -8,9 +8,9 @@ type ServicePort interface {
 	GetAllLeaderboards(context.Context, string) ([]*Leaderboard, error)
 	// GetGroupStageTable returns standings with optional sport-type and group-stage filters.
 	GetGroupStageTable(context.Context, string, string) ([]*Leaderboard, error)
-	// GetCoinRanking returns colors ordered by total member coins, highest first.
+	// GetCoinRanking returns colors ordered by team coins, highest first.
 	GetCoinRanking(context.Context) ([]*CoinRank, error)
-	// GetPredictionRanking returns colors ordered by correct member predictions, highest first.
+	// GetPredictionRanking returns colors ordered by their members' correct bets, highest first.
 	GetPredictionRanking(context.Context) ([]*PredictionRank, error)
 }
 
@@ -20,9 +20,9 @@ type Repository interface {
 	GetAllLeaderboards(context.Context, string) ([]*Standing, error)
 	// GetGroupStageTable returns standings with optional sport-type and group-stage filters.
 	GetGroupStageTable(context.Context, string, string) ([]*Standing, error)
-	// CoinStandings sums the coins of USER accounts per color; colors without members total zero.
+	// CoinStandings sums the team coin ledger per color; colors with no events total zero.
 	CoinStandings(context.Context) ([]*CoinStanding, error)
-	// PredictionStandings counts bill lines of WON and LOST bills whose match has a winner.
-	// Draws, undecided matches, pending bills, and voided bills are not counted.
+	// PredictionStandings sums the ledger's right and wrong bets per color. Bets on drawn or
+	// undecided matches and bets in voided bills are not counted.
 	PredictionStandings(context.Context) ([]*PredictionStanding, error)
 }

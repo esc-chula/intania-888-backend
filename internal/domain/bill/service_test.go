@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
@@ -83,10 +84,10 @@ type transactionManagerFake struct {
 	calls       int
 }
 
-func (f *transactionManagerFake) WithinTransaction(ctx context.Context, callback func(TransactionRepository) error) error {
+func (f *transactionManagerFake) WithinTransaction(ctx context.Context, callback func(TransactionRepository, teamcoin.Repository) error) error {
 	f.context = ctx
 	f.calls++
-	if err := callback(f.transaction); err != nil {
+	if err := callback(f.transaction, nil); err != nil {
 		return err
 	}
 
@@ -166,7 +167,7 @@ func TestCreateBillUsesAuthoritativeRatesAndTransactionOrder(t *testing.T) {
 		return now
 	}, func() string {
 		return "bill"
-	})
+	}, teamCoinsSvc())
 	ctx := context.WithValue(context.Background(), contextKey{}, "request")
 	input := &CreateInput{
 		Total: value.MustMoneyFromMinor(10000),
@@ -199,6 +200,12 @@ func TestCreateBillUsesAuthoritativeRatesAndTransactionOrder(t *testing.T) {
 	}
 }
 
+// teamCoinsSvc returns the team coin service the services under test are built with; these
+// tests never void a bill, so it is never called.
+func teamCoinsSvc() TeamCoins {
+	return teamcoin.NewService(value.MustMoneyFromMinor(100_00), time.Now, func() string { return "event" })
+}
+
 type contextKey struct{}
 
 func TestCreateBillReturnsNoResultWhenTransactionFails(t *testing.T) {
@@ -220,7 +227,7 @@ func TestCreateBillReturnsNoResultWhenTransactionFails(t *testing.T) {
 				return now
 			}, func() string {
 				return "bill"
-			})
+			}, teamCoinsSvc())
 			result, err := service.CreateBill(context.Background(), "user", &CreateInput{
 				Total: value.MustMoneyFromMinor(10000),
 				Lines: []Selection{{
@@ -239,7 +246,7 @@ func TestCreateBillRejectsDuplicateMatchesBeforeTransaction(t *testing.T) {
 	manager := &transactionManagerFake{}
 	service := NewService(nil, manager, time.Now, func() string {
 		return "bill"
-	})
+	}, teamCoinsSvc())
 	_, err := service.CreateBill(context.Background(), "user", &CreateInput{
 		Total: value.MustMoneyFromMinor(10000),
 		Lines: []Selection{{

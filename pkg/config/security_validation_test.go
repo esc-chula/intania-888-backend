@@ -62,6 +62,10 @@ func (c securityValidationConfig) GetDailyReward() DailyReward {
 	return DailyReward{}
 }
 
+func (c securityValidationConfig) GetTeamCoin() TeamCoin {
+	return TeamCoin{}
+}
+
 func validSecurityConfig(env string) securityValidationConfig {
 	registry := &AuthRegistry{
 		Version: 1,
