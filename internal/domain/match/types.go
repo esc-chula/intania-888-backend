@@ -67,13 +67,13 @@ type ResultInput struct {
 	WinnerID *string
 }
 
-// ScheduleFilter chooses matches before or after their end time.
+// ScheduleFilter chooses matches by end time and recorded completion.
 type ScheduleFilter string
 
 const (
-	// Schedule selects matches whose end time is in the future.
+	// Schedule selects unfinished matches whose end time is in the future.
 	Schedule ScheduleFilter = "schedule"
-	// ScheduleResult selects matches whose end time has passed.
+	// ScheduleResult selects matches that have ended or have a recorded winner or draw.
 	ScheduleResult ScheduleFilter = "result"
 )
 
