@@ -3059,7 +3059,8 @@ paths:
     get:
       operationId: listMatches
       description: Lists fixtures grouped by start date and sport type. Every match includes its assigned location
-        object ({id, title}). Optionally filter by sport-type ID and choose schedule or result grouping. No session
+        object ({id, title}). Optionally filter by sport-type ID and schedule or result selection. With no schedule
+        filter, includes past, ongoing, and upcoming matches. No session
         is required. Account allowlist and blacklist checks do not apply. Browser requests with an Origin must use
         one configured on the server.
       parameters:
@@ -3068,7 +3069,9 @@ paths:
         name: typeId
         schema:
           type: string
-      - description: Select schedule or result grouping.
+      - description: Schedule selects matches with end_time greater than the current server time and no recorded
+          winner or draw. Result selects matches with end_time less than or equal to the current server time or
+          a recorded winner or draw. Scores alone do not indicate completion. Omit to include all matches.
         in: query
         name: schedule
         schema:

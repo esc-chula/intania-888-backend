@@ -58,7 +58,7 @@ func (r *gormRepository) GetByID(ctx context.Context, id string) (*Snapshot, err
 	return &result, nil
 }
 
-// GetAll applies the existing schedule filters and start-time ordering.
+// GetAll filters by sport type, end time, and recorded completion, ordered by start time.
 func (r *gormRepository) GetAll(ctx context.Context, filter *Filter, now time.Time) ([]*Snapshot, error) {
 	var rows []*persistence.Match
 	query := r.db.WithContext(ctx).Preload("Location")
@@ -70,9 +70,9 @@ func (r *gormRepository) GetAll(ctx context.Context, filter *Filter, now time.Ti
 
 		switch filter.Schedule {
 		case Schedule:
-			query = query.Where("end_time > ?", now)
+			query = query.Where("end_time > ? AND winner_id IS NULL AND is_draw = false", now)
 		case ScheduleResult:
-			query = query.Where("end_time <= ?", now)
+			query = query.Where("(end_time <= ? OR winner_id IS NOT NULL OR is_draw = true)", now)
 		}
 	}
 
