@@ -61,7 +61,7 @@ func groupMatchesByDateAndType(matches []*Response) []MatchesByDate {
 		dateMap[date][sportType] = append(dateMap[date][sportType], match)
 	}
 
-	var response []MatchesByDate
+	response := make([]MatchesByDate, 0, len(dateMap))
 
 	// Get all dates and sort them
 	var dates []time.Time
