@@ -73,9 +73,9 @@ func (s *Service) reconcile(ctx context.Context, repo Repository, matchID, kind,
 }
 
 // Plan returns the events needed to move the balances to what the tallies imply,
-// ordered by color. A color wins the vote when more of its bettors picked the
-// winner than the loser; a tie, or no remaining bettors, earns nothing. Colors
-// that only appear in the balances are brought back to zero.
+// ordered by color. A color wins the vote when more of its members' money-backed
+// votes were right than wrong; a tie, or no remaining bettors, earns nothing.
+// Colors that only appear in the balances are brought back to zero.
 func Plan(tallies []Tally, balances []Balance, award int64) []Event {
 	wanted := make(map[string]Tally, len(tallies))
 	colors := make(map[string]struct{}, len(tallies)+len(balances))
