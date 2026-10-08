@@ -90,6 +90,42 @@ func TestGetAllMatchesAcceptsOpaqueTypeID(t *testing.T) {
 	}
 }
 
+func TestGetAllMatchesReturnsEmptyArrayWhenNoMatchesExist(t *testing.T) {
+	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
+	app.Get("/matches", NewHTTPHandler(&matchFilterService{}).GetAllMatches)
+
+	for _, path := range []string{
+		"/matches",
+		"/matches?typeId=S",
+		"/matches?schedule=schedule",
+		"/matches?schedule=result",
+	} {
+		t.Run(path, func(t *testing.T) {
+			response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+
+			if response.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d; want %d", response.StatusCode, http.StatusOK)
+			}
+
+			var body []json.RawMessage
+			if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body == nil || len(body) != 0 {
+				t.Fatalf("body = %#v; want an empty JSON array", body)
+			}
+		})
+	}
+}
+
 func TestGetMatchReturnsStringRatesAndNumericScores(t *testing.T) {
 	zero := 0
 	service := &matchFilterService{result: &Result{
