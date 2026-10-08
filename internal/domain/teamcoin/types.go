@@ -11,8 +11,8 @@ const (
 )
 
 // Tally is one color's current bets on a decided match, excluding voided bills.
-// Vote counts distinct members per side and drives the team vote; Bets counts
-// individual bets and drives the right/wrong accuracy totals.
+// Vote counts each member once based on which side they staked more on; ties are
+// wrong. Bets counts individual bets and drives the right/wrong accuracy totals.
 type Tally struct {
 	ColorID   string
 	VoteRight int64
