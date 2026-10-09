@@ -94,6 +94,7 @@ func (s *Service) StartOAuthLogin(ctx context.Context) (*OAuthLogin, error) {
 			state,
 			oauth2.S256ChallengeOption(verifier),
 			oauth2.SetAuthURLParam("hd", "student.chula.ac.th"),
+			oauth2.SetAuthURLParam("prompt", "select_account"),
 		),
 		State: state,
 	}, nil
