@@ -213,11 +213,12 @@ func (h *ApplicationHTTPHandler) begin(c *fiber.Ctx, tx loginTransaction) error 
 	}
 
 	count := 0
-	c.Request().Header.VisitAllCookie(func(name, value []byte) {
+	for name := range c.Request().Header.Cookies() {
 		if strings.HasPrefix(string(name), h.cookiePrefix()) {
 			count++
 		}
-	})
+	}
+
 	if count >= maxPendingLoginTransactions {
 		return h.localError(c, fiber.StatusTooManyRequests, "Too many pending login attempts; wait for them to expire")
 	}
