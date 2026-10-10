@@ -37,10 +37,14 @@ browser session or run account allowlist/blacklist checks:
 | Sports | `GET /sport-types`, `GET /sport-types/{id}` | Sport catalogue or one `{ id, title }` resource |
 | Standings | `GET /colors/leaderboards`, `GET /colors/group-stage` | Color leaderboards or group-stage standings |
 
-Non-external API routes allow 300 requests per client IP per minute. External
-routes share a 10,000-request-per-minute limit per client ID; `/external/me`
-allows 60 requests per minute per user, and `/external/deduct-coin` allows 10
-requests per minute per user.
+All API routes reaching the limiter share a provisional 60,000-request/minute/IP
+budget with a burst capacity of 2,000. Protected browser routes also allow
+300 requests/minute/account with a burst capacity of 20. External routes allow
+10,000/minute/signed client ID (burst 300); `/external/me` allows 60/minute/user
+(burst 5), and `/external/deduct-coin` allows 10/minute/user (burst 3).
+Dedicated authentication and failure budgets are described in
+[rate limiting](rate-limiting.md). All budgets are per process, use minute windows
+plus continuously refilled burst buckets, and can be overridden in configuration.
 Browser requests with an `Origin` must use an exact configured origin; safe GET
 requests without an `Origin` are accepted. CORS still grants access only to
 configured origins. An unconfigured `Origin` returns `403 FORBIDDEN`, and an
