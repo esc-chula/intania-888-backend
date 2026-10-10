@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// RatePolicy combines a sliding minute allowance with an immediate burst capacity.
+// RatePolicy sets a token bucket's sustained refill rate per minute and burst capacity.
 type RatePolicy struct {
 	PerMinute int `mapstructure:"per_minute"`
 	Burst     int `mapstructure:"burst"`

@@ -43,8 +43,8 @@ budget with a burst capacity of 2,000. Protected browser routes also allow
 10,000/minute/signed client ID (burst 300); `/external/me` allows 60/minute/user
 (burst 5), and `/external/deduct-coin` allows 10/minute/user (burst 3).
 Dedicated authentication and failure budgets are described in
-[rate limiting](rate-limiting.md). All budgets are per process, use minute windows
-plus continuously refilled burst buckets, and can be overridden in configuration.
+[rate limiting](rate-limiting.md). All budgets use one token bucket per identity and process; minute values are
+sustained refill rates, not window counts. Configuration overrides are supported.
 Browser requests with an `Origin` must use an exact configured origin; safe GET
 requests without an `Origin` are accepted. CORS still grants access only to
 configured origins. An unconfigured `Origin` returns `403 FORBIDDEN`, and an

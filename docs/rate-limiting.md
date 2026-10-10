@@ -11,7 +11,7 @@ outside `/api/v1` do not use these budgets.
 
 ## Policies
 
-| Configuration name | Identity and scope | Requests/minute | Burst capacity |
+| Configuration name | Identity and scope | Refill tokens/minute | Burst capacity |
 | --- | --- | ---: | ---: |
 | `SHARED` | Client IP, across API routes reaching the guard | 60,000 | 2,000 |
 | `BROWSER` | Verified account, protected browser routes | 300 | 20 |
@@ -25,13 +25,19 @@ outside `/api/v1` do not use these budgets.
 | `EXTERNAL_PROFILE` | Active-grant account, `/external/me` across clients | 60 | 5 |
 | `EXTERNAL_TRANSACTION` | Active-grant account, `/external/deduct-coin` across clients | 10 | 3 |
 
-The minute gate uses the weighted previous/current window algorithm. It counts
-attempts reaching that gate, including rejected attempts. The burst bucket starts
-full, refills continuously at `requests_per_minute / 60` tokens per second, and
-caps stored tokens at its burst capacity. Only an attempt admitted by the minute
-gate can consume a burst token; a burst rejection still counts as a minute attempt.
-Idle entries are removed on subsequent traffic after two minutes of inactivity,
-with cleanup scans at most once per minute. No background cleanup worker is needed.
+Each identity has one token bucket, implemented by `golang.org/x/time/rate`.
+The bucket starts with `BURST` tokens, consumes one token per admitted check, and
+refills at `PER_MINUTE / 60` tokens per second up to its burst capacity. Rejected
+checks consume no token and do not extend the cooldown. A check admitted by an
+outer policy still consumes its token if authentication or an inner policy later
+rejects the request.
+
+`PER_MINUTE` is a sustained refill rate, not a strict count in a minute window.
+For example, the transaction policy admits three immediate calls, then one every
+six seconds. Over any interval of `T` seconds, one bucket admits at most
+`BURST + PER_MINUTE * T / 60` calls. This replaces the former weighted-window
+attempt counter. Idle, fully refilled buckets are removed after two minutes of
+inactivity; cleanup scans run at most once per minute on subsequent requests.
 
 **All counters are in memory, per API process.** Restarts reset allowances and
 multiple Cloud Run instances have independent allowances. These policies do not
@@ -82,11 +88,12 @@ policy. Merely selecting Fiber's first forwarding-header address is unsafe.
 
 Budget rejections return the existing `429 TOO_MANY_REQUESTS` API envelope,
 including on OAuth routes. `Retry-After` is a positive integer number of seconds,
-rounded upward. It describes the current limiter's retry delay; concurrent or
+rounded upward. It describes the time until the rejecting bucket has one token; concurrent or
 continued traffic can exhaust the budget again. Clients should back off and avoid
-blindly replaying mutations. Checks provide `X-RateLimit-Limit`,
-`X-RateLimit-Remaining`, and `X-RateLimit-Reset` minute-budget metadata for the
-last checked policy. A burst rejection can occur while minute allowance remains.
+blindly replaying mutations. Headers describe the last checked bucket: `X-RateLimit-Limit` is its burst
+capacity, `X-RateLimit-Remaining` is the number of whole tokens available after
+the check, and `X-RateLimit-Reset` is seconds until the bucket is full, rounded
+upward. The reset value is not the delay before a single retry.
 
 CORS still exposes only `Link` and `X-Request-ID`; exposing retry headers to browser
 JavaScript remains separate work. Rejections produce `http.rate_limit.rejected`

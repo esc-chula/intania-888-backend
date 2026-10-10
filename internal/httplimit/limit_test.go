@@ -40,25 +40,29 @@ func TestBurstRefillAndIndependentKeys(t *testing.T) {
 	}
 }
 
-func TestMinuteWindowAndRejectedAttemptDoesNotConsumeBurst(t *testing.T) {
+func TestTransactionRefillAndRejectedAttemptDoesNotConsumeTokens(t *testing.T) {
 	now := time.Unix(1000, 0)
-	l := newWithClock("test", config.RatePolicy{PerMinute: 2, Burst: 10}, nil, func() time.Time { return now })
+	l := newWithClock("test", config.DefaultRateLimits().ExternalTransaction, nil, func() time.Time { return now })
+	for i := 0; i < 3; i++ {
+		if wait, _, _ := l.take("A"); wait != 0 {
+			t.Fatalf("initial burst wait = %v", wait)
+		}
+	}
+	for i := 0; i < 7; i++ {
+		now = now.Add(6 * time.Second)
+		if wait, _, _ := l.take("A"); wait != 0 {
+			t.Fatalf("sustained refill wait = %v", wait)
+		}
+	}
 	for i := 0; i < 2; i++ {
-		l.take("A")
+		if wait, remaining, _ := l.take("A"); wait != 6*time.Second || remaining != 0 {
+			t.Fatalf("rejected attempt: wait=%v remaining=%d", wait, remaining)
+		}
 	}
-	if wait, _, _ := l.take("A"); wait != time.Minute {
-		t.Fatalf("minute wait = %v", wait)
-	}
-	if got := l.entries["A"].tokens; got != 8 {
-		t.Fatalf("tokens = %v", got)
-	}
-	now = now.Add(60 * time.Second)
-	if wait, _, _ := l.take("A"); wait == 0 {
-		t.Fatal("previous window was not weighted")
-	}
-	now = now.Add(2 * time.Minute)
+
+	now = now.Add(6 * time.Second)
 	if wait, _, _ := l.take("A"); wait != 0 {
-		t.Fatalf("expired window wait = %v", wait)
+		t.Fatalf("advertised retry wait = %v", wait)
 	}
 }
 

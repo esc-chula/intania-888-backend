@@ -284,7 +284,9 @@ allowed Origin, and CSRF token. Public access applies only to the listed reads;
 account, bill, game/history, and admin reads retain their documented access
 requirements. The shared IP guard is now a provisional 60,000 requests/minute/IP (burst 2,000);
 protected browser routes additionally allow 300 requests/minute/account (burst 20).
-See [rate limiting](rate-limiting.md) for authentication and external budgets.
+Minute values now set sustained token refill rates, with the listed burst capacity;
+they are not strict minute-window counts. See [rate limiting](rate-limiting.md)
+for authentication and external budgets.
 For browser requests, a supplied `Origin` must exactly match a configured origin;
 safe GET requests without an `Origin` are accepted. CORS continues to grant only
 configured origins.
@@ -935,7 +937,7 @@ account allowlist or blacklist checks:
 `GET /sport-types` existed in both compared revisions; its access policy changed
 from authenticated to public. The single-sport route and the other routes above
 are listed here with their current access behavior. Origin checks and the global
-200-requests-per-minute IP limit still apply; see
+configured shared-IP token bucket still applies; see
 [Public shared reads](#public-shared-reads).
 
 ## Migration checklist
