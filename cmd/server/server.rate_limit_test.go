@@ -3,54 +3,51 @@ package server
 import (
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
-	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
-type externalLimiterConfig struct{ swaggerTestConfig }
-
-func (externalLimiterConfig) GetJWT() config.JWT { return config.JWT{AccessTokenSecret: "secret"} }
-
-func TestExternalClientQuotaSharesRoutesAndRejectsInvalidCredentialsSeparately(t *testing.T) {
+func TestExternalClientQuotaSharesRoutesAndSeparatesClients(t *testing.T) {
 	policies := config.DefaultRateLimits()
-	policies.ExternalClient = config.RatePolicy{PerMinute: 1, Burst: 1}
-	policies.InvalidExternal = config.RatePolicy{PerMinute: 1, Burst: 1}
-	cfg := externalLimiterConfig{swaggerTestConfig{rateLimits: &policies, server: config.Server{Name: "888"}}}
+	policies.ExternalClient = config.RatePolicy{
+		PerMinute: 1,
+		Burst:     1,
+	}
+	cfg := swaggerTestConfig{rateLimits: &policies}
 	limits := NewExternalRateLimiters(cfg, zap.NewNop())
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
-	router := app.Group("/external", limits.Client)
-	next := func(c *fiber.Ctx) error { return c.SendStatus(204) }
+	router := app.Group("/external", func(c *fiber.Ctx) error {
+		if err := limits.Client(c, c.Get("X-Test-Client")); err != nil {
+			return err
+		}
+
+		return c.Next()
+	})
+	next := func(c *fiber.Ctx) error {
+		return c.SendStatus(204)
+	}
 	router.Get("/one", next)
 	router.Get("/two", next)
-	tokens := make(map[string]string)
-	for _, client := range []string{"A", "B"} {
-		token, err := security.SignDelegatedToken(security.Delegation{
-			ID: "grant", UserID: "user", ClientID: client, ExpiresAt: time.Now().Add(time.Hour).Unix(),
-		}, "secret", "888", 60)
-		if err != nil {
-			t.Fatal(err)
-		}
-		tokens[client] = token
-	}
+
 	for _, tc := range []struct {
-		path, token string
-		want        int
+		path, client string
+		want         int
 	}{
-		{"/one", "invalid", 401}, {"/two", "invalid", 429},
-		{"/one", tokens["A"], 204}, {"/two", tokens["A"], 429}, {"/two", tokens["B"], 204},
+		{"/one", "A", 204},
+		{"/two", "A", 429},
+		{"/two", "B", 204},
 	} {
 		request := httptest.NewRequest("GET", "/external"+tc.path, nil)
-		request.Header.Set("Authorization", "Bearer "+tc.token)
+		request.Header.Set("X-Test-Client", tc.client)
 		response, err := app.Test(request)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if err := response.Body.Close(); err != nil {
 			t.Fatal(err)
 		}

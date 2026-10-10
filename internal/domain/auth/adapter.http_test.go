@@ -215,7 +215,11 @@ func (s logoutMiddlewareService) GetSession(context.Context, string) (*security.
 	return s.session, s.err
 }
 
-func (s logoutMiddlewareService) VerifyExternalGrant(context.Context, string, string) (string, error) {
+func (s logoutMiddlewareService) VerifyExternalToken(string) (*security.DelegatedClaims, error) {
+	return nil, middleware.ErrExternalMissing
+}
+
+func (s logoutMiddlewareService) VerifyExternalGrant(context.Context, *security.DelegatedClaims, string) (string, error) {
 	return "", nil
 }
 

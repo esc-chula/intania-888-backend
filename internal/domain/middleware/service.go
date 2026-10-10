@@ -84,13 +84,19 @@ func (s *Service) IsBlacklisted(ctx context.Context, email, userID string) (bool
 // ErrExternalScope indicates that a delegated credential lacks a required permission.
 var ErrExternalScope = errors.New("external scope missing")
 
-// VerifyExternalGrant checks the signed credential, active grant and endpoint scope before account queries.
-func (s *Service) VerifyExternalGrant(ctx context.Context, token, scope string) (string, error) {
-	claims, err := security.ParseDelegatedTokenForContext(ctx, token, s.cfg.GetJWT().AccessTokenSecret, s.cfg.GetServer().Name)
+// VerifyExternalToken verifies the signed credential before selecting a client budget.
+func (s *Service) VerifyExternalToken(token string) (*security.DelegatedClaims, error) {
+	claims, err := security.ParseDelegatedToken(token, s.cfg.GetJWT().AccessTokenSecret, s.cfg.GetServer().Name)
 	if err != nil {
-		return "", ErrExternalMissing
+		return nil, ErrExternalMissing
 	}
-	if s.grants == nil || s.cfg.GetOAuth().Registry == nil {
+
+	return claims, nil
+}
+
+// VerifyExternalGrant checks an already verified credential's active grant and scope before account queries.
+func (s *Service) VerifyExternalGrant(ctx context.Context, claims *security.DelegatedClaims, scope string) (string, error) {
+	if claims == nil || s.grants == nil || s.cfg.GetOAuth().Registry == nil {
 		return "", ErrExternalMissing
 	}
 	registry := s.cfg.GetOAuth().Registry

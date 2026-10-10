@@ -24,8 +24,17 @@ func (h *HTTPHandler) RequireExternalScope(scope string, limits ...httplimit.Che
 			return h.rejectExternalCredential(c)
 		}
 
-		id, err := h.service.VerifyExternalGrant(c.UserContext(), token, scope)
+		claims, err := h.service.VerifyExternalToken(token)
+		if err != nil || claims == nil {
+			return h.rejectExternalCredential(c)
+		}
+		if h.externalClientLimit != nil {
+			if err := h.externalClientLimit(c, claims.ClientID); err != nil {
+				return err
+			}
+		}
 
+		id, err := h.service.VerifyExternalGrant(c.UserContext(), claims, scope)
 		if err != nil {
 			if errors.Is(err, ErrExternalScope) {
 				return apierror.New(fiber.StatusForbidden, apierror.CodeForbidden, "Required scope is missing")
@@ -81,5 +90,6 @@ func (h *HTTPHandler) rejectExternalCredential(c *fiber.Ctx) error {
 			return err
 		}
 	}
+
 	return apierror.New(fiber.StatusUnauthorized, apierror.CodeUnauthorized, "Authentication required")
 }

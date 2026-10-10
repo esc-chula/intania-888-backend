@@ -100,9 +100,10 @@ var (
 	verifierPattern  = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
 )
 
-// ConfigureApplications installs the registry-driven protocol while retaining existing resource handlers.
-func (h *HTTPHandler) ConfigureApplications(service *Service, client *cache.RedisClient) {
+// ConfigureApplications installs the registry-driven protocol and its request budgets together.
+func (h *HTTPHandler) ConfigureApplications(service *Service, client *cache.RedisClient, limits RateLimiters) {
 	h.applications = &ApplicationHTTPHandler{
+		limits:     limits,
 		service:    service,
 		sessions:   h.sessions,
 		cache:      client,

@@ -59,7 +59,11 @@ func (s routeAuthService) GetMe(context.Context, string) (*identity.Profile, err
 	}, nil
 }
 
-func (routeAuthService) VerifyExternalGrant(context.Context, string, string) (string, error) {
+func (routeAuthService) VerifyExternalToken(string) (*security.DelegatedClaims, error) {
+	return nil, middleware.ErrExternalMissing
+}
+
+func (routeAuthService) VerifyExternalGrant(context.Context, *security.DelegatedClaims, string) (string, error) {
 	return "", errors.New("external credentials cannot access browser routes")
 }
 

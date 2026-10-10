@@ -124,11 +124,14 @@ func run() (runErr error) {
 		cfg.GetSession().IdleTTLSeconds,
 	)
 	authHTTP := auth.NewHTTPHandler(authSvc, midHTTP, cfg, isProduction)
-	authHTTP.ConfigureApplications(authSvc, cacheClient)
-	authHTTP.ConfigureRateLimits(auth.NewRateLimiters(cfg.GetRateLimits(), logger))
+	authHTTP.ConfigureApplications(
+		authSvc,
+		cacheClient,
+		auth.NewRateLimiters(cfg.GetRateLimits(), logger),
+	)
 	externalRateLimiters := server.NewExternalRateLimiters(cfg, logger)
 	browserLimiter := httplimit.New("browser", cfg.GetRateLimits().Browser, logger)
-	midHTTP.ConfigureRateLimits(browserLimiter.Check, externalRateLimiters.Invalid)
+	midHTTP.ConfigureRateLimits(browserLimiter.Check, externalRateLimiters.Client, externalRateLimiters.Invalid)
 
 	teamCoinsSvc := teamcoin.NewService(teamCoinAward, time.Now, uuid.NewString)
 
@@ -188,7 +191,6 @@ func run() (runErr error) {
 
 	// Share the client-wide limit and attach each user limit beside its route.
 	externalRouter := router.Group("/external")
-	externalRouter.Use(externalRateLimiters.Client)
 	userHTTP.RegisterExternalRoutes(
 		externalRouter,
 		midHTTP.RequireExternalScope,

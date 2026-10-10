@@ -20,6 +20,7 @@ import (
 // HTTPHandler authenticates browser sessions and enforces administrator permissions.
 type HTTPHandler struct {
 	browserLimit         httplimit.Check
+	externalClientLimit  httplimit.Check
 	invalidExternalLimit httplimit.Check
 	service              ServicePort
 	production           bool
@@ -152,8 +153,9 @@ func clearBrowserSessionCookie(c *fiber.Ctx, production bool) {
 	})
 }
 
-// ConfigureRateLimits installs checks at verified-session and rejected-external boundaries.
-func (h *HTTPHandler) ConfigureRateLimits(browser, invalidExternal httplimit.Check) {
+// ConfigureRateLimits installs checks at session, signed-client and rejected-credential boundaries.
+func (h *HTTPHandler) ConfigureRateLimits(browser, externalClient, invalidExternal httplimit.Check) {
 	h.browserLimit = browser
+	h.externalClientLimit = externalClient
 	h.invalidExternalLimit = invalidExternal
 }

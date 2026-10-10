@@ -11,8 +11,10 @@ import (
 type ServicePort interface {
 	// GetSession validates an opaque browser credential and renews its stored idle lifetime.
 	GetSession(context.Context, string) (*security.Session, error)
-	// VerifyExternalGrant validates the credential, active grant, ownership and scope without account queries.
-	VerifyExternalGrant(context.Context, string, string) (string, error)
+	// VerifyExternalToken verifies the credential's signature, kind, issuer, audience and expiry.
+	VerifyExternalToken(string) (*security.DelegatedClaims, error)
+	// VerifyExternalGrant validates an already verified credential's active grant, ownership and scope without account queries.
+	VerifyExternalGrant(context.Context, *security.DelegatedClaims, string) (string, error)
 	// GetExternalProfile loads the account and evaluates its current login policy.
 	GetExternalProfile(context.Context, string) (*identity.Profile, error)
 	// GetMe loads the current account profile used by downstream request handlers.

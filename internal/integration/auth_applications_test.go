@@ -254,7 +254,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 		cfg.GetSession().IdleTTLSeconds,
 	)
 	h := auth.NewHTTPHandler(service, mid, cfg, false)
-	h.ConfigureApplications(service, client)
+	h.ConfigureApplications(service, client, auth.RateLimiters{})
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
 	router := app.Group("/api/v1")
 	h.RegisterRoutes(router, mid.AuthMiddleware)

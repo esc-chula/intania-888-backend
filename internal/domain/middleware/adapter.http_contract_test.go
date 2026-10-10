@@ -31,7 +31,11 @@ func (s *accountFailureService) GetSession(ctx context.Context, _ string) (*secu
 	}, nil
 }
 
-func (s *accountFailureService) VerifyExternalGrant(ctx context.Context, _ string, _ string) (string, error) {
+func (s *accountFailureService) VerifyExternalToken(string) (*security.DelegatedClaims, error) {
+	return &security.DelegatedClaims{ClientID: "games"}, nil
+}
+
+func (s *accountFailureService) VerifyExternalGrant(ctx context.Context, _ *security.DelegatedClaims, _ string) (string, error) {
 	s.contexts = append(s.contexts, ctx)
 
 	return "user", nil

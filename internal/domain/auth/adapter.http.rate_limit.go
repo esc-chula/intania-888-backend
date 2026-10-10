@@ -28,17 +28,12 @@ func NewRateLimiters(policies config.RateLimits, logger *zap.Logger) RateLimiter
 	}
 }
 
-// ConfigureRateLimits installs the authentication handlers before routes are registered.
-func (h *HTTPHandler) ConfigureRateLimits(limits RateLimiters) {
-	if h.applications == nil {
-		panic("configure application authentication before rate limits")
-	}
-	h.applications.limits = limits
-}
-
 func authRateMiddleware(handler fiber.Handler) fiber.Handler {
 	if handler == nil {
-		return func(c *fiber.Ctx) error { return c.Next() }
+		return func(c *fiber.Ctx) error {
+			return c.Next()
+		}
 	}
+
 	return handler
 }
