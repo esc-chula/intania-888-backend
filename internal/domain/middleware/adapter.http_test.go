@@ -73,7 +73,11 @@ func (s fakeMiddlewareService) GetSession(context.Context, string) (*security.Se
 	return s.session, s.sessionErr
 }
 
-func (s fakeMiddlewareService) VerifyExternalGrant(context.Context, string, string) (string, error) {
+func (s fakeMiddlewareService) VerifyExternalToken(string) (*security.DelegatedClaims, error) {
+	return &security.DelegatedClaims{ClientID: "games"}, nil
+}
+
+func (s fakeMiddlewareService) VerifyExternalGrant(context.Context, *security.DelegatedClaims, string) (string, error) {
 	return "user-id", nil
 }
 

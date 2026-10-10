@@ -50,14 +50,13 @@ profile and blacklist queries. Rotating browser sessions cannot reset the accoun
 budget. Public reads remain unauthenticated and use the shared IP guard.
 
 External requests first pass the shared IP guard. Missing or invalid signed
-credentials consume the invalid-external budget and are rejected. Valid signatures
-select the client budget and are cached only within the request. The scope
-middleware verifies the configured application, active grant, ownership, and scope
+credentials consume the invalid-external budget and are rejected. The scope
+middleware verifies the signature once, selects the client budget, then verifies the configured application, active grant, ownership, and scope
 before consuming an account quota. It then loads the account and checks current
 admission and blacklist policies before calling the resource handler. A revoked
 grant cannot exhaust an account's endpoint budget; an invalid scope remains `403`.
 Account-policy denial and storage failures keep their existing authentication or
-dependency responses. No credential validation is skipped by the request cache.
+dependency responses. The verified claims are passed directly to grant validation.
 
 Token and revoke handlers validate Basic credentials against the application
 registry before selecting an application budget, then perform protocol/storage

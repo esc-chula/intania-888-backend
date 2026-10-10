@@ -25,10 +25,19 @@ func (s *limitedAccountService) GetSession(_ context.Context, id string) (*secur
 	return &security.Session{UserID: user, CSRFToken: "csrf"}, nil
 }
 
-func (s *limitedAccountService) VerifyExternalGrant(_ context.Context, token, _ string) (string, error) {
-	if token == "revoked" {
+func (s *limitedAccountService) VerifyExternalToken(token string) (*security.DelegatedClaims, error) {
+	if token == "invalid" {
+		return nil, ErrExternalMissing
+	}
+
+	return &security.DelegatedClaims{ClientID: token, DelegationID: token}, nil
+}
+
+func (s *limitedAccountService) VerifyExternalGrant(_ context.Context, claims *security.DelegatedClaims, _ string) (string, error) {
+	if claims.DelegationID == "revoked" {
 		return "", ErrExternalMissing
 	}
+
 	return "user", nil
 }
 
@@ -66,7 +75,7 @@ func limitedResponse(t *testing.T, app *fiber.App, request *http.Request, want i
 func TestBrowserQuotaSharesSessionsButSeparatesAccountsBeforeQueries(t *testing.T) {
 	service := &limitedAccountService{}
 	handler := NewHTTPHandler(service, false, config.DefaultSessionIdleTTLSeconds)
-	handler.ConfigureRateLimits(httplimit.New("browser", config.RatePolicy{PerMinute: 1, Burst: 1}, nil).Check, nil)
+	handler.ConfigureRateLimits(httplimit.New("browser", config.RatePolicy{PerMinute: 1, Burst: 1}, nil).Check, nil, nil)
 	app := newFiberTestApp()
 	reached := 0
 	app.Get("/private", handler.AuthMiddleware, func(c *fiber.Ctx) error { reached++; return c.SendStatus(204) })
@@ -83,9 +92,12 @@ func TestBrowserQuotaSharesSessionsButSeparatesAccountsBeforeQueries(t *testing.
 	}
 }
 
-func TestRevokedGrantDoesNotConsumeUserQuotaAndQuotaStopsQueries(t *testing.T) {
+func TestRejectedCredentialsDoNotConsumeUserQuotaAndQuotaStopsQueries(t *testing.T) {
 	service := &limitedAccountService{}
 	handler := NewHTTPHandler(service, false, config.DefaultSessionIdleTTLSeconds)
+	client := httplimit.New("client", config.RatePolicy{PerMinute: 1, Burst: 1}, nil)
+	invalid := httplimit.New("invalid", config.RatePolicy{PerMinute: 1, Burst: 1}, nil)
+	handler.ConfigureRateLimits(nil, client.Check, invalid.Check)
 	limit := httplimit.New("profile", config.RatePolicy{PerMinute: 1, Burst: 1}, nil)
 	app := newFiberTestApp()
 	app.Get("/profile", handler.RequireExternalScope(config.ScopeProfileRead, limit.Check), func(c *fiber.Ctx) error {
@@ -94,7 +106,7 @@ func TestRevokedGrantDoesNotConsumeUserQuotaAndQuotaStopsQueries(t *testing.T) {
 	for _, tc := range []struct {
 		token string
 		want  int
-	}{{"revoked", 401}, {"clientA", 204}, {"clientB", 429}} {
+	}{{"invalid", 401}, {"invalid", 429}, {"revoked", 429}, {"clientA", 204}, {"clientA", 429}, {"clientB", 429}} {
 		request := httptest.NewRequest("GET", "/profile", nil)
 		request.Header.Set("Authorization", "Bearer "+tc.token)
 		limitedResponse(t, app, request, tc.want)

@@ -67,7 +67,12 @@ func TestExternalGrantVerificationPrecedesAccountQueries(t *testing.T) {
 			store := &externalGrantStore{grant: tc.record, err: tc.cause}
 			repo := &externalAccountRepository{}
 			service := NewService(repo, store, externalGrantConfig{}, security.DefaultPolicyChecker{})
-			id, err := service.VerifyExternalGrant(context.Background(), token, tc.scope)
+			claims, err := service.VerifyExternalToken(token)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			id, err := service.VerifyExternalGrant(context.Background(), claims, tc.scope)
 			if !errors.Is(err, tc.want) || repo.calls != 0 {
 				t.Fatalf("grant error=%v, account calls=%d", err, repo.calls)
 			}
