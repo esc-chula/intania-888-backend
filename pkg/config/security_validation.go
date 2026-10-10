@@ -15,6 +15,10 @@ func ValidateSecurity(cfg Config) error {
 		return fmt.Errorf("configuration is nil")
 	}
 
+	if err := cfg.GetRateLimits().Validate(); err != nil {
+		return err
+	}
+
 	server := cfg.GetServer()
 	cache := cfg.GetCache()
 	jwt := cfg.GetJWT()

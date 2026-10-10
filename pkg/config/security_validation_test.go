@@ -170,3 +170,7 @@ func TestValidateSecurityRequiresRegisteredFrontendOrigin(t *testing.T) {
 		t.Fatal("ValidateSecurity() accepted a frontend origin not present in CORS_ALLOW_ORIGINS")
 	}
 }
+
+func (c securityValidationConfig) GetRateLimits() RateLimits {
+	return DefaultRateLimits()
+}
