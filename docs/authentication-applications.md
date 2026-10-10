@@ -321,5 +321,6 @@ independent budget. Token exchange and revocation each have a separate verified
 application budget. Invalid Basic credentials share a smaller IP failure budget,
 which valid credentials bypass. Rate rejections use `429 TOO_MANY_REQUESTS` and
 the resource API envelope with `Retry-After`. The five-pending-login guard still
-applies. See [rate limiting](rate-limiting.md) for defaults, burst behavior,
+applies. Minute values are sustained token refill rates rather than window counts.
+See [rate limiting](rate-limiting.md) for defaults, burst behavior,
 configuration, and the Cloud Run rollout checks.

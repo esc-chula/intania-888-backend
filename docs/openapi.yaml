@@ -17,7 +17,7 @@ info:
     \ Token exchange and revocation each allow 2,000/minute/authenticated client (burst 200). Invalid Basic\
     \ credentials share 30/minute/IP (burst 5); invalid external credentials or rejected grants allow 120/minute/IP\
     \ (burst 10). Valid credentials bypass the corresponding failure budget. Each burst bucket refills\
-    \ continuously at its minute allowance divided by 60. All budgets are configurable and per API process.\
+    \ continuously at its configured minute rate divided by 60. Minute values are sustained refill rates, not window counts. All budgets are configurable and per API process.\
     \ Exceeding an applicable budget returns 429 TOO_MANY_REQUESTS with positive Retry-After seconds."
   title: Intania 888 API
   version: 1.0.0-breaking
@@ -2612,7 +2612,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The shared client-IP token bucket was exhausted.
           headers:
             Retry-After:
               description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
@@ -2672,7 +2672,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 200 requests per minute.
+          description: The shared client-IP token bucket was exhausted.
           headers:
             Retry-After:
               description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
@@ -6083,7 +6083,7 @@ paths:
       description: Requires profile.read. The account comes from the delegated bearer token. Returns profile only,
         without csrf_token. The credential must match an active client registration and delegation. Browser Origin
         guard and CSRF do not apply; browser CORS still applies to browser reads. The shared client limit is 10,000
-        requests per minute per client ID; this route allows 60 requests per minute per user.
+        tokens per minute per client ID (burst 300); this route refills 60 tokens per minute per user (burst 5).
       security:
       - BearerAuth: []
       responses:
@@ -6168,8 +6168,8 @@ paths:
       description: Requires coins.spend. Strict JSON amount uses the money-string contract; no user_id is accepted.
         Locks the authenticated account and checks its balance in one 888 database transaction. No idempotency key,
         reservation, refund, or cross-database rollback contract exists; do not blindly retry an ambiguous response.
-        The shared client limit is 10,000 requests per minute per client ID; this route allows 10 requests per minute
-        per user.
+        The shared client bucket refills 10,000 tokens per minute per client ID (burst 300); this route refills 10 tokens
+        per minute per user (burst 3).
       security:
       - BearerAuth: []
       requestBody:
