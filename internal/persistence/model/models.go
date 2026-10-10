@@ -114,12 +114,13 @@ type BillHead struct {
 // BillLine maps a selection using the composite bill/match primary key.
 // Rate is the authoritative rate captured at placement, in millionth units.
 type BillLine struct {
-	BillID    string    `gorm:"primaryKey;type:varchar(100)"`
-	MatchID   string    `gorm:"primaryKey;type:varchar(100)"`
-	Rate      int64     `gorm:"column:rate;type:bigint;not null"`
-	BettingOn string    `gorm:"type:varchar(100);not null"` // color
-	CreatedAt time.Time ``
-	UpdatedAt time.Time ``
+	BillID      string    `gorm:"primaryKey;type:varchar(100)"`
+	MatchID     string    `gorm:"primaryKey;type:varchar(100)"`
+	Rate        int64     `gorm:"column:rate;type:bigint;not null"`
+	BettingOn   string    `gorm:"type:varchar(100);not null"` // color
+	VoteColorID *string   `gorm:"column:vote_color_id;type:varchar(100)"`
+	CreatedAt   time.Time ``
+	UpdatedAt   time.Time ``
 
 	Match Match    `gorm:"foreignKey:MatchID"`
 	Head  BillHead `gorm:"foreignKey:BillID"`

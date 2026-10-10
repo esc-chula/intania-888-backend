@@ -41,15 +41,27 @@ func TestOwnProfileHTTPEndpointsAgainstPostgres(t *testing.T) {
 		t.Fatalf("omitted fields or account balance changed: body=%v", body)
 	}
 
-	status, body = patchProfileRequest(t, app, "/api/v1/users/me", `{"nick_name":null,"group_id":null}`)
+	status, body = patchProfileRequest(t, app, "/api/v1/users/me", `{"nick_name":null}`)
 	if status != http.StatusOK {
 		t.Fatalf("PATCH /users/me null clear status = %d, want %d; body=%v", status, http.StatusOK, body)
 	}
 	if body["name"] != "Updated self" ||
 		body["nick_name"] != nil ||
-		body["group_id"] != nil ||
+		body["group_id"] != "profile-test-group" ||
 		body["remaining_coin"] != "123.45" {
-		t.Fatalf("explicit null fields were not cleared independently: body=%v", body)
+		t.Fatalf("nickname clear changed other profile fields: body=%v", body)
+	}
+
+	for _, path := range []string{"/api/v1/users/me", "/api/v1/users/" + profileTestActorID} {
+		status, body = patchProfileRequest(t, app, path, `{"group_id":null}`)
+		if status != http.StatusBadRequest || body["code"] != "INVALID_REQUEST" {
+			t.Fatalf("PATCH %s accepted self-service group update: status=%d body=%v", path, status, body)
+		}
+	}
+	status, body = patchProfileRequest(t, app, "/api/v1/users/admin/"+profileTestActorID,
+		`{"name":"Rejected user update","group_id":null,"remaining_coin":"123.45"}`)
+	if status != http.StatusForbidden || body["code"] != "FORBIDDEN" {
+		t.Fatalf("non-admin could update group membership: status=%d body=%v", status, body)
 	}
 
 	status, body = patchProfileRequest(t, app, "/api/v1/users/"+profileTestActorID, `{"name":"Updated through legacy route"}`)
@@ -75,6 +87,27 @@ func TestOwnProfileHTTPEndpointsAgainstPostgres(t *testing.T) {
 	}
 	if otherName != "Other user" {
 		t.Fatalf("other user's name = %q, want unchanged", otherName)
+	}
+}
+
+func TestAdminUserAPIAssignsAndClearsGroup(t *testing.T) {
+	postgres := openStakeMinePostgres(t)
+	seedProfileUsers(t, postgres)
+
+	repository := userdomain.NewGORMRepository(postgres.DB)
+	service := userdomain.NewService(repository, zap.NewNop())
+	app := newProfileTestAppForRole(t, service, "profile-admin", "ADMIN")
+
+	status, body := patchProfileRequest(t, app, "/api/v1/users/admin/"+profileTestActorID,
+		`{"name":"Admin changed","group_id":null,"remaining_coin":"123.45"}`)
+	if status != http.StatusOK || body["group_id"] != nil {
+		t.Fatalf("admin group clear = %d %v, want 200 and null group", status, body)
+	}
+
+	status, body = patchProfileRequest(t, app, "/api/v1/users/admin/"+profileTestActorID,
+		`{"name":"Admin changed","group_id":"profile-test-group","remaining_coin":"123.45"}`)
+	if status != http.StatusOK || body["group_id"] != "profile-test-group" {
+		t.Fatalf("admin group assignment = %d %v, want 200 and assigned group", status, body)
 	}
 }
 
@@ -118,19 +151,31 @@ func (r profilePatchInterleavingRepository) PatchProfile(ctx context.Context, ac
 }
 
 func newProfileTestApp(t *testing.T, service userdomain.ServicePort, actorID string) *fiber.App {
+	return newProfileTestAppForRole(t, service, actorID, "USER")
+}
+
+func newProfileTestAppForRole(t *testing.T, service userdomain.ServicePort, actorID, roleID string) *fiber.App {
 	t.Helper()
 
 	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(zap.NewNop())})
 	authenticate := func(c *fiber.Ctx) error {
 		httpidentity.SetProfile(c, &identity.Profile{
 			ID:     actorID,
-			RoleID: "USER",
+			RoleID: roleID,
 		})
 
 		return c.Next()
 	}
 
-	userdomain.NewHTTPHandler(service).RegisterRoutes(app.Group("/api/v1"), authenticate, authenticate)
+	adminOnly := func(c *fiber.Ctx) error {
+		profile := httpidentity.GetProfile(c)
+		if profile == nil || profile.RoleID != "ADMIN" {
+			return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "Administrator access required")
+		}
+
+		return c.Next()
+	}
+	userdomain.NewHTTPHandler(service).RegisterRoutes(app.Group("/api/v1"), authenticate, adminOnly)
 
 	return app
 }

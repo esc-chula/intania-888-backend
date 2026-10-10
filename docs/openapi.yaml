@@ -5387,7 +5387,7 @@ paths:
       operationId: updateUserLegacy
       deprecated: true
       description: Deprecated compatibility alias for PATCH /users/me. The path ID must match the authenticated
-        account; use /users/me for new clients.
+        account; use /users/me for new clients. Group membership is managed through the administrator-only endpoint.
       parameters:
       - description: User ID
         in: path
@@ -5519,7 +5519,7 @@ paths:
     patch:
       operationId: adminUpdateUser
       description: Administrator-only. Updates administrator-editable profile fields and coin balance. Role changes
-        use the operator database workflow.
+        use the operator database workflow. An omitted group_id leaves membership unchanged; a null group_id clears membership.
       parameters:
       - description: User ID
         in: path
@@ -5650,8 +5650,8 @@ paths:
   /users/me:
     patch:
       operationId: updateOwnProfile
-      description: Updates the authenticated account’s supplied name, nick_name, and group_id fields. Omitted fields
-        remain unchanged; nullable nick_name or group_id can be cleared with null.
+      description: Updates the authenticated account’s supplied name and nick_name fields. Omitted fields remain
+        unchanged; nick_name can be cleared with null. Group membership is managed through the administrator-only endpoint.
       parameters:
       - description: Session-bound token returned by GET /auth/me. Required for browser mutations.
         in: header
@@ -6032,10 +6032,11 @@ components:
       - slots
       type: object
     model.AdminUpdateUserDto:
+      additionalProperties: false
       properties:
         group_id:
           nullable: true
-          description: Identifier of the associated resource.
+          description: Group ID to assign; null clears membership; omission leaves membership unchanged.
           type: string
         name:
           type: string
@@ -6972,12 +6973,9 @@ components:
       - message
       type: object
     user.UpdateOwnProfileRequest:
+      additionalProperties: false
       description: UpdateOwnProfileRequest representation used by this API.
       properties:
-        group_id:
-          description: Optional group ID; null clears the current group.
-          nullable: true
-          type: string
         name:
           description: Optional display name.
           type: string

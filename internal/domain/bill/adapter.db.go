@@ -131,6 +131,20 @@ func (r *gormRepository) LockBalance(ctx context.Context, userID string) (value.
 	return value.MustMoneyFromMinor(row.RemainingCoin), nil
 }
 
+// LockVoteColor reads the current group color after LockBalance has locked the user row.
+func (r *gormRepository) LockVoteColor(ctx context.Context, userID string) (*string, error) {
+	var row struct {
+		ColorID *string `gorm:"column:color_id"`
+	}
+	err := r.db.WithContext(ctx).Table("users AS u").
+		Select("g.color_id").
+		Joins("LEFT JOIN intania_groups AS g ON g.id = u.group_id").
+		Where("u.id = ?", userID).
+		Scan(&row).Error
+
+	return row.ColorID, err
+}
+
 // CreateBill writes a head and its lines without writing the nested matches.
 func (r *gormRepository) CreateBill(ctx context.Context, bill *Result) error {
 	row := billToRow(bill)

@@ -18,22 +18,21 @@ type CreateInput struct {
 }
 
 // ProfilePatch contains the editable fields of the authenticated user's profile.
-// A nil Name leaves it unchanged. Nickname and group can be explicitly cleared.
+// A nil Name leaves it unchanged. Nickname can be explicitly cleared.
 type ProfilePatch struct {
 	Name     *string
 	NickName *string
 	// NickNameSet distinguishes an omitted nickname from an explicit nil that clears it.
 	NickNameSet bool
-	GroupID     *string
-	// GroupIDSet distinguishes an omitted group from an explicit nil that clears it.
-	GroupIDSet bool
 }
 
 // AdminUpdateInput describes editable profile fields and the explicit balance.
 // Role changes are performed by the operator database workflow.
 type AdminUpdateInput struct {
-	Name          string
-	NickName      *string
-	GroupID       *string
+	Name     string
+	NickName *string
+	GroupID  *string
+	// GroupIDSet distinguishes an omitted group from an explicit nil that clears it.
+	GroupIDSet    bool
 	RemainingCoin value.Money
 }

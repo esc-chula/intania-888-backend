@@ -143,6 +143,12 @@ func (f *billTransactionFake) LockBalance(context.Context, string) (value.Money,
 	return f.balance, nil
 }
 
+func (f *billTransactionFake) LockVoteColor(context.Context, string) (*string, error) {
+	f.steps = append(f.steps, "vote-color")
+
+	return nil, nil
+}
+
 func (f *billTransactionFake) CreateBill(_ context.Context, bill *Result) error {
 	f.steps = append(f.steps, "create")
 	f.created = bill
@@ -194,7 +200,7 @@ func TestCreateBillUsesAuthoritativeRatesAndTransactionOrder(t *testing.T) {
 	if input.Lines[0].MatchID != "M2" {
 		t.Fatal("caller selections were reordered")
 	}
-	want := []string{"guard", "matches", "counts", "counts", "user", "create", "debit"}
+	want := []string{"guard", "matches", "counts", "counts", "user", "vote-color", "create", "debit"}
 	if !reflect.DeepEqual(tx.steps, want) {
 		t.Fatalf("transaction steps = %v; want %v", tx.steps, want)
 	}

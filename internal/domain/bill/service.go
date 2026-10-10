@@ -134,6 +134,13 @@ func (s *Service) CreateBill(ctx context.Context, userID string, req *CreateInpu
 		if balance.Lesser(req.Total) {
 			return ErrInsufficientBalance
 		}
+		voteColorID, err := tx.LockVoteColor(ctx, userID)
+		if err != nil {
+			return err
+		}
+		for i := range made.Lines {
+			made.Lines[i].VoteColorID = voteColorID
+		}
 		if err := tx.CreateBill(ctx, &made); err != nil {
 			return err
 		}

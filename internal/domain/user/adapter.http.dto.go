@@ -13,22 +13,20 @@ import (
 type CreateUserRequest httpidentity.ProfileResponse
 
 // UpdateOwnProfileRequest contains only fields editable by the signed-in user.
-// Omitted fields remain unchanged; null clears nickname or group.
+// Omitted fields remain unchanged; null clears the nickname.
 type UpdateOwnProfileRequest struct {
 	Name     *string `json:"name"`
 	NickName *string `json:"nick_name"`
-	GroupID  *string `json:"group_id"`
 
 	nameSet     bool
 	nickNameSet bool
-	groupIDSet  bool
 }
 
 // UnmarshalJSON records supplied fields and rejects identity and privilege fields.
 func (r *UpdateOwnProfileRequest) UnmarshalJSON(data []byte) error {
 	type wire UpdateOwnProfileRequest
 	var decoded wire
-	if err := apierror.DecodeKnownObject(data, &decoded, "name", "nick_name", "group_id"); err != nil {
+	if err := apierror.DecodeKnownObject(data, &decoded, "name", "nick_name"); err != nil {
 		return err
 	}
 
@@ -39,7 +37,6 @@ func (r *UpdateOwnProfileRequest) UnmarshalJSON(data []byte) error {
 	*r = UpdateOwnProfileRequest(decoded)
 	_, r.nameSet = fields["name"]
 	_, r.nickNameSet = fields["nick_name"]
-	_, r.groupIDSet = fields["group_id"]
 
 	return nil
 }
@@ -51,6 +48,26 @@ type AdminUpdateUserRequest struct {
 	NickName      *string     `json:"nick_name"`
 	GroupID       *string     `json:"group_id"`
 	RemainingCoin value.Money `json:"remaining_coin"`
+
+	groupIDSet bool
+}
+
+// UnmarshalJSON records whether group_id was supplied so null can clear it.
+func (r *AdminUpdateUserRequest) UnmarshalJSON(data []byte) error {
+	type wire AdminUpdateUserRequest
+	var decoded wire
+	if err := apierror.DecodeKnownObject(data, &decoded, "name", "nick_name", "group_id", "remaining_coin"); err != nil {
+		return err
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*r = AdminUpdateUserRequest(decoded)
+	_, r.groupIDSet = fields["group_id"]
+
+	return nil
 }
 
 // DeductCoinRequest defines the HTTP payload for this account operation.
@@ -68,16 +85,12 @@ type DeductCoinResponse struct {
 // ValidateRequest rejects empty updates, null or blank names, and blank group IDs.
 func (r UpdateOwnProfileRequest) ValidateRequest() map[string]string {
 	details := make(map[string]string)
-	if !r.nameSet && !r.nickNameSet && !r.groupIDSet {
+	if !r.nameSet && !r.nickNameSet {
 		details["body"] = "must include at least one editable profile field"
 	}
 	if r.nameSet && (r.Name == nil || strings.TrimSpace(*r.Name) == "") {
 		details["name"] = "must be a nonempty string"
 	}
-	if r.groupIDSet && r.GroupID != nil && strings.TrimSpace(*r.GroupID) == "" {
-		details["group_id"] = "must be a nonempty group ID or null"
-	}
-
 	return details
 }
 
@@ -85,6 +98,9 @@ func (r UpdateOwnProfileRequest) ValidateRequest() map[string]string {
 func (r AdminUpdateUserRequest) ValidateRequest() map[string]string {
 	if strings.TrimSpace(r.Name) == "" {
 		return map[string]string{"name": "is required"}
+	}
+	if r.groupIDSet && r.GroupID != nil && strings.TrimSpace(*r.GroupID) == "" {
+		return map[string]string{"group_id": "must be a nonempty group ID or null"}
 	}
 
 	return nil

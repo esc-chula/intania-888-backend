@@ -41,11 +41,12 @@ func billFromRow(row *persistence.BillHead) *Result {
 	}
 	for _, line := range row.Lines {
 		result.Lines = append(result.Lines, Line{
-			BillID:    line.BillID,
-			MatchID:   line.MatchID,
-			Rate:      value.MustRateFromMicro(line.Rate),
-			BettingOn: line.BettingOn,
-			Match:     matchSnapshot(line.Match),
+			BillID:      line.BillID,
+			MatchID:     line.MatchID,
+			Rate:        value.MustRateFromMicro(line.Rate),
+			BettingOn:   line.BettingOn,
+			VoteColorID: line.VoteColorID,
+			Match:       matchSnapshot(line.Match),
 		})
 	}
 
@@ -72,10 +73,11 @@ func billToRow(bill *Result) persistence.BillHead {
 	}
 	for _, line := range bill.Lines {
 		row.Lines = append(row.Lines, persistence.BillLine{
-			BillID:    line.BillID,
-			MatchID:   line.MatchID,
-			BettingOn: line.BettingOn,
-			Rate:      line.Rate.MicroUnits(),
+			BillID:      line.BillID,
+			MatchID:     line.MatchID,
+			BettingOn:   line.BettingOn,
+			VoteColorID: line.VoteColorID,
+			Rate:        line.Rate.MicroUnits(),
 		})
 	}
 

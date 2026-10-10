@@ -11,6 +11,7 @@ import (
 
 func TestBillHTTPMappingPreservesNullableFieldsAndNestedMatch(t *testing.T) {
 	a, b := "A", "B"
+	voteColorID := "C"
 	result := &Result{
 		ID:        "bill",
 		UserID:    "user",
@@ -28,6 +29,7 @@ func TestBillHTTPMappingPreservesNullableFieldsAndNestedMatch(t *testing.T) {
 				TeamAID: &a,
 				TeamBID: &b,
 			},
+			VoteColorID: &voteColorID,
 		}},
 	}
 	encoded, err := json.Marshal(billResultDTO(result))
@@ -49,12 +51,40 @@ func TestBillHTTPMappingPreservesNullableFieldsAndNestedMatch(t *testing.T) {
 	}
 	lines := object["lines"].([]any)
 	line := lines[0].(map[string]any)
+	if _, present := line["vote_color_id"]; present {
+		t.Fatalf("internal vote color leaked into bill response: %s", encoded)
+	}
 	nested := line["match"].(map[string]any)
 	if line["rate"] != "2.000000" || nested["team_a_rate"] != "0.000000" || nested["team_b_rate"] != "0.000000" {
 		t.Fatalf("rate wire fields = %s", encoded)
 	}
 	if nested["team_a"] != "A" || nested["team_b"] != "B" || nested["winner"] != "" || nested["team_a_score"] != nil {
 		t.Fatalf("match wire fields = %s", encoded)
+	}
+}
+
+func TestBillLinePersistenceMappingKeepsVoteColorSnapshot(t *testing.T) {
+	voteColorID := "C"
+	source := &Result{
+		ID:    "bill",
+		Total: value.MustMoneyFromMinor(10000),
+		Lines: []Line{{
+			BillID:      "bill",
+			MatchID:     "match",
+			Rate:        value.MustRateFromMicro(2000000),
+			BettingOn:   "A",
+			VoteColorID: &voteColorID,
+		}},
+	}
+
+	row := billToRow(source)
+	if len(row.Lines) != 1 || row.Lines[0].VoteColorID == nil || *row.Lines[0].VoteColorID != voteColorID {
+		t.Fatalf("stored line vote color = %+v", row.Lines)
+	}
+
+	result := billFromRow(&row)
+	if len(result.Lines) != 1 || result.Lines[0].VoteColorID == nil || *result.Lines[0].VoteColorID != voteColorID {
+		t.Fatalf("loaded line vote color = %+v", result.Lines)
 	}
 }
 
