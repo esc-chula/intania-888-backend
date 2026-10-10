@@ -10,6 +10,7 @@ import (
 )
 
 type viperConfig struct {
+	RateLimits  `mapstructure:"rate_limits"`
 	Server      `mapstructure:",squash"`
 	DB          `mapstructure:",squash"`
 	Cache       `mapstructure:",squash"`
@@ -58,6 +59,8 @@ func NewViperConfig() *viperConfig {
 		v.SetDefault("session_absolute_ttl_seconds", DefaultSessionAbsoluteTTLSeconds)
 		v.SetDefault("daily_reward_default_amount", "300.00")
 
+		setRateLimitDefaults(v)
+
 		// Bind environment variables to config keys
 		bindEnvVars(v)
 		v.AutomaticEnv()
@@ -69,6 +72,8 @@ func NewViperConfig() *viperConfig {
 				log.Fatalf("Error reading configs file: %s", err)
 			}
 		}
+
+		readRateLimitFileOverrides(v)
 
 		cfg := &viperConfig{}
 
@@ -171,6 +176,13 @@ func bindEnvVars(v *viper.Viper) {
 		}
 	}
 
+	bind("server_client_ip_mode", "SERVER_CLIENT_IP_MODE")
+	for name := range DefaultRateLimits().Policies() {
+		prefix := "RATE_LIMIT_" + strings.ToUpper(name)
+		bind("rate_limits."+name+".per_minute", prefix+"_PER_MINUTE")
+		bind("rate_limits."+name+".burst", prefix+"_BURST")
+	}
+
 	bind("server_name", "SERVER_NAME")
 	bind("server_env", "SERVER_ENV")
 	bind("server_url", "SERVER_URL")
@@ -206,4 +218,30 @@ func bindEnvVars(v *viper.Viper) {
 	bind("swagger_password", "SWAGGER_PASSWORD")
 
 	bind("cors_allow_origins", "CORS_ALLOW_ORIGINS")
+}
+
+// GetRateLimits returns configured process-local request budgets.
+func (c *viperConfig) GetRateLimits() RateLimits {
+	return c.RateLimits
+}
+
+func setRateLimitDefaults(v *viper.Viper) {
+	v.SetDefault("server_client_ip_mode", "direct")
+	for name, policy := range DefaultRateLimits().Policies() {
+		v.SetDefault("rate_limits."+name+".per_minute", policy.PerMinute)
+		v.SetDefault("rate_limits."+name+".burst", policy.Burst)
+	}
+}
+
+// Dotenv files use flat names, while typed policies are nested. Defaults keep
+// explicit environment bindings ahead of file values in Viper's precedence.
+func readRateLimitFileOverrides(v *viper.Viper) {
+	for name := range DefaultRateLimits().Policies() {
+		for _, field := range []string{"per_minute", "burst"} {
+			flat := "rate_limit_" + name + "_" + field
+			if v.InConfig(flat) {
+				v.SetDefault("rate_limits."+name+"."+field, v.Get(flat))
+			}
+		}
+	}
 }

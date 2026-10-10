@@ -14,3 +14,5 @@ bin/
 !docs/api-migration-from-main.md
 !docs/frontend-exact-decimals.md
 !docs/frontend-sport-types.md
+
+!docs/rate-limiting.md

@@ -313,3 +313,14 @@ Authentication does not resolve cross-database spending consistency. The game
 and 888 cannot share a database transaction; 888 provides no reservation,
 idempotency key, refund, result submission, or winnings-credit endpoint in this
 contract. Complete that recovery design before enabling paid game actions.
+
+## Authentication request budgets
+
+Login and authorization initiation share an IP budget; callbacks have an
+independent budget. Token exchange and revocation each have a separate verified
+application budget. Invalid Basic credentials share a smaller IP failure budget,
+which valid credentials bypass. Rate rejections use `429 TOO_MANY_REQUESTS` and
+the resource API envelope with `Retry-After`. The five-pending-login guard still
+applies. Minute values are sustained token refill rates rather than window counts.
+See [rate limiting](rate-limiting.md) for defaults, burst behavior,
+configuration, and the Cloud Run rollout checks.

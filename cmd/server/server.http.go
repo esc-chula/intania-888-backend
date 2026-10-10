@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 
@@ -41,6 +42,12 @@ type FiberHTTPServer struct {
 
 // NewFiberHTTPServer constructs the HTTP application after validating origins and documentation settings.
 func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger, readinessChecks ...ReadinessCheck) (*FiberHTTPServer, error) {
+	if err := cfg.GetRateLimits().Validate(); err != nil {
+		return nil, err
+	}
+	if err := httplimit.ValidateClientIPMode(cfg.GetServer().ClientIPMode); err != nil {
+		return nil, err
+	}
 	allowedOrigins, err := parseAllowedOrigins(cfg.GetCORS().AllowOrigins)
 	if err != nil {
 		return nil, err
@@ -168,7 +175,7 @@ func (s *FiberHTTPServer) registerAPIMiddleware(router fiber.Router) {
 		TimeZone:   "Asia/Bangkok",
 	}))
 
-	registerRateLimiters(router)
+	registerRateLimiters(router, s.cfg, s.logger)
 }
 
 func (s *FiberHTTPServer) registerAPIRoutes(router fiber.Router) {

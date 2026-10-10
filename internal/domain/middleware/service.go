@@ -61,6 +61,9 @@ func (s *Service) GetMe(ctx context.Context, id string) (*identity.Profile, erro
 	if err != nil {
 		return nil, err
 	}
+	if user == nil {
+		return nil, identity.ErrUserNotFound
+	}
 
 	return &identity.Profile{
 		ID:            user.ID,
@@ -81,13 +84,19 @@ func (s *Service) IsBlacklisted(ctx context.Context, email, userID string) (bool
 // ErrExternalScope indicates that a delegated credential lacks a required permission.
 var ErrExternalScope = errors.New("external scope missing")
 
-// VerifyScopedExternalToken checks the active grant, current policy and endpoint permission.
-func (s *Service) VerifyScopedExternalToken(ctx context.Context, token, scope string) (string, error) {
+// VerifyExternalToken verifies the signed credential before selecting a client budget.
+func (s *Service) VerifyExternalToken(token string) (*security.DelegatedClaims, error) {
 	claims, err := security.ParseDelegatedToken(token, s.cfg.GetJWT().AccessTokenSecret, s.cfg.GetServer().Name)
 	if err != nil {
-		return "", ErrExternalMissing
+		return nil, ErrExternalMissing
 	}
-	if s.grants == nil {
+
+	return claims, nil
+}
+
+// VerifyExternalGrant checks an already verified credential's active grant and scope before account queries.
+func (s *Service) VerifyExternalGrant(ctx context.Context, claims *security.DelegatedClaims, scope string) (string, error) {
+	if claims == nil || s.grants == nil || s.cfg.GetOAuth().Registry == nil {
 		return "", ErrExternalMissing
 	}
 	registry := s.cfg.GetOAuth().Registry
@@ -99,7 +108,7 @@ func (s *Service) VerifyScopedExternalToken(ctx context.Context, token, scope st
 	if err != nil {
 		return "", err
 	}
-	if grant.UserID != claims.Subject || grant.ClientID != claims.ClientID {
+	if grant == nil || grant.UserID != claims.Subject || grant.ClientID != claims.ClientID {
 		return "", ErrExternalMissing
 	}
 	if scope == "" ||
@@ -108,23 +117,28 @@ func (s *Service) VerifyScopedExternalToken(ctx context.Context, token, scope st
 		!slices.Contains(claims.Scopes, scope) {
 		return "", ErrExternalScope
 	}
-	user, err := s.repo.GetByID(ctx, grant.UserID)
+
+	return claims.Subject, nil
+}
+
+// GetExternalProfile loads the account and applies the current admission policy.
+func (s *Service) GetExternalProfile(ctx context.Context, id string) (*identity.Profile, error) {
+	user, err := s.GetMe(ctx, id)
 	if errors.Is(err, identity.ErrUserNotFound) {
-		return "", ErrExternalMissing
+		return nil, ErrExternalMissing
 	}
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if user == nil {
-		return "", ErrExternalMissing
+		return nil, ErrExternalMissing
 	}
 	decision, err := s.policy.EvaluateLogin(ctx, user.Email, user.ID, user.RoleID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if !decision.Allowed || decision.Blacklisted {
-		return "", ErrExternalMissing
+		return nil, ErrExternalMissing
 	}
-
-	return claims.Subject, nil
+	return user, nil
 }

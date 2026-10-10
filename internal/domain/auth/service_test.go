@@ -497,3 +497,7 @@ func (r *memoryAuthRepository) ConsumeOAuthState(ctx context.Context, key string
 
 	return OAuthState(record), nil
 }
+
+func (c authTestConfig) GetRateLimits() config.RateLimits {
+	return config.DefaultRateLimits()
+}

@@ -18,10 +18,11 @@ import (
 )
 
 type swaggerTestConfig struct {
-	server  config.Server
-	swagger config.Swagger
-	cors    config.CORS
-	oauth   config.OAuth
+	rateLimits *config.RateLimits
+	server     config.Server
+	swagger    config.Swagger
+	cors       config.CORS
+	oauth      config.OAuth
 }
 
 func (c swaggerTestConfig) GetServer() config.Server {
@@ -388,28 +389,46 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 }
 
 func TestRateLimitAppliesToPublicAPIReads(t *testing.T) {
-	httpServer, router := newOriginGuardTestServer(t)
+	policies := config.DefaultRateLimits()
+	// Keep refill slow; this test exercises the burst on the real server stack.
+	policies.Shared = config.RatePolicy{
+		PerMinute: 1,
+		Burst:     2,
+	}
+	httpServer, err := NewFiberHTTPServer(swaggerTestConfig{
+		rateLimits: &policies,
+		cors:       config.CORS{AllowOrigins: "http://localhost:3000"},
+		server:     config.Server{URL: "http://localhost:8080/api/v1"},
+	}, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	router := httpServer.InitHTTPServer()
 	router.Get("/public-read", func(c *fiber.Ctx) error {
 		return c.SendStatus(http.StatusNoContent)
 	})
 
-	for requestNumber := 1; requestNumber <= 301; requestNumber++ {
+	for requestNumber := 1; requestNumber <= policies.Shared.Burst+1; requestNumber++ {
 		response, err := httpServer.app.Test(httptest.NewRequest(http.MethodGet, "/api/v1/public-read", nil))
 		if err != nil {
 			t.Fatalf("request %d error = %v", requestNumber, err)
 		}
+
+		if err := response.Body.Close(); err != nil {
+			t.Fatalf("close response for request %d: %v", requestNumber, err)
+		}
+
 		want := http.StatusNoContent
-		if requestNumber == 301 {
+		if requestNumber > policies.Shared.Burst {
 			want = http.StatusTooManyRequests
 		}
 		if response.StatusCode != want {
-			if err := response.Body.Close(); err != nil {
-				t.Errorf("close response for request %d: %v", requestNumber, err)
-			}
 			t.Fatalf("request %d status = %d, want %d", requestNumber, response.StatusCode, want)
 		}
-		if err := response.Body.Close(); err != nil {
-			t.Fatalf("close response for request %d: %v", requestNumber, err)
+		if want == http.StatusTooManyRequests &&
+			(response.Header.Get("Retry-After") == "" || response.Header.Get("X-RateLimit-Remaining") != "0") {
+			t.Fatalf("request %d did not identify the exhausted bucket: %v", requestNumber, response.Header)
 		}
 	}
 }
@@ -473,4 +492,11 @@ func TestWildcardCredentialOriginsAreRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("wildcard CORS origin was accepted with credentials enabled")
 	}
+}
+
+func (c swaggerTestConfig) GetRateLimits() config.RateLimits {
+	if c.rateLimits != nil {
+		return *c.rateLimits
+	}
+	return config.DefaultRateLimits()
 }

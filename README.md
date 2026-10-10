@@ -156,6 +156,9 @@ see [application authentication](docs/authentication-applications.md). See
 Location, sport, match, and color-standings reads are public and do not evaluate
 account allowlist/blacklist rules. Configured-Origin checks and the API-wide
 per-IP rate limit still apply; see [public shared reads](docs/README.md#public-shared-reads).
+Protected browser routes also use account quotas. See [rate limiting](docs/rate-limiting.md)
+for authentication budgets, burst capacities, environment overrides, and Cloud Run
+client-IP activation checks.
 
 ## Repository structure
 

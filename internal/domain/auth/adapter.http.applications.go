@@ -19,6 +19,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/httpcookie"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
 	"github.com/esc-chula/intania-888-backend/internal/identity"
 	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
@@ -58,6 +59,7 @@ const (
 // ApplicationHTTPHandler coordinates application login transactions and delegated grants.
 // Google identity admission and browser sessions remain owned by Service.
 type ApplicationHTTPHandler struct {
+	limits     RateLimiters
 	service    *Service
 	sessions   SessionReader
 	cache      *cache.RedisClient
@@ -98,9 +100,10 @@ var (
 	verifierPattern  = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
 )
 
-// ConfigureApplications installs the registry-driven protocol while retaining existing resource handlers.
-func (h *HTTPHandler) ConfigureApplications(service *Service, client *cache.RedisClient) {
+// ConfigureApplications installs the registry-driven protocol and its request budgets together.
+func (h *HTTPHandler) ConfigureApplications(service *Service, client *cache.RedisClient, limits RateLimiters) {
 	h.applications = &ApplicationHTTPHandler{
+		limits:     limits,
 		service:    service,
 		sessions:   h.sessions,
 		cache:      client,
@@ -399,9 +402,20 @@ func (h *ApplicationHTTPHandler) Token(c *fiber.Ctx) error {
 
 	app, ok := h.authenticateClient(c)
 	if !ok {
+		if h.limits.InvalidClient != nil {
+			if err := h.limits.InvalidClient(c, httplimit.ClientIP(c)); err != nil {
+				return err
+			}
+		}
 		c.Set(fiber.HeaderWWWAuthenticate, oauthClientAuthChallenge)
 
 		return oauthError(c, fiber.StatusUnauthorized, oauthErrorInvalidClient)
+	}
+
+	if h.limits.Token != nil {
+		if err := h.limits.Token(c, app.ID); err != nil {
+			return err
+		}
 	}
 
 	if !strings.HasPrefix(c.Get(fiber.HeaderContentType), fiber.MIMEApplicationForm) {
@@ -559,9 +573,20 @@ func (h *ApplicationHTTPHandler) Revoke(c *fiber.Ctx) error {
 
 	app, ok := h.authenticateClient(c)
 	if !ok {
+		if h.limits.InvalidClient != nil {
+			if err := h.limits.InvalidClient(c, httplimit.ClientIP(c)); err != nil {
+				return err
+			}
+		}
 		c.Set(fiber.HeaderWWWAuthenticate, oauthClientAuthChallenge)
 
 		return oauthError(c, fiber.StatusUnauthorized, oauthErrorInvalidClient)
+	}
+
+	if h.limits.Revoke != nil {
+		if err := h.limits.Revoke(c, app.ID); err != nil {
+			return err
+		}
 	}
 
 	if !strings.HasPrefix(c.Get(fiber.HeaderContentType), fiber.MIMEApplicationForm) {

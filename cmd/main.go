@@ -24,6 +24,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
 	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
@@ -123,7 +124,14 @@ func run() (runErr error) {
 		cfg.GetSession().IdleTTLSeconds,
 	)
 	authHTTP := auth.NewHTTPHandler(authSvc, midHTTP, cfg, isProduction)
-	authHTTP.ConfigureApplications(authSvc, cacheClient)
+	authHTTP.ConfigureApplications(
+		authSvc,
+		cacheClient,
+		auth.NewRateLimiters(cfg.GetRateLimits(), logger),
+	)
+	externalRateLimiters := server.NewExternalRateLimiters(cfg, logger)
+	browserLimiter := httplimit.New("browser", cfg.GetRateLimits().Browser, logger)
+	midHTTP.ConfigureRateLimits(browserLimiter.Check, externalRateLimiters.Client, externalRateLimiters.Invalid)
 
 	teamCoinsSvc := teamcoin.NewService(teamCoinAward, time.Now, uuid.NewString)
 
@@ -183,8 +191,6 @@ func run() (runErr error) {
 
 	// Share the client-wide limit and attach each user limit beside its route.
 	externalRouter := router.Group("/external")
-	externalRateLimiters := server.NewExternalRateLimiters(cfg)
-	externalRouter.Use(externalRateLimiters.Client)
 	userHTTP.RegisterExternalRoutes(
 		externalRouter,
 		midHTTP.RequireExternalScope,

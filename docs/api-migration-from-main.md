@@ -282,7 +282,11 @@ allowlist and blacklist account checks are not run for these requests.
 administrator mutations protected by the browser session, admin permission,
 allowed Origin, and CSRF token. Public access applies only to the listed reads;
 account, bill, game/history, and admin reads retain their documented access
-requirements. The global IP rate limit still applies at 300 requests per minute.
+requirements. The shared IP guard is now a provisional 60,000 requests/minute/IP (burst 2,000);
+protected browser routes additionally allow 300 requests/minute/account (burst 20).
+Minute values now set sustained token refill rates, with the listed burst capacity;
+they are not strict minute-window counts. See [rate limiting](rate-limiting.md)
+for authentication and external budgets.
 For browser requests, a supplied `Origin` must exactly match a configured origin;
 safe GET requests without an `Origin` are accepted. CORS continues to grant only
 configured origins.
@@ -666,8 +670,8 @@ an operator database workflow. `GET /users/{id}` remains available.
 
 The resource envelope below applies to browser and delegated resource APIs.
 `/auth/token` and `/auth/revoke` use `{ "error": "..." }` for protocol failures;
-login/authorization failures redirect or render local HTML. The global limiter
-can return `429 TOO_MANY_REQUESTS` with the resource envelope on every API route.
+login/authorization failures redirect or render local HTML. Applicable shared,
+account, authentication, and burst limiters can return `429 TOO_MANY_REQUESTS` with the resource envelope on every API route.
 See [authentication responses](authentication-applications.md#responses-and-errors).
 
 | Before: `main`                                       | After: current API                                           |
@@ -933,7 +937,7 @@ account allowlist or blacklist checks:
 `GET /sport-types` existed in both compared revisions; its access policy changed
 from authenticated to public. The single-sport route and the other routes above
 are listed here with their current access behavior. Origin checks and the global
-200-requests-per-minute IP limit still apply; see
+configured shared-IP token bucket still applies; see
 [Public shared reads](#public-shared-reads).
 
 ## Migration checklist
@@ -1009,7 +1013,7 @@ controlled accounts and resources against the prepared deployment.
 | Sign in, then reload the frontend.                                               | `/auth/me` loads profile and CSRF state using the session cookie.                                            |
 | Fetch locations, sports, fixtures, server time, and standings while signed out.  | The listed public reads succeed without session credentials; account allowlist/blacklist checks are not run. |
 | Request a public read with a configured, unconfigured, then absent Origin.       | Configured Origin succeeds with CORS; unconfigured Origin returns `403`; safe GET without Origin succeeds.   |
-| Exceed the API request limit from one client IP.                                 | The request after 300 requests in the one-minute window returns `429 TOO_MANY_REQUESTS`.                     |
+| Exceed an applicable IP, account, authentication, or burst budget. | Returns `429 TOO_MANY_REQUESTS` with a positive `Retry-After`; defaults and per-process limits are documented in [rate limiting](rate-limiting.md). |
 | Perform a protected mutation with valid Origin/CSRF.                             | Authorized request succeeds.                                                                                 |
 | Repeat a protected mutation without CSRF.                                        | `403 FORBIDDEN`; no mutation is accepted.                                                                    |
 | Request a protected route with an expired session.                               | `401 UNAUTHORIZED`; frontend offers login.                                                                   |
