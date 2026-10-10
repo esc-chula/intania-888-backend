@@ -11,8 +11,10 @@ import (
 type ServicePort interface {
 	// GetSession validates an opaque browser credential and renews its stored idle lifetime.
 	GetSession(context.Context, string) (*security.Session, error)
-	// VerifyScopedExternalToken validates the active grant and required endpoint scope.
-	VerifyScopedExternalToken(context.Context, string, string) (string, error)
+	// VerifyExternalGrant validates the credential, active grant, ownership and scope without account queries.
+	VerifyExternalGrant(context.Context, string, string) (string, error)
+	// GetExternalProfile loads the account and evaluates its current login policy.
+	GetExternalProfile(context.Context, string) (*identity.Profile, error)
 	// GetMe loads the current account profile used by downstream request handlers.
 	GetMe(context.Context, string) (*identity.Profile, error)
 	// IsBlacklisted checks current email and Google subject blacklist rules.

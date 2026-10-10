@@ -12,15 +12,18 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/httpcookie"
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
 	"github.com/esc-chula/intania-888-backend/internal/identity"
 	"github.com/esc-chula/intania-888-backend/internal/security"
 )
 
 // HTTPHandler authenticates browser sessions and enforces administrator permissions.
 type HTTPHandler struct {
-	service        ServicePort
-	production     bool
-	sessionIdleTTL int
+	browserLimit         httplimit.Check
+	invalidExternalLimit httplimit.Check
+	service              ServicePort
+	production           bool
+	sessionIdleTTL       int
 }
 
 // NewHTTPHandler binds identity checks to the browser cookie environment and idle lifetime in seconds.
@@ -65,6 +68,12 @@ func (h *HTTPHandler) AuthMiddleware(c *fiber.Ctx) error {
 		}
 
 		return apierror.Wrap(err, fiber.StatusServiceUnavailable, apierror.CodeDependencyUnavailable, "Session service is unavailable")
+	}
+
+	if h.browserLimit != nil {
+		if err := h.browserLimit(c, session.UserID); err != nil {
+			return err
+		}
 	}
 
 	user, err := h.service.GetMe(c.UserContext(), session.UserID)
@@ -141,4 +150,10 @@ func clearBrowserSessionCookie(c *fiber.Ctx, production bool) {
 		Secure:   true,
 		SameSite: httpcookie.SameSite(production),
 	})
+}
+
+// ConfigureRateLimits installs checks at verified-session and rejected-external boundaries.
+func (h *HTTPHandler) ConfigureRateLimits(browser, invalidExternal httplimit.Check) {
+	h.browserLimit = browser
+	h.invalidExternalLimit = invalidExternal
 }

@@ -18,10 +18,11 @@ import (
 )
 
 type swaggerTestConfig struct {
-	server  config.Server
-	swagger config.Swagger
-	cors    config.CORS
-	oauth   config.OAuth
+	rateLimits *config.RateLimits
+	server     config.Server
+	swagger    config.Swagger
+	cors       config.CORS
+	oauth      config.OAuth
 }
 
 func (c swaggerTestConfig) GetServer() config.Server {
@@ -388,7 +389,17 @@ func TestOriginGuardUsesExactConfiguredOriginsAndAllowsSafeReadsWithoutOrigin(t 
 }
 
 func TestRateLimitAppliesToPublicAPIReads(t *testing.T) {
-	httpServer, router := newOriginGuardTestServer(t)
+	policies := config.DefaultRateLimits()
+	policies.Shared = config.RatePolicy{PerMinute: 300, Burst: 1000}
+	httpServer, err := NewFiberHTTPServer(swaggerTestConfig{
+		rateLimits: &policies,
+		cors:       config.CORS{AllowOrigins: "http://localhost:3000"},
+		server:     config.Server{URL: "http://localhost:8080/api/v1"},
+	}, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := httpServer.InitHTTPServer()
 	router.Get("/public-read", func(c *fiber.Ctx) error {
 		return c.SendStatus(http.StatusNoContent)
 	})
@@ -476,5 +487,8 @@ func TestWildcardCredentialOriginsAreRejected(t *testing.T) {
 }
 
 func (c swaggerTestConfig) GetRateLimits() config.RateLimits {
+	if c.rateLimits != nil {
+		return *c.rateLimits
+	}
 	return config.DefaultRateLimits()
 }

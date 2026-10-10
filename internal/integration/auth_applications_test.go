@@ -261,9 +261,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 	h.RegisterExternalRoutes(
 		router.Group("/external"),
 		mid.RequireExternalScope,
-		func(c *fiber.Ctx) error {
-			return c.Next()
-		},
+		nil,
 	)
 	router.Post(
 		"/external/deduct-coin",

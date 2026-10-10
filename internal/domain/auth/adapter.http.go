@@ -9,6 +9,7 @@ import (
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
 	"github.com/esc-chula/intania-888-backend/internal/httpcookie"
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -46,9 +47,9 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Han
 		panic("application authentication must be configured before registering routes")
 	}
 
-	router.Get("/login", h.applications.Login)
-	router.Get("/callback", h.applications.Callback)
-	router.Get("/authorize", h.applications.Authorize)
+	router.Get("/login", authRateMiddleware(h.applications.limits.Login), h.applications.Login)
+	router.Get("/callback", authRateMiddleware(h.applications.limits.Callback), h.applications.Callback)
+	router.Get("/authorize", authRateMiddleware(h.applications.limits.Login), h.applications.Authorize)
 	router.Post("/token", h.applications.Token)
 	router.Post("/revoke", h.applications.Revoke)
 	router.Post("/logout", h.Logout)
@@ -58,10 +59,10 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate fiber.Han
 // RegisterExternalRoutes registers the profile route with scoped authentication and its user limit.
 func (h *HTTPHandler) RegisterExternalRoutes(
 	router fiber.Router,
-	requireScope func(string) fiber.Handler,
-	profileRateLimit fiber.Handler,
+	requireScope func(string, ...httplimit.Check) fiber.Handler,
+	profileRateLimit httplimit.Check,
 ) {
-	router.Get("/me", requireScope(config.ScopeProfileRead), profileRateLimit, h.GetExternalMe)
+	router.Get("/me", requireScope(config.ScopeProfileRead, profileRateLimit), h.GetExternalMe)
 }
 
 // Logout checks CSRF for an active browser session, revokes it, and clears its cookie.

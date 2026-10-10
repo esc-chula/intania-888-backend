@@ -215,7 +215,7 @@ func (s logoutMiddlewareService) GetSession(context.Context, string) (*security.
 	return s.session, s.err
 }
 
-func (s logoutMiddlewareService) VerifyScopedExternalToken(context.Context, string, string) (string, error) {
+func (s logoutMiddlewareService) VerifyExternalGrant(context.Context, string, string) (string, error) {
 	return "", nil
 }
 
@@ -276,4 +276,19 @@ func TestLogoutIdempotenceAndRetry(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (s logoutMiddlewareService) GetExternalProfile(ctx context.Context, id string) (*identity.Profile, error) {
+	user, err := s.GetMe(ctx, id)
+	if err != nil || user == nil {
+		return user, err
+	}
+	blacklisted, err := s.IsBlacklisted(ctx, user.Email, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	if blacklisted {
+		return nil, middleware.ErrExternalMissing
+	}
+	return user, nil
 }

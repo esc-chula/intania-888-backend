@@ -73,6 +73,8 @@ func NewViperConfig() *viperConfig {
 			}
 		}
 
+		readRateLimitFileOverrides(v)
+
 		cfg := &viperConfig{}
 
 		err := v.Unmarshal(cfg)
@@ -228,5 +230,18 @@ func setRateLimitDefaults(v *viper.Viper) {
 	for name, policy := range DefaultRateLimits().Policies() {
 		v.SetDefault("rate_limits."+name+".per_minute", policy.PerMinute)
 		v.SetDefault("rate_limits."+name+".burst", policy.Burst)
+	}
+}
+
+// Dotenv files use flat names, while typed policies are nested. Defaults keep
+// explicit environment bindings ahead of file values in Viper's precedence.
+func readRateLimitFileOverrides(v *viper.Viper) {
+	for name := range DefaultRateLimits().Policies() {
+		for _, field := range []string{"per_minute", "burst"} {
+			flat := "rate_limit_" + name + "_" + field
+			if v.InConfig(flat) {
+				v.SetDefault("rate_limits."+name+"."+field, v.Get(flat))
+			}
+		}
 	}
 }

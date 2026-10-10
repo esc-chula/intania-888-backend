@@ -25,6 +25,9 @@ type entry struct {
 	seen     time.Time
 }
 
+// Check is a request-budget hook that never advances the HTTP handler chain.
+type Check func(*fiber.Ctx, string) error
+
 // Limiter combines Fiber's weighted two-window algorithm with a token bucket.
 // Check can run at a verified-identity boundary without calling c.Next prematurely.
 type Limiter struct {

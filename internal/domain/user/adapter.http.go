@@ -7,6 +7,7 @@ import (
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
@@ -161,13 +162,12 @@ func (h *HTTPHandler) AdminUpdateUser(c *fiber.Ctx) error {
 // RegisterExternalRoutes declares the delegated permission and user limit for coin deductions.
 func (h *HTTPHandler) RegisterExternalRoutes(
 	router fiber.Router,
-	requireScope func(string) fiber.Handler,
-	transactionRateLimit fiber.Handler,
+	requireScope func(string, ...httplimit.Check) fiber.Handler,
+	transactionRateLimit httplimit.Check,
 ) {
 	router.Post(
 		"/deduct-coin",
-		requireScope(config.ScopeCoinsSpend),
-		transactionRateLimit,
+		requireScope(config.ScopeCoinsSpend, transactionRateLimit),
 		h.DeductCoin,
 	)
 }
