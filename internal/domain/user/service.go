@@ -79,16 +79,13 @@ func (s *Service) GetAllUsers(ctx context.Context) ([]*identity.Profile, error) 
 // actorID must come from trusted authentication. Identity, email, role, and balance
 // cannot be changed through this use case. The result is read after the update.
 func (s *Service) UpdateOwnProfile(ctx context.Context, actorID string, input ProfilePatch) (*identity.Profile, error) {
-	if strings.TrimSpace(actorID) == "" || (input.Name == nil && !input.NickNameSet && !input.GroupIDSet) {
+	if strings.TrimSpace(actorID) == "" || (input.Name == nil && !input.NickNameSet) {
 		return nil, ErrInvalidProfileUpdate
 	}
 	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
 		return nil, ErrInvalidProfileUpdate
 	}
-	if (input.NickName != nil && !input.NickNameSet) || (input.GroupID != nil && !input.GroupIDSet) {
-		return nil, ErrInvalidProfileUpdate
-	}
-	if input.GroupID != nil && strings.TrimSpace(*input.GroupID) == "" {
+	if input.NickName != nil && !input.NickNameSet {
 		return nil, ErrInvalidProfileUpdate
 	}
 
@@ -103,21 +100,12 @@ func (s *Service) UpdateOwnProfile(ctx context.Context, actorID string, input Pr
 
 // AdminUpdateUser updates profile fields and balance while preserving role ownership.
 func (s *Service) AdminUpdateUser(ctx context.Context, userID string, input AdminUpdateInput) error {
-	existed, err := s.repo.GetByID(ctx, userID)
-	if err != nil {
-		return err
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(input.Name) == "" ||
+		(input.GroupIDSet && input.GroupID != nil && strings.TrimSpace(*input.GroupID) == "") {
+		return ErrInvalidProfileUpdate
 	}
 
-	// Role changes are intentionally excluded from this application API. They
-	// are performed by the operator database workflow.
-	existed.Name = input.Name
-	existed.NickName = input.NickName
-	existed.RemainingCoin = input.RemainingCoin.MinorUnits()
-	if input.GroupID != nil {
-		existed.GroupID = input.GroupID
-	}
-
-	if err := s.repo.Update(ctx, existed); err != nil {
+	if err := s.repo.UpdateByAdmin(ctx, userID, input); err != nil {
 		return err
 	}
 

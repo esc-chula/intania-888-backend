@@ -132,3 +132,40 @@ func TestDeprecatedUpdateUserDelegatesToOwnProfileAndPreservesWireShape(t *testi
 		t.Fatalf("wire shape changed: status=%d body=%+v", response.StatusCode, body)
 	}
 }
+
+func TestSelfProfileRequestRejectsGroupID(t *testing.T) {
+	var request UpdateOwnProfileRequest
+	if err := json.Unmarshal([]byte(`{"group_id":"group-a"}`), &request); err == nil {
+		t.Fatal("self profile request accepted group_id")
+	}
+}
+
+func TestAdminUpdateRequestDistinguishesOmittedAndNullGroupID(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantSet   bool
+		wantGroup *string
+	}{
+		{name: "omitted", body: `{"name":"User"}`},
+		{name: "clear", body: `{"name":"User","group_id":null}`, wantSet: true},
+		{name: "assign", body: `{"name":"User","group_id":"group-a"}`, wantSet: true, wantGroup: stringPointer("group-a")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var request AdminUpdateUserRequest
+			if err := json.Unmarshal([]byte(test.body), &request); err != nil {
+				t.Fatal(err)
+			}
+			groupMatches := request.GroupID == nil && test.wantGroup == nil
+			if request.GroupID != nil && test.wantGroup != nil {
+				groupMatches = *request.GroupID == *test.wantGroup
+			}
+			if request.groupIDSet != test.wantSet || !groupMatches {
+				t.Fatalf("group assignment = (%v, %v), want (%v, %v)", request.groupIDSet, request.GroupID, test.wantSet, test.wantGroup)
+			}
+		})
+	}
+}
+
+func stringPointer(value string) *string { return &value }

@@ -69,7 +69,7 @@ func (r *gormRepository) GetAll(ctx context.Context) ([]*identity.User, error) {
 // PatchProfile applies only supplied editable fields, including explicit nullable clears.
 // It never writes the account identity, email, role, or balance.
 func (r *gormRepository) PatchProfile(ctx context.Context, actorID string, input ProfilePatch) error {
-	updates := make(map[string]any, 3)
+	updates := make(map[string]any, 2)
 
 	if input.Name != nil {
 		updates["name"] = *input.Name
@@ -77,10 +77,6 @@ func (r *gormRepository) PatchProfile(ctx context.Context, actorID string, input
 	if input.NickNameSet {
 		updates["nick_name"] = input.NickName
 	}
-	if input.GroupIDSet {
-		updates["group_id"] = input.GroupID
-	}
-
 	result := r.db.WithContext(ctx).Model(&persistence.User{}).
 		Where("id = ?", actorID).Updates(updates)
 	if result.Error != nil {
@@ -98,12 +94,30 @@ func (r *gormRepository) PatchProfile(ctx context.Context, actorID string, input
 	return nil
 }
 
-// Update applies the existing nonzero struct update semantics for administrator updates.
-func (r *gormRepository) Update(ctx context.Context, user *identity.User) error {
-	row := userRow(user)
-	// Keep GORM's existing nonzero struct update semantics for normalization.
-	if err := r.db.WithContext(ctx).Model(row).Where("id = ?", row.ID).Updates(row).Error; err != nil {
-		return fmt.Errorf("update user: %w", err)
+// UpdateByAdmin applies only supplied administrator fields without replaying a
+// stale user snapshot over fields changed by another transaction.
+func (r *gormRepository) UpdateByAdmin(ctx context.Context, userID string, input AdminUpdateInput) error {
+	updates := map[string]any{
+		"name":           input.Name,
+		"remaining_coin": input.RemainingCoin.MinorUnits(),
+	}
+	if input.NickName != nil {
+		updates["nick_name"] = input.NickName
+	}
+	if input.GroupIDSet {
+		updates["group_id"] = input.GroupID
+	}
+
+	result := r.db.WithContext(ctx).Model(&persistence.User{}).Where("id = ?", userID).Updates(updates)
+	if result.Error != nil {
+		var constraintError *pgconn.PgError
+		if input.GroupIDSet && errors.As(result.Error, &constraintError) && constraintError.Code == "23503" {
+			return fmt.Errorf("update user by admin: %w", errors.Join(ErrProfileGroupNotFound, result.Error))
+		}
+		return fmt.Errorf("update user by admin: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
 	}
 
 	return nil

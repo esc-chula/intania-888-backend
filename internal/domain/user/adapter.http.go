@@ -104,8 +104,6 @@ func (h *HTTPHandler) UpdateOwnProfile(c *fiber.Ctx) error {
 		Name:        request.Name,
 		NickName:    request.NickName,
 		NickNameSet: request.nickNameSet,
-		GroupID:     request.GroupID,
-		GroupIDSet:  request.groupIDSet,
 	})
 	if err != nil {
 		return mapUserError(err)
@@ -145,6 +143,7 @@ func (h *HTTPHandler) AdminUpdateUser(c *fiber.Ctx) error {
 		Name:          userDto.Name,
 		NickName:      userDto.NickName,
 		GroupID:       userDto.GroupID,
+		GroupIDSet:    userDto.groupIDSet,
 		RemainingCoin: userDto.RemainingCoin,
 	}); err != nil {
 		return mapUserError(err)

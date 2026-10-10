@@ -42,11 +42,12 @@ type Result struct {
 
 // Line contains a bill selection and its snapshotted rate and match.
 type Line struct {
-	BillID    string
-	MatchID   string
-	Rate      value.Rate
-	BettingOn string
-	Match     match.Snapshot
+	BillID      string
+	MatchID     string
+	Rate        value.Rate
+	BettingOn   string
+	VoteColorID *string
+	Match       match.Snapshot
 }
 
 // BetCount contains the pending selection count for a team.

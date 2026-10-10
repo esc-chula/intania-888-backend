@@ -18,12 +18,13 @@ type Repository interface {
 	GetByEmail(context.Context, string) (*identity.User, error)
 	// GetAll retrieves all account snapshots.
 	GetAll(context.Context) ([]*identity.User, error)
-	// PatchProfile updates only supplied name, nickname, and group fields for the actor.
-	// Explicitly supplied nil nickname and group values clear their stored columns.
+	// PatchProfile updates only supplied name and nickname fields for the actor.
+	// Explicitly supplied nil nickname values clear the stored column.
 	// Missing accounts return ErrUserNotFound.
 	PatchProfile(context.Context, string, ProfilePatch) error
-	// Update preserves the existing nonzero-field update behavior.
-	Update(context.Context, *identity.User) error
+	// UpdateByAdmin applies explicitly supplied administrator fields without
+	// overwriting concurrent changes to fields omitted from the request.
+	UpdateByAdmin(context.Context, string, AdminUpdateInput) error
 	// WithinTransaction commits the callback's writes together or rolls them back.
 	WithinTransaction(context.Context, func(Transaction) error) error
 }

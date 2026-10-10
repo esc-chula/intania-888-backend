@@ -19,6 +19,7 @@ type fakeAccountRepository struct {
 	seenContext  context.Context
 	savedActorID string
 	savedProfile *ProfilePatch
+	savedAdmin   *AdminUpdateInput
 	calls        []string
 	deductError  error
 	lookupError  error
@@ -42,6 +43,18 @@ func (r *fakeAccountRepository) PatchProfile(ctx context.Context, actorID string
 		r.user.Name = *input.Name
 	}
 	if input.NickNameSet {
+		r.user.NickName = input.NickName
+	}
+	return nil
+}
+
+func (r *fakeAccountRepository) UpdateByAdmin(ctx context.Context, userID string, input AdminUpdateInput) error {
+	r.seenContext = ctx
+	r.savedActorID = userID
+	r.savedAdmin = &input
+	r.user.Name = input.Name
+	r.user.RemainingCoin = input.RemainingCoin.MinorUnits()
+	if input.NickName != nil {
 		r.user.NickName = input.NickName
 	}
 	if input.GroupIDSet {
@@ -175,5 +188,37 @@ func TestUpdateOwnProfilePreservesBalanceAndResponseTimestamp(t *testing.T) {
 	}
 	if !result.CreatedAt.IsZero() {
 		t.Fatalf("single-user response timestamp changed: %v", result.CreatedAt)
+	}
+}
+
+func TestAdminUpdateUserPreservesOmittedGroupAndTracksExplicitClear(t *testing.T) {
+	groupID := "group-a"
+	repo := &fakeAccountRepository{user: &identity.User{
+		ID:            "actor",
+		Name:          "Before",
+		GroupID:       &groupID,
+		RemainingCoin: 10000,
+	}}
+	service := NewService(repo, zap.NewNop())
+
+	if err := service.AdminUpdateUser(context.Background(), "actor", AdminUpdateInput{
+		Name:          "Changed",
+		RemainingCoin: value.MustMoneyFromMinor(20000),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if repo.user.GroupID == nil || *repo.user.GroupID != groupID {
+		t.Fatalf("omitted group changed: %v", repo.user.GroupID)
+	}
+
+	if err := service.AdminUpdateUser(context.Background(), "actor", AdminUpdateInput{
+		Name:          "Changed",
+		GroupIDSet:    true,
+		RemainingCoin: value.MustMoneyFromMinor(20000),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if repo.user.GroupID != nil || repo.savedAdmin == nil || !repo.savedAdmin.GroupIDSet {
+		t.Fatalf("explicit group clear was not applied: user=%+v input=%+v", repo.user, repo.savedAdmin)
 	}
 }

@@ -38,6 +38,8 @@ type TransactionRepository interface {
 	CountBets(context.Context, string) ([]BetCount, error)
 	// LockBalance reads an account balance under a write lock.
 	LockBalance(context.Context, string) (value.Money, error)
+	// LockVoteColor reads the color of the locked account's current group.
+	LockVoteColor(context.Context, string) (*string, error)
 	// CreateBill stores the bill and its lines, omitting nested match writes.
 	CreateBill(context.Context, *Result) error
 	// DebitBalance conditionally debits an account with sufficient balance.
