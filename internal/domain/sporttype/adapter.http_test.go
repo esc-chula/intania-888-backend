@@ -59,7 +59,7 @@ func (s routeAuthService) GetMe(context.Context, string) (*identity.Profile, err
 	}, nil
 }
 
-func (routeAuthService) VerifyScopedExternalToken(context.Context, string, string) (string, error) {
+func (routeAuthService) VerifyExternalGrant(context.Context, string, string) (string, error) {
 	return "", errors.New("external credentials cannot access browser routes")
 }
 
@@ -284,4 +284,12 @@ func TestSportTypeCatalogueReadsArePublicAndSkipAccountBlacklist(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (routeConfig) GetRateLimits() config.RateLimits {
+	return config.DefaultRateLimits()
+}
+
+func (s routeAuthService) GetExternalProfile(ctx context.Context, id string) (*identity.Profile, error) {
+	return s.GetMe(ctx, id)
 }

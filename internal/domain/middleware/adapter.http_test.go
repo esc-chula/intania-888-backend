@@ -73,7 +73,7 @@ func (s fakeMiddlewareService) GetSession(context.Context, string) (*security.Se
 	return s.session, s.sessionErr
 }
 
-func (s fakeMiddlewareService) VerifyScopedExternalToken(context.Context, string, string) (string, error) {
+func (s fakeMiddlewareService) VerifyExternalGrant(context.Context, string, string) (string, error) {
 	return "user-id", nil
 }
 
@@ -203,4 +203,19 @@ func TestMissingStoredSessionClearsCookie(t *testing.T) {
 	if response.StatusCode != fiber.StatusUnauthorized || len(response.Header.Values("Set-Cookie")) == 0 {
 		t.Fatal("stale session did not return 401 and clear cookie")
 	}
+}
+
+func (s fakeMiddlewareService) GetExternalProfile(ctx context.Context, id string) (*identity.Profile, error) {
+	user, err := s.GetMe(ctx, id)
+	if err != nil || user == nil {
+		return user, err
+	}
+	blacklisted, err := s.IsBlacklisted(ctx, user.Email, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	if blacklisted {
+		return nil, ErrExternalMissing
+	}
+	return user, nil
 }

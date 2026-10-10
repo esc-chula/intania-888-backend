@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -44,5 +45,24 @@ func TestRateLimitsRejectInvalidOverrides(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestRateLimitDotenvOverridesAndEnvironmentPrecedence(t *testing.T) {
+	t.Setenv("RATE_LIMIT_BROWSER_BURST", "7")
+	v := viper.New()
+	setRateLimitDefaults(v)
+	bindEnvVars(v)
+	v.SetConfigType("env")
+	if err := v.ReadConfig(strings.NewReader("RATE_LIMIT_BROWSER_PER_MINUTE=123\nRATE_LIMIT_BROWSER_BURST=4\n")); err != nil {
+		t.Fatal(err)
+	}
+	readRateLimitFileOverrides(v)
+	var cfg viperConfig
+	if err := v.Unmarshal(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Browser.PerMinute != 123 || cfg.Browser.Burst != 7 {
+		t.Fatalf("dotenv/environment policy = %+v", cfg.Browser)
 	}
 }
