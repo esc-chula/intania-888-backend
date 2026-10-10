@@ -590,3 +590,7 @@ func TestApplicationLoginCodeExchangeRefreshAndRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func (c applicationAuthConfig) GetRateLimits() config.RateLimits {
+	return config.DefaultRateLimits()
+}

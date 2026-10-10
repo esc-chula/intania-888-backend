@@ -3,6 +3,8 @@ package config
 // Config provides typed application settings to services and infrastructure adapters.
 // Getters return value snapshots; loading and security validation are separate steps.
 type Config interface {
+	// GetRateLimits returns process-local minute and burst budgets.
+	GetRateLimits() RateLimits
 	// GetServer returns listener, environment, and public API URL settings.
 	GetServer() Server
 	// GetDB returns PostgreSQL connection settings.
@@ -34,12 +36,13 @@ const (
 
 // Server contains the listener and public application URL configuration.
 type Server struct {
-	Origin string `mapstructure:"server_origin"`
-	Name   string `mapstructure:"server_name"`
-	Env    string `mapstructure:"server_env"`
-	URL    string `mapstructure:"server_url"`
-	Host   string `mapstructure:"server_host"`
-	Port   int    `mapstructure:"server_port"`
+	ClientIPMode string `mapstructure:"server_client_ip_mode"`
+	Origin       string `mapstructure:"server_origin"`
+	Name         string `mapstructure:"server_name"`
+	Env          string `mapstructure:"server_env"`
+	URL          string `mapstructure:"server_url"`
+	Host         string `mapstructure:"server_host"`
+	Port         int    `mapstructure:"server_port"`
 }
 
 // CORS contains the comma-separated exact origins allowed for browser requests.

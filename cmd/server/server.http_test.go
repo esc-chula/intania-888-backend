@@ -474,3 +474,7 @@ func TestWildcardCredentialOriginsAreRejected(t *testing.T) {
 		t.Fatal("wildcard CORS origin was accepted with credentials enabled")
 	}
 }
+
+func (c swaggerTestConfig) GetRateLimits() config.RateLimits {
+	return config.DefaultRateLimits()
+}
