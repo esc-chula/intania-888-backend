@@ -181,10 +181,20 @@ func run() (runErr error) {
 	sportTypeHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 	locationHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 
-	// Each external route declares its required delegated scope.
+	// Share the client-wide limit and attach each user limit beside its route.
 	externalRouter := router.Group("/external")
-	userHTTP.RegisterExternalRoutes(externalRouter, midHTTP.RequireExternalScope)
-	authHTTP.RegisterExternalRoutes(externalRouter, midHTTP.RequireExternalScope)
+	externalRateLimiters := server.NewExternalRateLimiters(cfg)
+	externalRouter.Use(externalRateLimiters.Client)
+	userHTTP.RegisterExternalRoutes(
+		externalRouter,
+		midHTTP.RequireExternalScope,
+		externalRateLimiters.Transaction,
+	)
+	authHTTP.RegisterExternalRoutes(
+		externalRouter,
+		midHTTP.RequireExternalScope,
+		externalRateLimiters.Profile,
+	)
 
 	// start server
 	if err := httpServer.Start(); err != nil {
