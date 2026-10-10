@@ -156,6 +156,35 @@ func TestTeamCoinsTieEarnsNothingButBetsStillCount(t *testing.T) {
 	s.wantTotalsMatchLedger(t)
 }
 
+func TestTeamCoinsKeepBetWithItsSnapshottedColorAfterGroupChange(t *testing.T) {
+	s := newBillingSuite(t)
+	s.reset(t)
+	green := s.addTeamUsers(t, "C", 1)
+	s.addTeamUsers(t, "B", 1)
+
+	first := s.place(t, green[0], 10_00, line("M1", "A"))
+	if _, err := s.postgres.SQL.Exec(`UPDATE users SET group_id = 'G_B' WHERE id = $1`, green[0]); err != nil {
+		t.Fatal(err)
+	}
+	second := s.place(t, green[0], 10_00, line("M1", "B"))
+
+	var firstColor, secondColor string
+	if err := s.postgres.SQL.QueryRow(`SELECT vote_color_id FROM bill_lines WHERE bill_id = $1`, first.ID).Scan(&firstColor); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.postgres.SQL.QueryRow(`SELECT vote_color_id FROM bill_lines WHERE bill_id = $1`, second.ID).Scan(&secondColor); err != nil {
+		t.Fatal(err)
+	}
+	if firstColor != "C" || secondColor != "B" {
+		t.Fatalf("vote colors = %q then %q; want C then B", firstColor, secondColor)
+	}
+
+	s.setWinner(t, "M1", "A")
+	s.wantLedger(t, "M1", "C", 100_00, 1, 0)
+	s.wantLedger(t, "M1", "B", 0, 0, 1)
+	s.wantTotalsMatchLedger(t)
+}
+
 func TestTeamCoinsAreRecordedOnceAndNotForDraws(t *testing.T) {
 	s := newBillingSuite(t)
 	s.reset(t)
