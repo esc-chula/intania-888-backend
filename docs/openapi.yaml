@@ -9,11 +9,16 @@ info:
     \ accepted for these decimal values. \n\nAPI failures use the shared apierror.Response shape: code, message,\
     \ request_id, and optional field-level details. The same request ID is returned in the X-Request-ID header.\
     \ Dates and timestamps use the formats documented by each field. The /external/* backend integration\
-    \ requires scoped Bearer credentials.\n\nNon-external API routes are\
-    \ limited to 300 requests per minute per client IP. External routes share a\
-    \ 10,000-request-per-minute limit per client ID. /external/me allows 60 requests per minute per user, and\
-    \ /external/deduct-coin allows 10 requests per minute per user. Exceeding an applicable limit returns 429\
-    \ TOO_MANY_REQUESTS."
+    \ requires scoped Bearer credentials.\n\nEvery API request reaching the limiter shares a provisional\
+    \ 60,000-request/minute/IP guard (burst 2,000). Protected browser routes also allow 300/minute/account (burst 20).\
+    \ External routes share 10,000/minute/signed client ID (burst 300). /external/me allows 60/minute/user (burst 5),\
+    \ and /external/deduct-coin allows 10/minute/user (burst 3), across clients. Login and authorization initiation\
+    \ share 1,200/minute/IP (burst 100); callbacks have an independent 1,200/minute/IP budget (burst 100).\
+    \ Token exchange and revocation each allow 2,000/minute/authenticated client (burst 200). Invalid Basic\
+    \ credentials share 30/minute/IP (burst 5); invalid external credentials or rejected grants allow 120/minute/IP\
+    \ (burst 10). Valid credentials bypass the corresponding failure budget. Each burst bucket refills\
+    \ continuously at its minute allowance divided by 60. All budgets are configurable and per API process.\
+    \ Exceeding an applicable budget returns 429 TOO_MANY_REQUESTS with positive Retry-After seconds."
   title: Intania 888 API
   version: 1.0.0-breaking
 servers:
@@ -74,9 +79,13 @@ paths:
               schema:
                 type: string
         '429':
-          description: 'TOO_MANY_REQUESTS: global per-IP limit. Pending-login limit instead returns a local HTML sign-in
-            error with status 429.'
+          description: 'TOO_MANY_REQUESTS: the callback or shared-IP minute/burst budget was exceeded.'
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request.
               schema:
@@ -156,9 +165,21 @@ paths:
               schema:
                 type: string
         '429':
-          description: Pending transaction or IP limit reached.
-          headers: *id001_2
+          description: Initiation/shared-IP minute or burst budget exceeded (resource JSON), or pending login transaction limit reached (local HTML).
+          headers:
+            Retry-After:
+              description: Positive retry delay for a request-budget rejection, in seconds.
+              schema:
+                type: integer
+                minimum: 1
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
           content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
             text/html:
               schema:
                 type: string
@@ -263,8 +284,13 @@ paths:
                   error:
                     type: string
         '429':
-          description: 'TOO_MANY_REQUESTS: API-wide per-IP limit; this response uses the shared resource error envelope.'
+          description: 'TOO_MANY_REQUESTS: an application, invalid-client, shared-IP, or burst budget was exceeded; uses the resource error envelope.'
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request.
               schema:
@@ -339,8 +365,13 @@ paths:
                   error:
                     type: string
         '429':
-          description: 'TOO_MANY_REQUESTS: API-wide per-IP limit; this response uses the shared resource error envelope.'
+          description: 'TOO_MANY_REQUESTS: an application, invalid-client, shared-IP, or burst budget was exceeded; uses the resource error envelope.'
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request.
               schema:
@@ -391,9 +422,21 @@ paths:
               schema:
                 type: string
         '429':
-          description: Pending transaction or IP limit reached.
-          headers: *id001_3
+          description: Initiation/shared-IP minute or burst budget exceeded (resource JSON), or pending login transaction limit reached (local HTML).
+          headers:
+            Retry-After:
+              description: Positive retry delay for a request-budget rejection, in seconds.
+              schema:
+                type: integer
+                minimum: 1
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
           content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
             text/html:
               schema:
                 type: string
@@ -443,8 +486,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -503,8 +551,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -629,8 +682,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -754,8 +812,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -861,8 +924,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -992,8 +1060,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1065,8 +1138,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1204,8 +1282,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1296,8 +1379,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1441,8 +1529,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1525,8 +1618,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1616,8 +1714,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1696,8 +1799,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1766,8 +1874,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -1893,8 +2006,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2014,8 +2132,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2114,8 +2237,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2250,8 +2378,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2402,8 +2535,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2476,6 +2614,11 @@ paths:
                 $ref: '#/components/schemas/apierror.Response'
           description: The client IP exceeded the API limit of 200 requests per minute.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2531,6 +2674,11 @@ paths:
                 $ref: '#/components/schemas/apierror.Response'
           description: The client IP exceeded the API limit of 200 requests per minute.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2585,8 +2733,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded. The body uses apierror.Response.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2671,8 +2824,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded. The body uses apierror.Response.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2774,8 +2932,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded. The body uses apierror.Response.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -2899,8 +3062,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded. The body uses apierror.Response.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3024,8 +3192,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute. The body uses apierror.Response.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded. The body uses apierror.Response.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3125,8 +3298,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3224,8 +3402,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3337,8 +3520,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3427,8 +3615,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3545,8 +3738,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3693,8 +3891,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3826,8 +4029,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3899,8 +4107,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -3976,8 +4189,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4100,8 +4318,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4245,8 +4468,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4329,8 +4557,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4482,8 +4715,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4583,8 +4821,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4654,8 +4897,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4727,8 +4975,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4818,8 +5071,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -4929,8 +5187,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -5066,8 +5329,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -5198,8 +5466,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -5272,8 +5545,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -5362,8 +5640,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -5481,8 +5764,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -5613,8 +5901,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -5739,8 +6032,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: The client IP exceeded the API limit of 300 requests per minute.
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
               schema:
@@ -5824,9 +6122,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
         '429':
-          description: 'TOO_MANY_REQUESTS: shared external client limit of 10,000 requests per minute per client ID
-            or profile limit of 60 requests per minute per user.'
+          description: 'TOO_MANY_REQUESTS: a shared-IP, invalid-credential, signed-client, profile-user, or burst budget was exceeded.'
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request.
               schema:
@@ -5913,9 +6215,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
         '429':
-          description: 'TOO_MANY_REQUESTS: shared external client limit of 10,000 requests per minute per client ID
-            or transaction limit of 10 requests per minute per user.'
+          description: 'TOO_MANY_REQUESTS: a shared-IP, invalid-credential, signed-client, transaction-user, or burst budget was exceeded.'
           headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
             X-Request-ID:
               description: Correlation ID for this request.
               schema:

@@ -47,7 +47,10 @@ func New(name string, policy config.RatePolicy, logger *zap.Logger) *Limiter {
 
 func newWithClock(name string, policy config.RatePolicy, logger *zap.Logger, now func() time.Time) *Limiter {
 	return &Limiter{
-		name: name, policy: policy, logger: logger, now: now,
+		name:    name,
+		policy:  policy,
+		logger:  logger,
+		now:     now,
 		entries: make(map[string]*entry),
 	}
 }
@@ -56,19 +59,20 @@ func newWithClock(name string, policy config.RatePolicy, logger *zap.Logger, now
 // It returns the existing API error on rejection and never executes a downstream handler.
 func (l *Limiter) Check(c *fiber.Ctx, key string) error {
 	wait, remaining, reset := l.take(key)
+	c.Set("X-RateLimit-Limit", strconv.Itoa(l.policy.PerMinute))
+	c.Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+	c.Set("X-RateLimit-Reset", strconv.Itoa(int(math.Ceil(reset.Seconds()))))
 	if wait > 0 {
 		c.Set(fiber.HeaderRetryAfter, strconv.Itoa(int(math.Ceil(wait.Seconds()))))
 		if l.logger != nil {
 			l.logger.Warn("http.rate_limit.rejected",
-				zap.String("policy", l.name), zap.String("route", c.Path()),
+				zap.String("policy", l.name),
+				zap.String("route", c.Route().Path),
 				zap.String("request_id", c.GetRespHeader(apierror.RequestIDHeader)),
 			)
 		}
 		return apierror.New(fiber.StatusTooManyRequests, apierror.CodeTooManyRequests, "Too many requests")
 	}
-	c.Set("X-RateLimit-Limit", strconv.Itoa(l.policy.PerMinute))
-	c.Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
-	c.Set("X-RateLimit-Reset", strconv.Itoa(int(math.Ceil(reset.Seconds()))))
 	return nil
 }
 

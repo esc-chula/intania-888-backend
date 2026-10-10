@@ -1,10 +1,17 @@
 package httplimit
 
 import (
+	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
@@ -77,5 +84,37 @@ func TestConcurrentBurstAndIdleCleanup(t *testing.T) {
 	l.take("B")
 	if _, exists := l.entries["A"]; exists {
 		t.Fatal("idle entry retained")
+	}
+}
+
+func TestRejectedPolicyOwnsHeadersAndLogsRoutePattern(t *testing.T) {
+	core, logs := observer.New(zap.WarnLevel)
+	limiter := New("account", config.RatePolicy{PerMinute: 1, Burst: 1}, zap.New(core))
+	app := fiber.New(fiber.Config{ErrorHandler: apierror.ErrorHandler(nil)})
+	app.Use(apierror.RequestID())
+	app.Use(New("shared", config.RatePolicy{PerMinute: 60000, Burst: 2000}, nil).Middleware(ClientIP))
+	reached := 0
+	app.Get("/users/:id", limiter.Middleware(func(*fiber.Ctx) string { return "account" }), func(c *fiber.Ctx) error {
+		reached++
+		return c.SendStatus(204)
+	})
+	for _, want := range []int{204, 429} {
+		response, err := app.Test(httptest.NewRequest("GET", "/users/private-account", nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != want || response.Header.Get("X-RateLimit-Limit") != "1" {
+			t.Fatalf("status=%d, limit=%q", response.StatusCode, response.Header.Get("X-RateLimit-Limit"))
+		}
+		if want == 429 && (response.Header.Get("Retry-After") == "" || response.Header.Get("X-RateLimit-Remaining") != "0") {
+			t.Fatal("rejection did not identify its exhausted budget")
+		}
+	}
+	events := logs.All()
+	if reached != 1 || len(events) != 1 || events[0].ContextMap()["route"] != "/users/:id" {
+		t.Fatalf("downstream=%d, rejection events=%+v", reached, events)
 	}
 }
