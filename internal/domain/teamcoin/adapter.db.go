@@ -27,9 +27,9 @@ func NewGORMRepository(db *gorm.DB) *GORMRepository {
 func (s *GORMRepository) TeamVoteTallies(ctx context.Context, matchID string) ([]Tally, error) {
 	var rows []Tally
 	// The query builds the tally in separate stages:
-	//  1. Load every bill line for this decided match together with its bill
-	//     stake, bettor, bettor color, and the match winner. Keeping voided lines
-	//     here lets the final result include colors whose bets were all voided.
+	//  1. Load every eligible bill line for this decided match with its snapshotted
+	//     vote color, bill stake, bettor, and the match winner. Keeping voided
+	//     lines here lets the final result include colors whose bets were all voided.
 	//  2. Exclude voided bills and sum each user's stake by selected side. A bill
 	//     contributes its total stake to the selection on this match.
 	//  3. Compare each user's total stake on the winning side with their total
@@ -43,14 +43,13 @@ func (s *GORMRepository) TeamVoteTallies(ctx context.Context, matchID string) ([
 	//     have any stale ledger balance corrected by the caller.
 	err := s.db.WithContext(ctx).Raw(`
 		WITH bet_lines AS (
-			SELECT g.color_id, u.id AS user_id, bl.betting_on, m.winner_id,
+			SELECT bl.vote_color_id AS color_id, u.id AS user_id, bl.betting_on, m.winner_id,
 				bh.status, bh.total AS bet_amount
 			FROM bill_lines bl
 			JOIN bill_heads bh ON bh.id = bl.bill_id
 			JOIN matches m ON m.id = bl.match_id AND m.winner_id IS NOT NULL
 			JOIN users u ON u.id = bh.user_id AND u.role_id = 'USER'
-			JOIN intania_groups g ON g.id = u.group_id
-			WHERE bl.match_id = ?
+			WHERE bl.match_id = ? AND bl.vote_color_id IS NOT NULL
 		), user_side_totals AS (
 			SELECT color_id, user_id, betting_on, winner_id,
 				SUM(bet_amount) AS bet_amount
