@@ -22,6 +22,24 @@ type UpdateOwnProfileRequest struct {
 	nickNameSet bool
 }
 
+// RegisterProfileRequest contains the nickname and group chosen during registration.
+type RegisterProfileRequest struct {
+	NickName string `json:"nick_name"`
+	GroupID  string `json:"group_id"`
+}
+
+// ValidateRequest requires both registration fields to contain nonblank values.
+func (r RegisterProfileRequest) ValidateRequest() map[string]string {
+	details := make(map[string]string)
+	if strings.TrimSpace(r.NickName) == "" {
+		details["nick_name"] = "is required"
+	}
+	if strings.TrimSpace(r.GroupID) == "" {
+		details["group_id"] = "is required"
+	}
+	return details
+}
+
 // UnmarshalJSON records supplied fields and rejects identity and privilege fields.
 func (r *UpdateOwnProfileRequest) UnmarshalJSON(data []byte) error {
 	type wire UpdateOwnProfileRequest

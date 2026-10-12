@@ -332,22 +332,30 @@ through `users.role_id`; the user-update API does not change roles.
 
 Use `PATCH /api/v1/users/me` with the session cookie, configured frontend
 `Origin`, and `X-CSRF-Token` obtained from `GET /api/v1/auth/me`. The API takes
-the account ID from authentication. The request accepts only `name`,
-`nick_name`, and `group_id`:
+the account ID from authentication. This endpoint accepts only `name` and
+`nick_name`; omitted fields remain unchanged and `null` clears `nick_name`.
+Empty updates, invalid values, and unknown fields such as `group_id` return
+`400 INVALID_REQUEST`. The API rejects `id`, `email`, `role_id`, and
+`remaining_coin` in this request. Success returns `200` with the updated profile
+in the existing profile response format.
+
+During registration, choose a group with
+`POST /api/v1/users/me/registration`, using the same session, Origin, and CSRF
+requirements. Send both `nick_name` and `group_id`:
 
 ```json
 {
   "nick_name": "Oak",
-  "group_id": null
+  "group_id": "A"
 }
 ```
 
-Send only fields to change. Omitted fields remain unchanged; `null` clears
-`nick_name` or `group_id`. A supplied `name` must be a nonempty string. A group
-ID must identify an existing group, or be null. Empty updates, invalid values,
-and unknown fields return `400 INVALID_REQUEST`. The API rejects `id`, `email`,
-`role_id`, and `remaining_coin` in this request. Success returns `200` with the
-updated profile in the existing profile response format.
+The API saves the nickname and group together only when the authenticated
+account's `group_id` is null. A request for the same already-assigned group is
+an idempotent success; requesting a different group returns `409
+GROUP_ALREADY_ASSIGNED`. Unknown group IDs return `400 INVALID_REQUEST`. An
+administrator can assign, change, or clear a user's group. Clearing it to null
+allows that user to register a group again.
 
 **Deprecated:** `PATCH /api/v1/users/:id`. Migrate profile edits to `/users/me`.
 The legacy endpoint requires `:id` to equal the signed-in user's ID; a mismatch

@@ -26,6 +26,12 @@ type ProfilePatch struct {
 	NickNameSet bool
 }
 
+// ProfileRegistrationInput describes the nickname and group selected at registration.
+type ProfileRegistrationInput struct {
+	NickName string
+	GroupID  string
+}
+
 // AdminUpdateInput describes editable profile fields and the explicit balance.
 // Role changes are performed by the operator database workflow.
 type AdminUpdateInput struct {

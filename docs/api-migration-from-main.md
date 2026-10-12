@@ -636,13 +636,14 @@ mark the claim complete only after success, or show already claimed for
 
 ### Self-profile updates
 
-| Before: `main`                             | After: current API                                   |
-| ------------------------------------------ | ---------------------------------------------------- |
-| `PATCH /users/{id}` with a broad user DTO. | `PATCH /users/me` with only editable profile fields. |
-| Client supplies the target user ID.        | Account ID comes from the authenticated session.     |
+| Before: `main`                             | After: current API                                              |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| `PATCH /users/{id}` with a broad user DTO. | `PATCH /users/me` edits self-profile fields; registration has its own route. |
+| Client supplies the target user ID.        | Account ID comes from the authenticated session.                |
 
-**Impact:** profile forms submit only `name`, `nick_name`, and `group_id`.
-Identity, email, role, and balance fields are rejected.
+**Impact:** self-profile forms submit only `name` and `nick_name`. Group choice
+is accepted only by the registration route while `group_id` is null. Identity,
+email, role, balance, and group fields are rejected by `PATCH /users/me`.
 
 **Why it changed:** selecting the account from authentication and limiting
 editable fields makes the self-service boundary explicit. Profile edits cannot
@@ -651,20 +652,27 @@ be used to write account privileges or credit balances.
 **Required action:** use `PATCH /users/me` with only the fields to change:
 
 ```json
-{ "nick_name": "Oak", "group_id": null }
+{ "nick_name": "Oak" }
 ```
 
-Omitted fields are preserved. `null` clears `nick_name` or `group_id`; a supplied
-`name` must be nonempty. An empty update is invalid. The deprecated
+Omitted fields are preserved. `null` clears `nick_name`; a supplied `name` must
+be nonempty. An empty update is invalid. The deprecated
 `PATCH /users/{id}` alias accepts the same body and requires the signed-in user's
 ID; another ID returns `403 FORBIDDEN`.
+
+For initial group selection, use `POST /users/me/registration` with both
+`nick_name` and `group_id`. It assigns the group only while `group_id` is null;
+retrying the same group is a no-op success, and choosing a different group
+returns `409 GROUP_ALREADY_ASSIGNED`. An administrator clearing `group_id` to
+null makes the account eligible to register again.
 
 Administrator updates to another account use `PATCH /users/admin/{id}`. Supply
 a nonempty `name` and the intended money-string `remaining_coin` on each request;
 an omitted balance is decoded as `"0.00"` and written. An omitted `nick_name`
-clears it. `group_id` changes when a non-null ID is supplied and is otherwise
-preserved. The route does not accept `role_id`; role promotion/demotion remains
-an operator database workflow. `GET /users/{id}` remains available.
+clears it. An omitted `group_id` is preserved, a string assigns or changes the
+group, and `null` clears it. The route does not accept `role_id`; role
+promotion/demotion remains an operator database workflow. `GET /users/{id}`
+remains available.
 
 ### Errors and request validation
 
@@ -893,6 +901,7 @@ Frontend acceptance checks:
 | `POST /external/deduct-coin`                              | Delegated money-string deduction with `coins.spend`               |
 | `POST /auth/logout`                                       | Browser session revocation                                        |
 | `PATCH /users/me`                                         | Self-profile update                                               |
+| `POST /users/me/registration`                             | Initial group registration, or re-registration after admin clear  |
 | `PATCH /users/admin/{id}`                                 | Administrator profile and balance update                          |
 | `GET /events/daily-rewards`                               | Admin schedule read                                               |
 | `PUT /events/daily-rewards/{date}`                        | Admin override create/replace                                     |

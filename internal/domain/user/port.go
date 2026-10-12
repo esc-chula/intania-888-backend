@@ -22,6 +22,9 @@ type Repository interface {
 	// Explicitly supplied nil nickname values clear the stored column.
 	// Missing accounts return ErrUserNotFound.
 	PatchProfile(context.Context, string, ProfilePatch) error
+	// RegisterProfileIfGroupUnset atomically assigns nickname and group only when group_id is null.
+	// It returns false when the account exists but already has a group.
+	RegisterProfileIfGroupUnset(context.Context, string, ProfileRegistrationInput) (bool, error)
 	// UpdateByAdmin applies explicitly supplied administrator fields without
 	// overwriting concurrent changes to fields omitted from the request.
 	UpdateByAdmin(context.Context, string, AdminUpdateInput) error
@@ -48,6 +51,8 @@ type ServicePort interface {
 	GetAllUsers(context.Context) ([]*identity.Profile, error)
 	// UpdateOwnProfile applies a partial update to the authenticated actor's profile.
 	UpdateOwnProfile(context.Context, string, ProfilePatch) (*identity.Profile, error)
+	// RegisterProfile assigns nickname and group while the authenticated actor is unassigned.
+	RegisterProfile(context.Context, string, ProfileRegistrationInput) (*identity.Profile, error)
 	// AdminUpdateUser updates administrator-editable fields.
 	AdminUpdateUser(context.Context, string, AdminUpdateInput) error
 	// DeductCoin subtracts a balance under a row lock and returns the remaining amount.

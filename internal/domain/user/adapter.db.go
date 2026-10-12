@@ -94,6 +94,30 @@ func (r *gormRepository) PatchProfile(ctx context.Context, actorID string, input
 	return nil
 }
 
+// RegisterProfileIfGroupUnset atomically saves registration fields only for an unassigned account.
+func (r *gormRepository) RegisterProfileIfGroupUnset(
+	ctx context.Context,
+	actorID string,
+	input ProfileRegistrationInput,
+) (bool, error) {
+	result := r.db.WithContext(ctx).Model(&persistence.User{}).
+		Where("id = ? AND group_id IS NULL", actorID).
+		Updates(map[string]any{
+			"nick_name": input.NickName,
+			"group_id":  input.GroupID,
+		})
+	if result.Error != nil {
+		var constraintError *pgconn.PgError
+		if errors.As(result.Error, &constraintError) && constraintError.Code == "23503" {
+			return false, fmt.Errorf("register user profile: %w", errors.Join(ErrProfileGroupNotFound, result.Error))
+		}
+
+		return false, fmt.Errorf("register user profile: %w", result.Error)
+	}
+
+	return result.RowsAffected > 0, nil
+}
+
 // UpdateByAdmin applies only supplied administrator fields without replaying a
 // stale user snapshot over fields changed by another transaction.
 func (r *gormRepository) UpdateByAdmin(ctx context.Context, userID string, input AdminUpdateInput) error {

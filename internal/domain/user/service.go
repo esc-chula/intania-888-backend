@@ -98,6 +98,46 @@ func (s *Service) UpdateOwnProfile(ctx context.Context, actorID string, input Pr
 	return s.GetUser(ctx, actorID)
 }
 
+// RegisterProfile assigns a group only while the authenticated account has none.
+// Repeating the same group is an idempotent success; a different assigned group conflicts.
+func (s *Service) RegisterProfile(
+	ctx context.Context,
+	actorID string,
+	input ProfileRegistrationInput,
+) (*identity.Profile, error) {
+	if strings.TrimSpace(actorID) == "" || strings.TrimSpace(input.NickName) == "" ||
+		strings.TrimSpace(input.GroupID) == "" {
+		return nil, ErrInvalidProfileRegistration
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		registered, err := s.repo.RegisterProfileIfGroupUnset(ctx, actorID, input)
+		if err != nil {
+			return nil, err
+		}
+		if registered {
+			s.log.Info("User registered profile successfully", zap.String("user_id", actorID))
+			return s.GetUser(ctx, actorID)
+		}
+
+		current, err := s.repo.GetByID(ctx, actorID)
+		if err != nil {
+			return nil, err
+		}
+		if current.GroupID != nil {
+			if *current.GroupID == input.GroupID {
+				result := profileFromUser(current)
+				result.CreatedAt = zeroTime
+				return result, nil
+			}
+
+			return nil, ErrGroupAlreadyAssigned
+		}
+	}
+
+	return nil, ErrGroupRegistrationConflict
+}
+
 // AdminUpdateUser updates profile fields and balance while preserving role ownership.
 func (s *Service) AdminUpdateUser(ctx context.Context, userID string, input AdminUpdateInput) error {
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(input.Name) == "" ||

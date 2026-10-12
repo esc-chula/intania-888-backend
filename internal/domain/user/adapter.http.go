@@ -27,6 +27,7 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, auth, admin fiber.Hand
 
 	router.Get("/", h.GetAllUsers)
 	router.Get("/:id", h.GetUser)
+	router.Post("/me/registration", h.RegisterProfile)
 	router.Patch("/me", h.UpdateOwnProfile)
 	router.Patch("/:id", h.UpdateUser)
 
@@ -105,6 +106,29 @@ func (h *HTTPHandler) UpdateOwnProfile(c *fiber.Ctx) error {
 		Name:        request.Name,
 		NickName:    request.NickName,
 		NickNameSet: request.nickNameSet,
+	})
+	if err != nil {
+		return mapUserError(err)
+	}
+
+	return c.JSON(httpidentity.Response(user))
+}
+
+// RegisterProfile lets an authenticated account choose its group while unassigned.
+func (h *HTTPHandler) RegisterProfile(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
+	if profile == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+
+	var request RegisterProfileRequest
+	if err := apierror.BindJSON(c, &request); err != nil {
+		return err
+	}
+
+	user, err := h.service.RegisterProfile(c.UserContext(), profile.ID, ProfileRegistrationInput{
+		NickName: request.NickName,
+		GroupID:  request.GroupID,
 	})
 	if err != nil {
 		return mapUserError(err)
