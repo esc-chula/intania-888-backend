@@ -82,12 +82,17 @@ The example Compose setup publishes PostgreSQL on port `5432` and Redis on
 `CACHE_TLS_ENABLED` defaults to `false` for local Compose Redis. Set it to
 `true` when the configured Redis endpoint requires TLS. The client negotiates
 TLS 1.2 or newer and validates the server certificate against the system
-certificate roots; keep `CACHE_HOST` set to the hostname covered by that
-certificate. Custom CA files and certificate-verification bypasses are not
-configured. The Cloud Run workflow reads this setting from the GitHub Actions
-repository variable `CACHE_TLS_ENABLED`, defaulting to `true` to preserve the
-workflow's existing deployment setting. Set that variable to `false` if your
-Cloud Run Redis endpoint does not use TLS.
+certificate roots; keep `CACHE_HOST` set to the hostname or IP covered by that
+certificate. For a private CA, set `CACHE_TLS_CA_FILE` to a readable PEM bundle
+containing the instance's CA certificates. When configured, this bundle replaces
+the system roots for Redis. Missing files and invalid bundles fail startup.
+`CACHE_TLS_CA_FILE` requires `CACHE_TLS_ENABLED=true`.
+
+Memorystore TLS connections require the instance's CA bundle and use port `6378`.
+Mount that bundle into the Cloud Run container and configure `CACHE_TLS_CA_FILE`
+before deploying with TLS. The Cloud Run workflow reads the TLS setting from the
+GitHub Actions repository variable `CACHE_TLS_ENABLED`, defaulting to `true`.
+Set that variable to `false` if your Cloud Run Redis endpoint does not use TLS.
 
 Login starts through browser navigation to:
 
@@ -147,6 +152,24 @@ production database.
 `ALLOW_DESTRUCTIVE_MIGRATIONS=I_UNDERSTAND_DATA_WILL_BE_LOST`; use them only
 with a disposable local database. `docker compose down` stops local services
 and keeps their named data volumes.
+
+## Production database jobs
+
+The container includes `/bin/app`, `/bin/migrate`, `/bin/seed`, and the SQL files
+under `/migrations`. The API is the default entry point. Run schema changes in a
+Cloud Run job with command `/bin/migrate` and argument `up`, then run the catalogue
+job with command `/bin/seed`. Both jobs need database settings and credentials;
+they do not require the auth registry, Google OAuth credentials, or Redis.
+Policy imports through `seed --policy-file` still use the full API configuration
+and Redis.
+
+Database pools default to 10 open connections, 5 idle connections, a 30-minute
+connection lifetime, and a 5-minute idle timeout. Configure these per process
+with `DB_MAX_OPEN_CONNS`, `DB_MAX_IDLE_CONNS`, `DB_CONN_MAX_LIFETIME_SECONDS`, and
+`DB_CONN_MAX_IDLE_TIME_SECONDS`. Open connections must be positive; idle
+connections must be between zero and the open limit. Timeouts cannot be negative;
+zero disables that timeout. Include all API instances, deployment overlap, jobs,
+and administrative connections when sizing the database connection budget.
 
 ## Local endpoints
 

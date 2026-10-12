@@ -26,7 +26,7 @@ func main() {
 		}
 	}
 
-	db := database.NewGORMDatabase(config.GetConfig())
+	db := database.NewGORMDatabase(config.LoadDatabaseConfig())
 	sqlDB, err := db.DB()
 	if err != nil {
 		log.Fatal(err)

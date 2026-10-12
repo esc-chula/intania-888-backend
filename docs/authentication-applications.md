@@ -28,8 +28,8 @@ Swagger access credentials protect the documentation UI only.
 
 Set `AUTH_CONFIG_FILE` to an operator-managed YAML file. The local registry is
 [`config/auth.development.yaml`](../config/auth.development.yaml); use
-[`config/auth.production.example.yaml`](../config/auth.production.example.yaml)
-as a production template, replacing its example domains.
+[`config/auth.production.yaml`](../config/auth.production.yaml)
+for the production deployment.
 
 ```yaml
 version: 1

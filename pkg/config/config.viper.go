@@ -34,47 +34,7 @@ var (
 // existing startup behavior: decoding and binding failures terminate the process.
 func NewViperConfig() *viperConfig {
 	once.Do(func() {
-		appEnv := getEnv()
-		v := viper.New()
-
-		switch appEnv {
-		case "prod":
-			v.SetConfigFile("./bin/.env")
-		case "dev":
-			v.SetConfigFile("./.env")
-		default:
-			panic("Error: invalid app env")
-		}
-
-		// Swagger remains enabled for compatibility. Development is frictionless,
-		// while production requires the configured Basic Auth credentials.
-		v.SetDefault("swagger_enabled", true)
-		v.SetDefault("swagger_require_auth", appEnv == "prod")
-		if appEnv == "prod" {
-			v.SetDefault("server_env", "production")
-		} else {
-			v.SetDefault("server_env", "development")
-		}
-		v.SetDefault("session_idle_ttl_seconds", DefaultSessionIdleTTLSeconds)
-		v.SetDefault("session_absolute_ttl_seconds", DefaultSessionAbsoluteTTLSeconds)
-		v.SetDefault("daily_reward_default_amount", "300.00")
-		v.SetDefault("cache_tls_enabled", false)
-
-		setRateLimitDefaults(v)
-
-		// Bind environment variables to config keys
-		bindEnvVars(v)
-		v.AutomaticEnv()
-
-		if err := v.ReadInConfig(); err != nil {
-			if appEnv == "prod" {
-				log.Println("No config file found, using environment variables")
-			} else {
-				log.Fatalf("Error reading configs file: %s", err)
-			}
-		}
-
-		readRateLimitFileOverrides(v)
+		v := newEnvironmentViper()
 
 		cfg := &viperConfig{}
 
@@ -93,6 +53,75 @@ func NewViperConfig() *viperConfig {
 	})
 
 	return instance
+}
+
+type databaseConfig struct {
+	DB `mapstructure:",squash"`
+}
+
+func (c databaseConfig) GetDB() DB {
+	return c.DB
+}
+
+// LoadDatabaseConfig loads database settings for migration and catalogue jobs.
+// These commands do not need an auth registry, Google credentials, or Redis.
+func LoadDatabaseConfig() DatabaseConfig {
+	v := newEnvironmentViper()
+	var cfg databaseConfig
+	if err := v.Unmarshal(&cfg); err != nil {
+		log.Fatalf("Unable to decode database configuration: %v", err)
+	}
+
+	return cfg
+}
+
+// newEnvironmentViper shares file and environment precedence across entry points.
+// The API loads its auth registry separately after decoding its full settings.
+func newEnvironmentViper() *viper.Viper {
+	appEnv := getEnv()
+	v := viper.New()
+
+	switch appEnv {
+	case "prod":
+		v.SetConfigFile("./bin/.env")
+	case "dev":
+		v.SetConfigFile("./.env")
+	default:
+		panic("Error: invalid app env")
+	}
+
+	// Production documentation requires Basic Auth when Swagger is enabled.
+	v.SetDefault("swagger_enabled", true)
+	v.SetDefault("swagger_require_auth", appEnv == "prod")
+	if appEnv == "prod" {
+		v.SetDefault("server_env", "production")
+	} else {
+		v.SetDefault("server_env", "development")
+	}
+	v.SetDefault("session_idle_ttl_seconds", DefaultSessionIdleTTLSeconds)
+	v.SetDefault("session_absolute_ttl_seconds", DefaultSessionAbsoluteTTLSeconds)
+	v.SetDefault("daily_reward_default_amount", "300.00")
+	v.SetDefault("cache_tls_enabled", false)
+	v.SetDefault("db_max_open_conns", 10)
+	v.SetDefault("db_max_idle_conns", 5)
+	v.SetDefault("db_conn_max_lifetime_seconds", 1800)
+	v.SetDefault("db_conn_max_idle_time_seconds", 300)
+
+	setRateLimitDefaults(v)
+	bindEnvVars(v)
+	v.AutomaticEnv()
+
+	if err := v.ReadInConfig(); err != nil {
+		if appEnv == "prod" {
+			log.Println("No config file found, using environment variables")
+		} else {
+			log.Fatalf("Error reading configs file: %s", err)
+		}
+	}
+
+	readRateLimitFileOverrides(v)
+
+	return v
 }
 
 func getEnv() string {
@@ -198,11 +227,16 @@ func bindEnvVars(v *viper.Viper) {
 	bind("db_name", "DB_NAME")
 	bind("db_ssl_mode", "DB_SSL_MODE")
 	bind("db_timezone", "DB_TIMEZONE")
+	bind("db_max_open_conns", "DB_MAX_OPEN_CONNS")
+	bind("db_max_idle_conns", "DB_MAX_IDLE_CONNS")
+	bind("db_conn_max_lifetime_seconds", "DB_CONN_MAX_LIFETIME_SECONDS")
+	bind("db_conn_max_idle_time_seconds", "DB_CONN_MAX_IDLE_TIME_SECONDS")
 
 	bind("cache_host", "CACHE_HOST")
 	bind("cache_port", "CACHE_PORT")
 	bind("cache_pass", "CACHE_PASS")
 	bind("cache_tls_enabled", "CACHE_TLS_ENABLED")
+	bind("cache_tls_ca_file", "CACHE_TLS_CA_FILE")
 
 	bind("jwt_access_token_secret", "JWT_ACCESS_TOKEN_SECRET")
 
