@@ -53,28 +53,28 @@ func seedCatalogue(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		colors := []persistence.Color{
 			{
-				ID:    "VIOLET",
-				Title: "สีม่วง",
-			},
-			{
-				ID:    "BLUE",
-				Title: "สีฟ้า",
+				ID:    "PINK",
+				Title: "สีชมพู",
 			},
 			{
 				ID:    "GREEN",
 				Title: "สีเขียว",
 			},
 			{
-				ID:    "PINK",
-				Title: "สีชมพู",
+				ID:    "RED",
+				Title: "สีแดง",
+			},
+			{
+				ID:    "VIOLET",
+				Title: "สีม่วง",
 			},
 			{
 				ID:    "ORANGE",
 				Title: "สีส้ม",
 			},
 			{
-				ID:    "YELLOW",
-				Title: "สีเหลือง",
+				ID:    "BLUE",
+				Title: "สีฟ้า",
 			},
 		}
 
@@ -83,24 +83,24 @@ func seedCatalogue(db *gorm.DB) error {
 		}
 
 		groupColors := map[string]string{
-			"DOG": "VIOLET",
-			"J":   "VIOLET",
-			"R":   "VIOLET",
-			"E":   "BLUE",
-			"K":   "BLUE",
-			"N":   "BLUE",
-			"B":   "GREEN",
-			"C":   "GREEN",
-			"M":   "GREEN",
+			"A":   "PINK",
 			"G":   "PINK",
-			"H":   "PINK",
-			"T":   "PINK",
-			"P":   "ORANGE",
-			"Q":   "ORANGE",
-			"S":   "ORANGE",
-			"A":   "YELLOW",
-			"F":   "YELLOW",
-			"L":   "YELLOW",
+			"N":   "PINK",
+			"B":   "GREEN",
+			"P":   "GREEN",
+			"S":   "GREEN",
+			"C":   "RED",
+			"H":   "RED",
+			"Q":   "RED",
+			"DOG": "VIOLET",
+			"T":   "VIOLET",
+			"J":   "VIOLET",
+			"E":   "ORANGE",
+			"L":   "ORANGE",
+			"M":   "ORANGE",
+			"F":   "BLUE",
+			"K":   "BLUE",
+			"R":   "BLUE",
 		}
 
 		groups := make([]persistence.IntaniaGroup, 0, len(groupColors))
