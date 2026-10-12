@@ -26,14 +26,14 @@ func (h *HTTPHandler) RegisterRoutes(router fiber.Router, auth, admin fiber.Hand
 	router = router.Group("/users", auth)
 
 	router.Get("/", h.GetAllUsers)
+	adminRouter := router.Group("/admin", admin)
+	adminRouter.Get("/all", h.GetAllAccounts)
+	adminRouter.Patch("/:id", h.AdminUpdateUser)
+
 	router.Get("/:id", h.GetUser)
 	router.Post("/me/registration", h.RegisterProfile)
 	router.Patch("/me", h.UpdateOwnProfile)
 	router.Patch("/:id", h.UpdateUser)
-
-	// Admin routes
-	adminRouter := router.Group("/admin", admin)
-	adminRouter.Patch("/:id", h.AdminUpdateUser)
 }
 
 // CreateUser parses and creates a user account.
@@ -78,6 +78,21 @@ func (h *HTTPHandler) GetUser(c *fiber.Ctx) error {
 // GetAllUsers serves account profiles with an assigned group.
 func (h *HTTPHandler) GetAllUsers(c *fiber.Ctx) error {
 	users, err := h.service.GetAllUsers(c.UserContext())
+	if err != nil {
+		return err
+	}
+
+	responses := make([]*httpidentity.ProfileResponse, len(users))
+	for i, profile := range users {
+		responses[i] = httpidentity.Response(profile)
+	}
+
+	return c.JSON(responses)
+}
+
+// GetAllAccounts serves every account profile to administrators.
+func (h *HTTPHandler) GetAllAccounts(c *fiber.Ctx) error {
+	users, err := h.service.GetAllAccounts(c.UserContext())
 	if err != nil {
 		return err
 	}

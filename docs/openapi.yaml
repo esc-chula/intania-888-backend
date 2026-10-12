@@ -5806,6 +5806,90 @@ paths:
       summary: Update user (deprecated)
       tags:
       - User
+  /users/admin/all:
+    get:
+      operationId: adminListUsers
+      description: Administrator-only. Returns all account profiles, including accounts without an assigned group.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/model.UserDto'
+                type: array
+          description: OK
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: The browser session is missing or expired.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Administrator permission is required.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
+          headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward; continued traffic can exhaust the budget again.
+              schema:
+                type: integer
+                minimum: 1
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Session or access-policy state could not be checked because a required dependency is unavailable.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+      security:
+      - CookieSession: []
+      - SecureCookieSession: []
+      summary: List all users (admin)
+      tags:
+      - User
   /users/admin/{id}:
     patch:
       operationId: adminUpdateUser
