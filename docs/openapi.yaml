@@ -6111,7 +6111,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/apierror.Response'
-          description: Missing registration fields or unknown group ID.
+          description: Missing or overlong registration fields, or unknown group ID.
           headers:
             X-Request-ID:
               description: Correlation ID for this request.
@@ -6471,11 +6471,16 @@ components:
         group_id:
           nullable: true
           description: Group ID to assign; null clears membership; omission leaves membership unchanged.
+          maxLength: 100
           type: string
         name:
+          description: Display name of at most 100 characters.
+          maxLength: 100
           type: string
         nick_name:
           nullable: true
+          description: Nickname of at most 100 characters; null clears it.
+          maxLength: 100
           type: string
         remaining_coin:
           description: New account balance as a decimal JSON string; the handler writes 0.00 when this field is
@@ -7411,10 +7416,12 @@ components:
       description: UpdateOwnProfileRequest representation used by this API.
       properties:
         name:
-          description: Optional display name.
+          description: Optional display name of at most 100 characters.
+          maxLength: 100
           type: string
         nick_name:
-          description: Optional nickname; null clears the current nickname.
+          description: Optional nickname of at most 100 characters; null clears the current nickname.
+          maxLength: 100
           nullable: true
           type: string
       type: object
@@ -7423,10 +7430,12 @@ components:
       description: Required nickname and group selected for account registration.
       properties:
         group_id:
-          description: Existing group ID to assign while the account is unassigned.
+          description: Existing group ID of at most 100 characters to assign while the account is unassigned.
+          maxLength: 100
           type: string
         nick_name:
-          description: Nonblank nickname saved with the group assignment.
+          description: Nonblank nickname of at most 100 characters, saved with the group assignment.
+          maxLength: 100
           type: string
       required:
       - group_id

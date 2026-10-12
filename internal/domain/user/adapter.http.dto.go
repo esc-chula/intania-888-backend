@@ -3,11 +3,20 @@ package user
 import (
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/esc-chula/intania-888-backend/internal/apierror"
 	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
 	"github.com/esc-chula/intania-888-backend/internal/value"
 )
+
+const maxUserProfileFieldLength = 100
+
+func addUserProfileFieldLengthError(details map[string]string, field, value string) {
+	if utf8.RuneCountInString(value) > maxUserProfileFieldLength {
+		details[field] = "must be at most 100 characters"
+	}
+}
 
 // CreateUserRequest preserves the currently accepted user creation payload.
 type CreateUserRequest httpidentity.ProfileResponse
@@ -28,14 +37,18 @@ type RegisterProfileRequest struct {
 	GroupID  string `json:"group_id"`
 }
 
-// ValidateRequest requires both registration fields to contain nonblank values.
+// ValidateRequest requires nonblank registration fields that fit their database columns.
 func (r RegisterProfileRequest) ValidateRequest() map[string]string {
 	details := make(map[string]string)
 	if strings.TrimSpace(r.NickName) == "" {
 		details["nick_name"] = "is required"
+	} else {
+		addUserProfileFieldLengthError(details, "nick_name", r.NickName)
 	}
 	if strings.TrimSpace(r.GroupID) == "" {
 		details["group_id"] = "is required"
+	} else {
+		addUserProfileFieldLengthError(details, "group_id", r.GroupID)
 	}
 	return details
 }
@@ -100,7 +113,7 @@ type DeductCoinResponse struct {
 	RemainingBalance value.Money `json:"remaining_balance"`
 }
 
-// ValidateRequest rejects empty updates, null or blank names, and blank group IDs.
+// ValidateRequest rejects empty updates, invalid names, and overlong profile fields.
 func (r UpdateOwnProfileRequest) ValidateRequest() map[string]string {
 	details := make(map[string]string)
 	if !r.nameSet && !r.nickNameSet {
@@ -108,6 +121,11 @@ func (r UpdateOwnProfileRequest) ValidateRequest() map[string]string {
 	}
 	if r.nameSet && (r.Name == nil || strings.TrimSpace(*r.Name) == "") {
 		details["name"] = "must be a nonempty string"
+	} else if r.nameSet {
+		addUserProfileFieldLengthError(details, "name", *r.Name)
+	}
+	if r.nickNameSet && r.NickName != nil {
+		addUserProfileFieldLengthError(details, "nick_name", *r.NickName)
 	}
 	return details
 }
@@ -117,11 +135,21 @@ func (r AdminUpdateUserRequest) ValidateRequest() map[string]string {
 	if strings.TrimSpace(r.Name) == "" {
 		return map[string]string{"name": "is required"}
 	}
+	details := make(map[string]string)
+	addUserProfileFieldLengthError(details, "name", r.Name)
+	if r.NickName != nil {
+		addUserProfileFieldLengthError(details, "nick_name", *r.NickName)
+	}
 	if r.groupIDSet && r.GroupID != nil && strings.TrimSpace(*r.GroupID) == "" {
-		return map[string]string{"group_id": "must be a nonempty group ID or null"}
+		details["group_id"] = "must be a nonempty group ID or null"
+	} else if r.groupIDSet && r.GroupID != nil {
+		addUserProfileFieldLengthError(details, "group_id", *r.GroupID)
 	}
 
-	return nil
+	if len(details) == 0 {
+		return nil
+	}
+	return details
 }
 
 // ValidateRequest checks the accepted HTTP deduction range.
