@@ -6074,6 +6074,126 @@ paths:
       summary: Update your own profile
       tags:
       - User
+  /users/me/registration:
+    post:
+      operationId: registerOwnProfile
+      description: Saves nick_name and group_id together only while the authenticated account has no group. Repeating
+        the same group is an idempotent success; a different existing group returns 409. An administrator clearing
+        group_id to null makes the account eligible to register again.
+      parameters:
+      - description: Session-bound token returned by GET /auth/me. Required for browser mutations.
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/user.RegisterProfileRequest'
+        description: Required nickname and selected group
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.UserDto'
+          description: Registration saved, or an idempotent retry for the existing group.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request. The same value appears in apierror.Response.request_id.
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Missing registration fields or unknown group ID.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Authentication required.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Invalid CSRF token or disallowed Origin.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: A different group is already assigned, or concurrent profile changes prevented registration.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: An applicable shared-IP, account, authentication, or burst budget was exceeded.
+          headers:
+            Retry-After:
+              description: Positive retry delay in seconds, rounded upward.
+              schema:
+                type: integer
+                minimum: 1
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Unexpected registration failure.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/apierror.Response'
+          description: Session or access-policy state could not be checked.
+          headers:
+            X-Request-ID:
+              description: Correlation ID for this request.
+              schema:
+                type: string
+      security:
+      - CookieSession: []
+      - SecureCookieSession: []
+      summary: Register your profile group
+      tags:
+      - User
   /external/me:
     get:
       operationId: getDelegatedProfile
@@ -7297,6 +7417,20 @@ components:
           description: Optional nickname; null clears the current nickname.
           nullable: true
           type: string
+      type: object
+    user.RegisterProfileRequest:
+      additionalProperties: false
+      description: Required nickname and group selected for account registration.
+      properties:
+        group_id:
+          description: Existing group ID to assign while the account is unassigned.
+          type: string
+        nick_name:
+          description: Nonblank nickname saved with the group assignment.
+          type: string
+      required:
+      - group_id
+      - nick_name
       type: object
     auth.ExternalMeResponse:
       type: object
