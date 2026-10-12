@@ -59,6 +59,7 @@ type databaseConfig struct {
 	DB `mapstructure:",squash"`
 }
 
+// GetDB returns the database settings for migration and catalogue jobs.
 func (c databaseConfig) GetDB() DB {
 	return c.DB
 }
