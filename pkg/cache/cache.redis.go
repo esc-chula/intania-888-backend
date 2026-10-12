@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,12 +21,20 @@ type RedisClient struct {
 
 // NewRedisClient configures a Redis connection without probing the server.
 func NewRedisClient(cfg config.Config) *RedisClient {
-	addr := fmt.Sprintf("%s:%d", cfg.GetCache().Host, cfg.GetCache().Port)
+	cacheConfig := cfg.GetCache()
+	addr := fmt.Sprintf("%s:%d", cacheConfig.Host, cacheConfig.Port)
 
-	cache := redis.NewClient(&redis.Options{
+	options := &redis.Options{
 		Addr:     addr,
-		Password: cfg.GetCache().Password,
-	})
+		Password: cacheConfig.Password,
+	}
+	if cacheConfig.TLSEnabled {
+		options.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+	}
+
+	cache := redis.NewClient(options)
 
 	return &RedisClient{client: cache}
 }

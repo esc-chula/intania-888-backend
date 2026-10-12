@@ -63,9 +63,10 @@ type DB struct {
 
 // Cache contains Redis connection credentials.
 type Cache struct {
-	Host     string `mapstructure:"cache_host"`
-	Port     int    `mapstructure:"cache_port"`
-	Password string `mapstructure:"cache_pass"`
+	Host       string `mapstructure:"cache_host"`
+	Port       int    `mapstructure:"cache_port"`
+	Password   string `mapstructure:"cache_pass"`
+	TLSEnabled bool   `mapstructure:"cache_tls_enabled"`
 }
 
 // JWT contains the signing secret used by external bearer authentication.
