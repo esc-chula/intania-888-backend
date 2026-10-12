@@ -1,14 +1,19 @@
 package config
 
+// DatabaseConfig provides settings needed by database-only commands.
+type DatabaseConfig interface {
+	// GetDB returns PostgreSQL connection and pool settings.
+	GetDB() DB
+}
+
 // Config provides typed application settings to services and infrastructure adapters.
 // Getters return value snapshots; loading and security validation are separate steps.
 type Config interface {
+	DatabaseConfig
 	// GetRateLimits returns process-local minute and burst budgets.
 	GetRateLimits() RateLimits
 	// GetServer returns listener, environment, and public API URL settings.
 	GetServer() Server
-	// GetDB returns PostgreSQL connection settings.
-	GetDB() DB
 	// GetCache returns Redis connection settings.
 	GetCache() Cache
 	// GetJWT returns the signing secret for external bearer tokens.
@@ -50,15 +55,19 @@ type CORS struct {
 	AllowOrigins string `mapstructure:"cors_allow_origins"`
 }
 
-// DB contains PostgreSQL connection credentials and session settings.
+// DB contains PostgreSQL connection credentials, session settings, and pool limits.
 type DB struct {
-	Host     string `mapstructure:"db_host"`
-	Port     int    `mapstructure:"db_port"`
-	User     string `mapstructure:"db_user"`
-	Password string `mapstructure:"db_pass"`
-	Name     string `mapstructure:"db_name"`
-	SSLMode  string `mapstructure:"db_ssl_mode"`
-	Timezone string `mapstructure:"db_timezone"`
+	Host                   string `mapstructure:"db_host"`
+	Port                   int    `mapstructure:"db_port"`
+	User                   string `mapstructure:"db_user"`
+	Password               string `mapstructure:"db_pass"`
+	Name                   string `mapstructure:"db_name"`
+	SSLMode                string `mapstructure:"db_ssl_mode"`
+	Timezone               string `mapstructure:"db_timezone"`
+	MaxOpenConns           int    `mapstructure:"db_max_open_conns"`
+	MaxIdleConns           int    `mapstructure:"db_max_idle_conns"`
+	ConnMaxLifetimeSeconds int    `mapstructure:"db_conn_max_lifetime_seconds"`
+	ConnMaxIdleTimeSeconds int    `mapstructure:"db_conn_max_idle_time_seconds"`
 }
 
 // Cache contains Redis connection credentials.
@@ -67,6 +76,7 @@ type Cache struct {
 	Port       int    `mapstructure:"cache_port"`
 	Password   string `mapstructure:"cache_pass"`
 	TLSEnabled bool   `mapstructure:"cache_tls_enabled"`
+	TLSCAFile  string `mapstructure:"cache_tls_ca_file"`
 }
 
 // JWT contains the signing secret used by external bearer authentication.

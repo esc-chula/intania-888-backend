@@ -3,9 +3,11 @@ package cache
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -23,20 +25,53 @@ type RedisClient struct {
 func NewRedisClient(cfg config.Config) *RedisClient {
 	cacheConfig := cfg.GetCache()
 	addr := fmt.Sprintf("%s:%d", cacheConfig.Host, cacheConfig.Port)
+	tlsConfig, err := newRedisTLSConfig(cacheConfig)
+	if err != nil {
+		panic(fmt.Errorf("configure Redis TLS: %w", err))
+	}
 
 	options := &redis.Options{
-		Addr:     addr,
-		Password: cacheConfig.Password,
-	}
-	if cacheConfig.TLSEnabled {
-		options.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		}
+		Addr:      addr,
+		Password:  cacheConfig.Password,
+		TLSConfig: tlsConfig,
 	}
 
 	cache := redis.NewClient(options)
 
 	return &RedisClient{client: cache}
+}
+
+// newRedisTLSConfig uses system roots unless an instance-specific CA bundle is
+// configured. Server certificate and hostname verification remain enabled.
+func newRedisTLSConfig(cfg config.Cache) (*tls.Config, error) {
+	if !cfg.TLSEnabled {
+		if cfg.TLSCAFile != "" {
+			return nil, fmt.Errorf("CACHE_TLS_CA_FILE requires CACHE_TLS_ENABLED=true")
+		}
+
+		return nil, nil
+	}
+
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+	if cfg.TLSCAFile == "" {
+		return tlsConfig, nil
+	}
+
+	caPEM, err := os.ReadFile(cfg.TLSCAFile)
+	if err != nil {
+		return nil, fmt.Errorf("read CACHE_TLS_CA_FILE: %w", err)
+	}
+
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("CACHE_TLS_CA_FILE must contain a PEM certificate bundle")
+	}
+
+	tlsConfig.RootCAs = caPool
+
+	return tlsConfig, nil
 }
 
 // Ping checks whether Redis is reachable using the caller's deadline.

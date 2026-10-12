@@ -39,7 +39,7 @@ func main() {
 		return
 	}
 
-	db := database.NewGORMDatabase(config.GetConfig())
+	db := database.NewGORMDatabase(config.LoadDatabaseConfig())
 	if err := seedCatalogue(db); err != nil {
 		log.Fatal(err)
 	}

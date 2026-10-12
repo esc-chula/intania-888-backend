@@ -1,5 +1,7 @@
 .git
 .env*
+# Local Google Cloud service account keys.
+intania-888-*.json
 config/auth.pi.yaml
 bin
 tmp
