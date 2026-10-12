@@ -51,13 +51,23 @@ func (r *gormRepository) GetByEmail(ctx context.Context, email string) (*identit
 	return userSnapshot(&row), nil
 }
 
-// GetAll retrieves account snapshots for users with an assigned group.
+// GetAll retrieves all account snapshots.
 func (r *gormRepository) GetAll(ctx context.Context) ([]*identity.User, error) {
+	return r.listUsers(ctx, false)
+}
+
+// GetAllWithGroup retrieves account snapshots for users with an assigned group.
+func (r *gormRepository) GetAllWithGroup(ctx context.Context) ([]*identity.User, error) {
+	return r.listUsers(ctx, true)
+}
+
+func (r *gormRepository) listUsers(ctx context.Context, requireGroup bool) ([]*identity.User, error) {
 	var rows []*persistence.User
-	if err := r.db.WithContext(ctx).
-		Where("group_id IS NOT NULL").
-		Preload("Role").
-		Find(&rows).Error; err != nil {
+	query := r.db.WithContext(ctx)
+	if requireGroup {
+		query = query.Where("group_id IS NOT NULL")
+	}
+	if err := query.Preload("Role").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}
 

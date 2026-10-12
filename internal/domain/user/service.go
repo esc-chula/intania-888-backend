@@ -62,17 +62,31 @@ func (s *Service) GetUser(ctx context.Context, id string) (*identity.Profile, er
 
 // GetAllUsers retrieves group-registered account profiles including their creation timestamps.
 func (s *Service) GetAllUsers(ctx context.Context) ([]*identity.Profile, error) {
+	users, err := s.repo.GetAllWithGroup(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return profileListFromUsers(users), nil
+}
+
+// GetAllAccounts retrieves every account profile for the administrator user list.
+func (s *Service) GetAllAccounts(ctx context.Context) ([]*identity.Profile, error) {
 	users, err := s.repo.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	return profileListFromUsers(users), nil
+}
+
+func profileListFromUsers(users []*identity.User) []*identity.Profile {
 	profiles := make([]*identity.Profile, len(users))
 	for i, user := range users {
 		profiles[i] = profileFromUser(user)
 	}
 
-	return profiles, nil
+	return profiles
 }
 
 // UpdateOwnProfile applies supplied profile fields to the authenticated account.

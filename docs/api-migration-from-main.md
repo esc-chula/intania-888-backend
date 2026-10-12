@@ -902,6 +902,7 @@ Frontend acceptance checks:
 | `POST /auth/logout`                                       | Browser session revocation                                        |
 | `PATCH /users/me`                                         | Self-profile update                                               |
 | `POST /users/me/registration`                             | Initial group registration, or re-registration after admin clear  |
+| `GET /users/admin/all`                                    | Administrator list of all accounts, including unassigned users  |
 | `PATCH /users/admin/{id}`                                 | Administrator profile and balance update                          |
 | `GET /events/daily-rewards`                               | Admin schedule read                                               |
 | `PUT /events/daily-rewards/{date}`                        | Admin override create/replace                                     |

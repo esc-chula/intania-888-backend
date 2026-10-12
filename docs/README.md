@@ -368,6 +368,9 @@ Administrators continue to use `PATCH /api/v1/users/admin/:id` for edits to othe
 accounts through the administrator-only route. It requires a nonempty `name`;
 include the intended `remaining_coin` because an omitted value is written as
 `0.00`. An omitted `nick_name` clears it, and `role_id` remains outside the API.
+The administrator-only `GET /api/v1/users/admin/all` lists all accounts,
+including accounts without a group. `GET /api/v1/users` lists only accounts
+with a group.
 
 # Browser authentication contract
 

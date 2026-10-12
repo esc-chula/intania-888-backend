@@ -16,8 +16,10 @@ type Repository interface {
 	GetByID(context.Context, string) (*identity.User, error)
 	// GetByEmail retrieves an account by its email address.
 	GetByEmail(context.Context, string) (*identity.User, error)
-	// GetAll retrieves account snapshots for users with an assigned group.
+	// GetAll retrieves all account snapshots.
 	GetAll(context.Context) ([]*identity.User, error)
+	// GetAllWithGroup retrieves account snapshots for users with an assigned group.
+	GetAllWithGroup(context.Context) ([]*identity.User, error)
 	// PatchProfile updates only supplied name and nickname fields for the actor.
 	// Explicitly supplied nil nickname values clear the stored column.
 	// Missing accounts return ErrUserNotFound.
@@ -49,6 +51,8 @@ type ServicePort interface {
 	GetUser(context.Context, string) (*identity.Profile, error)
 	// GetAllUsers retrieves account profiles with an assigned group.
 	GetAllUsers(context.Context) ([]*identity.Profile, error)
+	// GetAllAccounts retrieves every account profile for administrator use.
+	GetAllAccounts(context.Context) ([]*identity.Profile, error)
 	// UpdateOwnProfile applies a partial update to the authenticated actor's profile.
 	UpdateOwnProfile(context.Context, string, ProfilePatch) (*identity.Profile, error)
 	// RegisterProfile assigns nickname and group while the authenticated actor is unassigned.
