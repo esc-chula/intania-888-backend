@@ -11,7 +11,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE_NAME: intania-888-backend
-  REGION: asia-southeast1
+  REGION: asia-southeast3
   IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/intania-888-backend
 
 jobs:
