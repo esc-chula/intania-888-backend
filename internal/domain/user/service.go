@@ -60,7 +60,7 @@ func (s *Service) GetUser(ctx context.Context, id string) (*identity.Profile, er
 	return result, nil
 }
 
-// GetAllUsers retrieves account profiles including their creation timestamps.
+// GetAllUsers retrieves group-registered account profiles including their creation timestamps.
 func (s *Service) GetAllUsers(ctx context.Context) ([]*identity.Profile, error) {
 	users, err := s.repo.GetAll(ctx)
 	if err != nil {

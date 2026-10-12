@@ -75,7 +75,7 @@ func (h *HTTPHandler) GetUser(c *fiber.Ctx) error {
 	return c.JSON(httpidentity.Response(user))
 }
 
-// GetAllUsers serves every account profile.
+// GetAllUsers serves account profiles with an assigned group.
 func (h *HTTPHandler) GetAllUsers(c *fiber.Ctx) error {
 	users, err := h.service.GetAllUsers(c.UserContext())
 	if err != nil {
