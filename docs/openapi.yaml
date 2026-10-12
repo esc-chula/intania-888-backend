@@ -5512,8 +5512,8 @@ paths:
   /users:
     get:
       operationId: listUsers
-      description: Returns account profiles visible to the authenticated caller, including the fields used by catalogue
-        and leaderboard screens.
+      description: Returns account profiles with a non-null group_id visible to the authenticated caller, including
+        the fields used by catalogue and leaderboard screens.
       responses:
         '200':
           content:
