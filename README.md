@@ -79,6 +79,16 @@ make run
 The example Compose setup publishes PostgreSQL on port `5432` and Redis on
 `6379`. Edit `docker-compose.yml` if those host ports are already in use.
 
+`CACHE_TLS_ENABLED` defaults to `false` for local Compose Redis. Set it to
+`true` when the configured Redis endpoint requires TLS. The client negotiates
+TLS 1.2 or newer and validates the server certificate against the system
+certificate roots; keep `CACHE_HOST` set to the hostname covered by that
+certificate. Custom CA files and certificate-verification bypasses are not
+configured. The Cloud Run workflow reads this setting from the GitHub Actions
+repository variable `CACHE_TLS_ENABLED`, defaulting to `true` to preserve the
+workflow's existing deployment setting. Set that variable to `false` if your
+Cloud Run Redis endpoint does not use TLS.
+
 Login starts through browser navigation to:
 
 ```text

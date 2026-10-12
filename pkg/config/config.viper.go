@@ -58,6 +58,7 @@ func NewViperConfig() *viperConfig {
 		v.SetDefault("session_idle_ttl_seconds", DefaultSessionIdleTTLSeconds)
 		v.SetDefault("session_absolute_ttl_seconds", DefaultSessionAbsoluteTTLSeconds)
 		v.SetDefault("daily_reward_default_amount", "300.00")
+		v.SetDefault("cache_tls_enabled", false)
 
 		setRateLimitDefaults(v)
 
@@ -201,6 +202,7 @@ func bindEnvVars(v *viper.Viper) {
 	bind("cache_host", "CACHE_HOST")
 	bind("cache_port", "CACHE_PORT")
 	bind("cache_pass", "CACHE_PASS")
+	bind("cache_tls_enabled", "CACHE_TLS_ENABLED")
 
 	bind("jwt_access_token_secret", "JWT_ACCESS_TOKEN_SECRET")
 
