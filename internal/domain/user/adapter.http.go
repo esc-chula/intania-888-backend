@@ -126,10 +126,7 @@ func (h *HTTPHandler) RegisterProfile(c *fiber.Ctx) error {
 		return err
 	}
 
-	user, err := h.service.RegisterProfile(c.UserContext(), profile.ID, ProfileRegistrationInput{
-		NickName: request.NickName,
-		GroupID:  request.GroupID,
-	})
+	user, err := h.service.RegisterProfile(c.UserContext(), profile.ID, ProfileRegistrationInput(request))
 	if err != nil {
 		return mapUserError(err)
 	}
