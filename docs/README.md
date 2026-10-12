@@ -1,5 +1,7 @@
 # Swagger documentation
 
+For production releases, see the [Cloud Run continuous deployment guide](cloud-run-cd.md).
+
 > **Breaking backend release:** Money values are two-decimal JSON strings, and odds/payout multipliers are six-decimal JSON strings. Bill rates are server-owned, bill/match lifecycle routes changed, and protected browser operations use an opaque session cookie. Shared catalogue, fixture, and standings reads are public. The frontend must migrate with this backend release.
 
 The API contract is maintained in [`openapi.yaml`](openapi.yaml) and served by

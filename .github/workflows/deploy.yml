@@ -1,87 +1,97 @@
 name: Deploy to Cloud Run
 
 on:
+  workflow_run:
+    workflows: [Quality]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  SERVICE_NAME: intania-888-backend
-  REGION: asia-southeast3
-  IMAGE_NAME: asia-southeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/intania888/intania-888-backend
-  CACHE_TLS_ENABLED: ${{ vars.CACHE_TLS_ENABLED || 'true' }}
+  PROJECT_ID: intania-888
+  REGION: asia-southeast1
+  IMAGE_NAME: asia-southeast1-docker.pkg.dev/intania-888/intania888/intania-888-backend
+  DEPLOY_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   deploy:
-    name: Build and Deploy
+    name: Build, migrate, and deploy
+    if: >-
+      github.repository == 'esc-chula/intania-888-backend' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_sha == github.sha &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      id-token: write
+    timeout-minutes: 45
+    # Finish an active migration/deployment before starting another release.
+    concurrency:
+      group: intania888-production
+      cancel-in-progress: false
 
     steps:
-      - name: Checkout code
+      - name: Checkout the commit that passed Quality
         uses: actions/checkout@v4
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          ref: ${{ env.DEPLOY_COMMIT }}
+          persist-credentials: false
+
+      - name: Skip a release superseded by a newer main commit
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')
+          if [[ "$DEPLOY_COMMIT" == "$current_main" ]]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::A newer main commit exists; skipping this superseded release.'
+          fi
+
+      # Build before authenticating so build time does not consume token lifetime.
+      - name: Build the production image
+        if: steps.release.outputs.current == 'true'
+        run: docker build --platform linux/amd64 --tag "$IMAGE_NAME:$DEPLOY_COMMIT" .
+
+      - name: Authenticate to Google Cloud
+        if: steps.release.outputs.current == 'true'
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: projects/461083215931/locations/global/workloadIdentityPools/intania888-github/providers/backend-production
+          service_account: intania888-deployer@intania-888.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 3600s
+          create_credentials_file: false
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        if: steps.release.outputs.current == 'true'
+        uses: google-github-actions/setup-gcloud@v3
 
-      - name: Configure Docker to use gcloud
-        run: gcloud auth configure-docker asia-southeast3-docker.pkg.dev --quiet
-
-      - name: Prepare production authentication registry
+      - name: Publish the image and deploy
+        if: steps.release.outputs.current == 'true'
         env:
-          AUTH_REGISTRY_YAML: ${{ secrets.AUTH_REGISTRY_YAML }}
+          # A one-hour impersonated token covers the migration job and rollout.
+          CLOUDSDK_AUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
-          if [ -z "$AUTH_REGISTRY_YAML" ]; then
-            echo "AUTH_REGISTRY_YAML must contain the production application registry." >&2
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker push "$IMAGE_NAME:$DEPLOY_COMMIT"
+
+          digest=$(gcloud artifacts docker images describe "$IMAGE_NAME:$DEPLOY_COMMIT" \
+            --project="$PROJECT_ID" \
+            --format='value(image_summary.digest)')
+
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo 'Artifact Registry did not return a valid image digest.' >&2
             exit 1
           fi
-          printf '%s\n' "$AUTH_REGISTRY_YAML" > config/auth.production.yaml
 
-      - name: Build and tag Docker image
-        run: |
-          docker build \
-            -t "${{ env.IMAGE_NAME }}:${{ github.sha }}" \
-            -t "${{ env.IMAGE_NAME }}:latest" \
-            .
-
-      - name: Push Docker image to Artifact Registry
-        run: |
-          docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.IMAGE_NAME }}:latest
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            --platform managed \
-            --region ${{ env.REGION }} \
-            --allow-unauthenticated \
-            --vpc-connector=projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/connectors/intania888-connector \
-            --vpc-egress=private-ranges-only \
-            --update-env-vars="^;^SERVER_NAME=intania-shop-api;SERVER_ENV=production;AUTH_CONFIG_FILE=/config/auth.production.yaml;INTANIA_GAMES_CLIENT_SECRET=${{ secrets.INTANIA_GAMES_CLIENT_SECRET }};SERVER_URL=https://888api.chula.engineering/api/v1;SERVER_HOST=0.0.0.0;SERVER_PORT=8080;SERVER_ORIGIN=${{ secrets.FRONTEND_URL }};DB_HOST=${{ secrets.DB_HOST }};DB_PORT=${{ secrets.DB_PORT }};DB_USER=${{ secrets.DB_USER }};DB_PASS=${{ secrets.DB_PASS }};DB_NAME=${{ secrets.DB_NAME }};DB_SSL_MODE=disable;DB_TIMEZONE=Asia/Bangkok;JWT_ACCESS_TOKEN_SECRET=${{ secrets.JWT_ACCESS_TOKEN_SECRET }};JWT_ACCESS_TOKEN_EXPIRATION=${{ secrets.JWT_ACCESS_TOKEN_EXPIRATION }};JWT_REFRESH_TOKEN_EXPIRATION=${{ secrets.JWT_REFRESH_TOKEN_EXPIRATION }};OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }};OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }};OAUTH_REDIRECT_URI=${{ secrets.OAUTH_REDIRECT_URI }};OAUTH_POST_LOGIN_REDIRECT_URL=${{ secrets.OAUTH_FRONTEND_URL }};COOKIE_SECURE=true;COOKIE_SAME_SITE=lax;CACHE_HOST=${{ secrets.CACHE_HOST }};CACHE_PORT=${{ secrets.CACHE_PORT }};CACHE_PASS=${{ secrets.CACHE_PASS }};CACHE_TLS_ENABLED=${{ env.CACHE_TLS_ENABLED }};SWAGGER_ENABLED=true;SWAGGER_REQUIRE_AUTH=true;SWAGGER_USERNAME=${{ secrets.SWAGGER_USERNAME }};SWAGGER_PASSWORD=${{ secrets.SWAGGER_PASSWORD }};CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS }}" \
-            --min-instances=0 \
-            --max-instances=10 \
-            --memory=512Mi \
-            --cpu=1 \
-            --timeout=300
-
-      - name: Show deployment URL
-        run: |
-          echo "Deployment completed!"
-          gcloud run services describe ${{ env.SERVICE_NAME }} \
-            --platform managed \
-            --region ${{ env.REGION }} \
-            --format 'value(status.url)'
+          bash scripts/deploy-production.sh "$IMAGE_NAME@$digest"
