@@ -1,153 +1,174 @@
 package bill
 
 import (
-	"errors"
+	"context"
+	"sort"
+	"strings"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/internal/domain/user"
-	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"github.com/esc-chula/intania-888-backend/internal/domain/betting"
+
+	"github.com/esc-chula/intania-888-backend/internal/domain/match"
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
-type billServiceImpl struct {
-	repo     BillRepository
-	userRepo user.UserRepository
-	db       *gorm.DB
-	log      *zap.Logger
+// Service coordinates bill validation, rates, and atomic balance transitions.
+type Service struct {
+	repo         Repository
+	transactions TransactionManager
+	now          func() time.Time
+	newID        func() string
+	teamCoinsSvc TeamCoins
 }
 
-// Create a new instance of BillService
-func NewBillService(repo BillRepository, userRepo user.UserRepository, db *gorm.DB, log *zap.Logger) BillService {
-	return &billServiceImpl{repo, userRepo, db, log}
+// NewService constructs bill use cases with explicit persistence, clock, and ID dependencies.
+// teamCoinsSvc corrects the team coin ledger when a bill is voided.
+func NewService(repo Repository, transactions TransactionManager, now func() time.Time, newID func() string, teamCoinsSvc TeamCoins) *Service {
+	return &Service{
+		repo:         repo,
+		transactions: transactions,
+		now:          now,
+		newID:        newID,
+		teamCoinsSvc: teamCoinsSvc,
+	}
 }
 
-func (s *billServiceImpl) CreateBill(userProfile *model.UserDto, billDto *model.BillHeadDto) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		var user model.User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", userProfile.Id).
-			First(&user).Error; err != nil {
-			s.log.Named("CreateBill").Error("Get user by Id with lock", zap.Error(err))
+// CreateBill validates selections and atomically stores a bill and debits its stake.
+func (s *Service) CreateBill(ctx context.Context, userID string, req *CreateInput) (*Result, error) {
+	if req == nil || req.Total.IsZero() || len(req.Lines) == 0 {
+		return nil, ErrInvalidBill
+	}
+
+	lines := append([]Selection(nil), req.Lines...)
+	sort.Slice(lines, func(i, j int) bool {
+		return lines[i].MatchID < lines[j].MatchID
+	})
+	for i, line := range lines {
+		matchIDEmpty := strings.TrimSpace(line.MatchID) == ""
+		bettingOnEmpty := strings.TrimSpace(line.BettingOn) == ""
+		duplicateMatch := i > 0 && line.MatchID == lines[i-1].MatchID
+		if matchIDEmpty || bettingOnEmpty || duplicateMatch {
+			return nil, ErrInvalidBill
+		}
+	}
+
+	var made Result
+
+	err := s.transactions.WithinTransaction(ctx, func(tx TransactionRepository, _ teamcoin.Repository) error {
+		if err := tx.AcquireLifecycleLock(ctx); err != nil {
 			return err
 		}
 
-		if user.RemainingCoin < billDto.Total {
-			err := errors.New("user does not have enough coins to cover the total bill")
-			s.log.Named("CreateBill").Error("Check for balance", zap.Error(err))
+		ids := make([]string, len(lines))
+		for i := range lines {
+			ids[i] = lines[i].MatchID
+		}
+		matches, err := tx.LockMatches(ctx, ids)
+		if err != nil {
 			return err
 		}
+		if len(matches) != len(lines) {
+			return ErrMatchNotFound
+		}
 
-		currentTime := time.Now()
-		for _, lineDto := range billDto.Lines {
-			var match model.Match
-			if err := tx.Where("id = ?", lineDto.MatchId).First(&match).Error; err != nil {
-				s.log.Named("CreateBill").Error("Failed to fetch match", zap.String("match_id", lineDto.MatchId), zap.Error(err))
-				return errors.New("match not found: " + lineDto.MatchId)
+		byID := make(map[string]match.Snapshot, len(matches))
+		for _, item := range matches {
+			byID[item.ID] = item
+		}
+
+		made = Result{
+			ID:        s.newID(),
+			Total:     req.Total,
+			UserID:    userID,
+			Status:    StatusPending,
+			CreatedAt: s.now(),
+			UpdatedAt: s.now(),
+		}
+
+		rates := make([]value.Rate, 0, len(lines))
+
+		now := s.now()
+		for _, input := range lines {
+			item := byID[input.MatchID]
+			missingTeams := item.TeamAID == nil || item.TeamBID == nil
+			invalidSelection := !missingTeams && input.BettingOn != *item.TeamAID && input.BettingOn != *item.TeamBID
+			started := !now.Before(item.StartTime)
+			if missingTeams || invalidSelection || started || item.WinnerID != nil || item.IsDraw {
+				return ErrInvalidBill
 			}
-
-			if currentTime.After(match.StartTime) || currentTime.Equal(match.StartTime) {
-				err := errors.New("cannot bet on match that has already started or expired")
-				s.log.Named("CreateBill").Error("Betting on expired match",
-					zap.String("match_id", lineDto.MatchId),
-					zap.Time("match_start", match.StartTime),
-					zap.Time("current_time", currentTime))
+			counts, err := tx.CountBets(ctx, item.ID)
+			if err != nil {
 				return err
 			}
+			var a, b int64
+			for _, count := range counts {
+				if count.BettingOn == *item.TeamAID {
+					a = count.Count
+				}
+				if count.BettingOn == *item.TeamBID {
+					b = count.Count
+				}
+			}
+			rate, err := seededRate(a, b, input.BettingOn == *item.TeamAID)
+			if err != nil {
+				return err
+			}
+			rates = append(rates, rate)
+			made.Lines = append(made.Lines, Line{
+				BillID:    made.ID,
+				MatchID:   item.ID,
+				BettingOn: input.BettingOn,
+				Rate:      rate,
+				Match:     item,
+			})
 		}
-
-		bill := mapBillDtoToEntity(billDto)
-		bill.Id = uuid.NewString()
-		for i := range bill.Lines {
-			bill.Lines[i].BillId = bill.Id
-		}
-
-		if err := tx.Create(bill).Error; err != nil {
-			s.log.Named("CreateBill").Error("Create bill", zap.Error(err))
+		if _, err := value.AccumulatorPayout(req.Total, rates); err != nil {
 			return err
 		}
 
-		if err := tx.Model(&model.User{}).
-			Where("id = ?", user.Id).
-			Update("remaining_coin", gorm.Expr("remaining_coin - ?", bill.Total)).
-			Error; err != nil {
-			s.log.Named("CreateBill").Error("Update user balance", zap.Error(err))
+		balance, err := tx.LockBalance(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if balance.Lesser(req.Total) {
+			return ErrInsufficientBalance
+		}
+		voteColorID, err := tx.LockVoteColor(ctx, userID)
+		if err != nil {
+			return err
+		}
+		for i := range made.Lines {
+			made.Lines[i].VoteColorID = voteColorID
+		}
+		if err := tx.CreateBill(ctx, &made); err != nil {
 			return err
 		}
 
-		s.log.Named("CreateBill").Info("Created bill successful", zap.Any("bill", bill))
-		return nil
+		return tx.DebitBalance(ctx, userID, req.Total)
 	})
-}
-
-// GetBill returns a bill by id
-func (s *billServiceImpl) GetBill(billId, userId string) (*model.BillHeadDto, error) {
-	bill, err := s.repo.GetById(billId, userId)
 	if err != nil {
-		s.log.Named("GetBill").Error("GetById", zap.Error(err))
 		return nil, err
 	}
 
-	if bill == nil {
-		s.log.Named("GetBill").Error("Bill not found", zap.String("id", billId))
-		return nil, errors.New("bill not found")
-	}
-
-	billDto := mapBillEntityToDto(bill)
-	s.log.Named("GetBill").Info("Retrieved bill successful", zap.String("id", billId))
-	return billDto, nil
+	return &made, nil
 }
 
-// GetAllBills returns all bills
-func (s *billServiceImpl) GetAllBills(userId string) ([]*model.BillHeadDto, error) {
-	bills, err := s.repo.GetAll(userId)
-	if err != nil {
-		s.log.Named("GetAllBills").Error("GetAll", zap.Error(err))
-		return nil, err
-	}
-
-	billDtos := mapBillsEntityToDto(bills)
-	s.log.Named("GetAllBills").Info("Retrieved all bills successful", zap.Int("count", len(billDtos)))
-	return billDtos, nil
+func seededRate(a, b int64, forA bool) (value.Rate, error) {
+	return betting.SeededRate(a, b, forA)
 }
 
-// GetAllBillsAdmin returns all bills from all users (admin only)
-func (s *billServiceImpl) GetAllBillsAdmin() ([]*model.BillHeadDto, error) {
-	bills, err := s.repo.GetAllAdmin()
-	if err != nil {
-		s.log.Named("GetAllBillsAdmin").Error("GetAllAdmin", zap.Error(err))
-		return nil, err
-	}
-
-	billDtos := mapBillsEntityToDto(bills)
-	s.log.Named("GetAllBillsAdmin").Info("Retrieved all bills (admin) successful", zap.Int("count", len(billDtos)))
-	return billDtos, nil
+// GetBill loads the bill belonging to the supplied user.
+func (s *Service) GetBill(ctx context.Context, id, userID string) (*Result, error) {
+	return s.repo.GetByID(ctx, id, userID)
 }
 
-// UpdateBill updates an existing bill
-func (s *billServiceImpl) UpdateBill(billDto *model.BillHeadDto) error {
-	bill := mapBillDtoToEntity(billDto)
-
-	err := s.repo.Update(bill)
-	if err != nil {
-		s.log.Named("UpdateBill").Error("Update", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("UpdateBill").Info("Updated bill successful", zap.String("id", bill.Id))
-	return nil
+// GetAllBills loads the user's bills in the repository's existing order.
+func (s *Service) GetAllBills(ctx context.Context, userID string) ([]*Result, error) {
+	return s.repo.GetAll(ctx, userID)
 }
 
-// DeleteBill deletes a bill by id
-func (s *billServiceImpl) DeleteBill(id string) error {
-	err := s.repo.Delete(id)
-	if err != nil {
-		s.log.Named("DeleteBill").Error("Delete", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("DeleteBill").Info("Deleted bill successful", zap.String("id", id))
-	return nil
+// GetAllBillsAdmin loads all bills for an administrator.
+func (s *Service) GetAllBillsAdmin(ctx context.Context) ([]*Result, error) {
+	return s.repo.GetAllAdmin(ctx)
 }

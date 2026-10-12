@@ -1,16 +1,31 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+
 	"github.com/esc-chula/intania-888-backend/cmd/server"
 	"github.com/esc-chula/intania-888-backend/internal/domain/auth"
 	"github.com/esc-chula/intania-888-backend/internal/domain/bill"
 	"github.com/esc-chula/intania-888-backend/internal/domain/color"
 	"github.com/esc-chula/intania-888-backend/internal/domain/event"
+	"github.com/esc-chula/intania-888-backend/internal/domain/location"
 	"github.com/esc-chula/intania-888-backend/internal/domain/match"
 	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/domain/policy"
 	"github.com/esc-chula/intania-888-backend/internal/domain/sporttype"
 	"github.com/esc-chula/intania-888-backend/internal/domain/stakemine"
+	"github.com/esc-chula/intania-888-backend/internal/domain/teamcoin"
 	"github.com/esc-chula/intania-888-backend/internal/domain/user"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 	"github.com/esc-chula/intania-888-backend/pkg/cache"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/pkg/database"
@@ -18,80 +33,181 @@ import (
 	"github.com/esc-chula/intania-888-backend/pkg/oauth"
 )
 
-// @title Intania888 Backend - API
-// @version 0.0.0
-// @description  This is an Intania888 Backend API in Intania888 project.
-
-// @host      https://888api.chula.engineering
-// @BasePath  /api/v1
-
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
-// @description Type "Bearer" followed by a space and the token
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() (runErr error) {
 	// config setup
 	cfg := config.GetConfig()
-	db := database.NewGormDatabase(cfg)
-	cache := cache.NewRedisClient(cfg)
+	if err := config.ValidateSecurity(cfg); err != nil {
+		return fmt.Errorf("invalid security configuration: %w", err)
+	}
+	defaultDailyReward, err := value.ParseMoney(cfg.GetDailyReward().DefaultAmount)
+	if err != nil {
+		return fmt.Errorf("invalid DAILY_REWARD_DEFAULT_AMOUNT: %w", err)
+	}
+	teamCoinAward, err := value.ParseMoney(cfg.GetTeamCoin().PerMatchWin)
+	if err != nil {
+		return fmt.Errorf("invalid TEAM_COIN_PER_MATCH_WIN (set it to a decimal such as 100.00): %w", err)
+	}
+
+	isProduction := strings.EqualFold(strings.TrimSpace(cfg.GetServer().Env), "production")
 	logger := logger.NewLogger(cfg)
+	if logger == nil {
+		return fmt.Errorf("SERVER_ENV must be development or production")
+	}
+	defer func() {
+		_ = logger.Sync() //nolint:errcheck // Zap's standard stream sink may report EINVAL when syncing a pipe.
+	}()
+
+	db := database.NewGORMDatabase(cfg)
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get PostgreSQL connection pool: %w", err)
+	}
+	defer func() {
+		if err := sqlDB.Close(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close PostgreSQL connection pool: %w", err))
+		}
+	}()
+
+	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := sqlDB.PingContext(startupCtx); err != nil {
+		cancelStartup()
+
+		return fmt.Errorf("check PostgreSQL at startup: %w", err)
+	}
+	cancelStartup()
+
+	cacheClient := cache.NewRedisClient(cfg)
+	defer func() {
+		if err := cacheClient.Close(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close Redis client: %w", err))
+		}
+	}()
+	startupCtx, cancelStartup = context.WithTimeout(context.Background(), 5*time.Second)
+	if err := cacheClient.Ping(startupCtx); err != nil {
+		cancelStartup()
+
+		return fmt.Errorf("check Redis at startup: %w", err)
+	}
+	cancelStartup()
+
 	oauthConfig := oauth.LoadOAuthConfig(cfg)
 
 	// init all layers
-	userRepo := user.NewUserRepository(db)
-	userSvc := user.NewUserService(userRepo, db, logger.Named("UserSvc"))
-	userHttp := user.NewUserHttpHandler(userSvc)
+	userRepo := user.NewGORMRepository(db)
+	userSvc := user.NewService(userRepo, logger.Named("UserSvc"))
+	userHTTP := user.NewHTTPHandler(userSvc)
+	policyRepo := policy.NewGORMRepository(db)
+	policySvc := policy.NewService(policyRepo, policy.NewRedisSnapshotCache(cacheClient), logger.Named("PolicySvc"))
+	policyHTTP := policy.NewHTTPHandler(policySvc)
 
-	authRepo := auth.NewAuthRepository(*cache)
-	authSvc := auth.NewAuthService(authRepo, userRepo, cfg, logger.Named("AuthSvc"), oauth.NewGoogleOAuthClient(oauthConfig, logger))
-	authHttp := auth.NewAuthHttpHandler(authSvc)
+	authRepo := auth.NewRedisRepository(cacheClient)
+	authSvc := auth.NewService(
+		authRepo,
+		userRepo,
+		cfg,
+		oauth.NewGoogleOAuthClient(oauthConfig, logger),
+		policySvc,
+	)
 
-	midRepo := middleware.NewMiddlewareRepository(db)
-	midSvc := middleware.NewMiddlewareService(midRepo, cache, logger.Named("MiddlewareSvc"), cfg)
-	midHttp := middleware.NewMiddlewareHttpHandler(midSvc, logger)
+	midRepo := middleware.NewGORMRepository(db)
+	midSvc := middleware.NewService(midRepo, middleware.NewRedisSessionStore(cacheClient), cfg, policySvc)
+	midHTTP := middleware.NewHTTPHandler(
+		midSvc,
+		isProduction,
+		cfg.GetSession().IdleTTLSeconds,
+	)
+	authHTTP := auth.NewHTTPHandler(authSvc, midHTTP, cfg, isProduction)
+	authHTTP.ConfigureApplications(
+		authSvc,
+		cacheClient,
+		auth.NewRateLimiters(cfg.GetRateLimits(), logger),
+	)
+	externalRateLimiters := server.NewExternalRateLimiters(cfg, logger)
+	browserLimiter := httplimit.New("browser", cfg.GetRateLimits().Browser, logger)
+	midHTTP.ConfigureRateLimits(browserLimiter.Check, externalRateLimiters.Client, externalRateLimiters.Invalid)
 
-	billRepo := bill.NewBillRepository(db)
-	billSvc := bill.NewBillService(billRepo, userRepo, db, logger.Named("BillSvc"))
-	billHttp := bill.NewBillHttpHandler(billSvc)
+	teamCoinsSvc := teamcoin.NewService(teamCoinAward, time.Now, uuid.NewString)
 
-	matchRepo := match.NewMatchRepository(db)
-	matchSvc := match.NewMatchService(matchRepo, logger.Named("MatchSvc"))
-	matchHttp := match.NewMatchHttpHandler(matchSvc)
+	billRepo := bill.NewGORMRepository(db)
+	billSvc := bill.NewService(billRepo, billRepo, time.Now, uuid.NewString, teamCoinsSvc)
+	billHTTP := bill.NewHTTPHandler(billSvc)
 
-	colorRepo := color.NewColorRepository(db)
-	colorSvc := color.NewColorService(colorRepo, logger.Named("ColorSvc"))
-	colorHttp := color.NewColorHttpHandler(colorSvc)
+	matchRepo := match.NewGORMRepository(db)
+	matchSvc := match.NewService(matchRepo, matchRepo, time.Now, uuid.NewString, teamCoinsSvc)
+	matchHTTP := match.NewHTTPHandler(matchSvc)
 
-	eventRepo := event.NewEventRepository(db, *cache)
-	eventSvc := event.NewEventService(eventRepo, userRepo, cfg, logger)
-	eventHttp := event.NewEventHttpHandler(eventSvc)
+	colorRepo := color.NewGORMRepository(db)
+	colorSvc := color.NewService(colorRepo, logger.Named("ColorSvc"))
+	colorHTTP := color.NewHTTPHandler(colorSvc)
 
-	stakeMineRepo := stakemine.NewStakeMineRepository(db)
-	stakeMineSvc := stakemine.NewStakeMineService(stakeMineRepo, db, logger.Named("StakeMineSvc"))
-	stakeMineHttp := stakemine.NewStakeMineHttpHandler(stakeMineSvc)
-	sportTypeRepo := sporttype.NewSportTypeRepository(db)
-	sportTypeSvc := sporttype.NewSportTypeService(sportTypeRepo, logger.Named("SportTypeSvc"))
-	sportTypeHttp := sporttype.NewSportTypeHttpHandler(sportTypeSvc)
+	eventRepo := event.NewGORMRepository(db)
+	eventSvc := event.NewService(eventRepo, defaultDailyReward, logger)
+	eventHTTP := event.NewHTTPHandler(eventSvc)
+
+	stakeMineRepo := stakemine.NewGORMRepository(db)
+	stakeMineSvc := stakemine.NewService(stakeMineRepo, logger.Named("StakeMineSvc"))
+	stakeMineHTTP := stakemine.NewHTTPHandler(stakeMineSvc)
+
+	sportTypeRepo := sporttype.NewGORMRepository(db)
+	sportTypeSvc := sporttype.NewService(sportTypeRepo, logger.Named("SportTypeSvc"))
+	sportTypeHTTP := sporttype.NewHTTPHandler(sportTypeSvc)
+
+	locationRepo := location.NewGORMRepository(db)
+	locationSvc := location.NewService(locationRepo, logger.Named("LocationSvc"))
+	locationHTTP := location.NewHTTPHandler(locationSvc)
 
 	// init router
-	server := server.NewFiberHttpServer(cfg, logger)
-	router := server.InitHttpServer()
+	httpServer, err := server.NewFiberHTTPServer(
+		cfg, logger,
+		func(ctx context.Context) error {
+			return sqlDB.PingContext(ctx)
+		},
+		cacheClient.Ping,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid Swagger configuration: %w", err)
+	}
+
+	router := httpServer.InitHTTPServer()
 
 	// register routes
-	userHttp.RegisterRoutes(router, midHttp)
-	authHttp.RegisterRoutes(router, midHttp)
-	billHttp.RegisterRoutes(router, midHttp)
-	matchHttp.RegisterRoutes(router, midHttp)
-	colorHttp.RegisterRoutes(router, midHttp)
-	eventHttp.RegisterRoutes(router, midHttp)
-	stakeMineHttp.RegisterRoutes(router, midHttp)
-	sportTypeHttp.RegisterRoutes(router, midHttp)
+	userHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	authHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
+	policyHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	billHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	matchHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	colorHTTP.RegisterRoutes(router)
+	eventHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	stakeMineHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware)
+	sportTypeHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
+	locationHTTP.RegisterRoutes(router, midHTTP.AuthMiddleware, midHTTP.AdminMiddleware)
 
-	// register external API routes
+	// Share the client-wide limit and attach each user limit beside its route.
 	externalRouter := router.Group("/external")
-	userHttp.RegisterExternalRoutes(externalRouter, midHttp)
-	authHttp.RegisterExternalRoutes(externalRouter, midHttp)
+	userHTTP.RegisterExternalRoutes(
+		externalRouter,
+		midHTTP.RequireExternalScope,
+		externalRateLimiters.Transaction,
+	)
+	authHTTP.RegisterExternalRoutes(
+		externalRouter,
+		midHTTP.RequireExternalScope,
+		externalRateLimiters.Profile,
+	)
 
 	// start server
-	server.Start()
+	if err := httpServer.Start(); err != nil {
+		logger.Error("HTTP server stopped with an error", zap.Error(err))
+
+		return err
+	}
+
+	return nil
 }

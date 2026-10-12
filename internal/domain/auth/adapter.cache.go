@@ -1,25 +1,67 @@
 package auth
 
-import "github.com/esc-chula/intania-888-backend/pkg/cache"
+import (
+	"context"
+	"errors"
+	"fmt"
 
-type authRepositoryImpl struct {
-	cache cache.RedisClient
+	"github.com/redis/go-redis/v9"
+
+	"github.com/esc-chula/intania-888-backend/internal/security"
+	"github.com/esc-chula/intania-888-backend/pkg/cache"
+)
+
+// RedisRepository stores authentication protocol state in Redis.
+type RedisRepository struct{ cache *cache.RedisClient }
+
+// NewRedisRepository binds authentication persistence to its Redis client.
+func NewRedisRepository(client *cache.RedisClient) *RedisRepository {
+	return &RedisRepository{cache: client}
 }
 
-func NewAuthRepository(cache cache.RedisClient) AuthRepository {
-	return &authRepositoryImpl{
-		cache: cache,
+type oauthStateRecord struct {
+	CodeVerifier string `json:"code_verifier"`
+}
+
+type sessionRecord struct {
+	UserID    string `json:"user_id"`
+	CreatedAt int64  `json:"created_at"`
+	ExpiresAt int64  `json:"expires_at"`
+	CSRFToken string `json:"csrf_token"`
+}
+
+// StoreOAuthState persists a one-use PKCE verifier with its existing lifetime.
+func (r *RedisRepository) StoreOAuthState(ctx context.Context, key string, state OAuthState, ttl int) error {
+	return r.cache.SetValue(ctx, key, oauthStateRecord(state), ttl)
+}
+
+// ConsumeOAuthState atomically consumes the state and classifies an absent entry.
+func (r *RedisRepository) ConsumeOAuthState(ctx context.Context, key string) (OAuthState, error) {
+	var record oauthStateRecord
+	if err := r.cache.ConsumeValue(ctx, key, &record); err != nil {
+		if errors.Is(err, redis.Nil) {
+			return OAuthState{}, fmt.Errorf("%w: %w", ErrInvalidOAuthState, err)
+		}
+
+		return OAuthState{}, err
 	}
+
+	return OAuthState(record), nil
 }
 
-func (r *authRepositoryImpl) SetCacheValue(key string, value interface{}, ttl int) error {
-	return r.cache.SetValue(key, value, ttl)
+// RotateSession atomically replaces the user's session and revokes its predecessor.
+func (r *RedisRepository) RotateSession(ctx context.Context, userKey, key, previous string, state security.Session, idle, absolute int) error {
+	record := sessionRecord{
+		UserID:    state.UserID,
+		CreatedAt: state.CreatedAt,
+		ExpiresAt: state.ExpiresAt,
+		CSRFToken: state.CSRFToken,
+	}
+
+	return r.cache.RotateSession(ctx, userKey, key, previous, record, idle, absolute)
 }
 
-func (r *authRepositoryImpl) GetCacheValue(key string, value interface{}) error {
-	return r.cache.GetValue(key, value)
-}
-
-func (r *authRepositoryImpl) DeleteCacheValue(key string) error {
-	return nil
+// DeleteSession revokes a session; deletion is idempotent.
+func (r *RedisRepository) DeleteSession(ctx context.Context, key string) error {
+	return r.cache.DeleteSession(ctx, key)
 }

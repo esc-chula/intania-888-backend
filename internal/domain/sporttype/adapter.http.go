@@ -1,41 +1,86 @@
 package sporttype
 
 import (
-	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
+
 	"github.com/gofiber/fiber/v2"
 )
 
-type SportTypeHttpHandler struct {
-	service SportTypeService
+// HTTPHandler exposes the sport catalogue and administrator mutations.
+type HTTPHandler struct {
+	service ServicePort
 }
 
-func NewSportTypeHttpHandler(service SportTypeService) *SportTypeHttpHandler {
-	return &SportTypeHttpHandler{service: service}
+// NewHTTPHandler constructs the sport catalogue HTTP adapter.
+func NewHTTPHandler(service ServicePort) *HTTPHandler {
+	return &HTTPHandler{service: service}
 }
 
-func (h *SportTypeHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/sport-types", mid.AuthMiddleware)
-
-	router.Get("/", h.GetAllSportTypes)
+// RegisterRoutes exposes catalogue reads and protects administrator mutations.
+func (h *HTTPHandler) RegisterRoutes(router fiber.Router, authenticate, admin fiber.Handler) {
+	sportTypes := router.Group("/sport-types")
+	sportTypes.Get("/", h.GetAllSportTypes)
+	sportTypes.Get("/:id", h.GetSportType)
+	sportTypes.Post("/admin", authenticate, admin, h.CreateSportType)
+	sportTypes.Patch("/admin/:id", authenticate, admin, h.UpdateSportType)
+	sportTypes.Delete("/admin/:id", authenticate, admin, h.DeleteSportType)
 }
 
-// @Summary Get all sport types
-// @Description Get all sport types available in the system
-// @Tags SportType
-// @Accept json
-// @Produce json
-// @Success 200 {object} []model.SportTypeDto
-// @Failure 500 {object} ErrorResponse
-// @Router /sport-types [get]
-func (h *SportTypeHttpHandler) GetAllSportTypes(c *fiber.Ctx) error {
-	sportTypes, err := h.service.GetAllSportTypes()
+// GetAllSportTypes returns the complete sport catalogue using its public HTTP representation.
+func (h *HTTPHandler) GetAllSportTypes(c *fiber.Ctx) error {
+	sportTypes, err := h.service.GetAllSportTypes(c.UserContext())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get sport types"})
+		return apierror.Wrap(err, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to get sport types")
 	}
 
-	return c.Status(fiber.StatusOK).JSON(sportTypes)
+	return c.Status(fiber.StatusOK).JSON(responses(sportTypes))
 }
 
-type ErrorResponse struct {
-	Message string `json:"message"`
+// GetSportType returns one sport catalogue entry.
+func (h *HTTPHandler) GetSportType(c *fiber.Ctx) error {
+	row, err := h.service.GetSportType(c.UserContext(), c.Params("id"))
+	if err != nil {
+		return mapSportTypeError(err)
+	}
+
+	return c.JSON(response(row))
+}
+
+// CreateSportType creates an administrator-managed catalogue entry.
+func (h *HTTPHandler) CreateSportType(c *fiber.Ctx) error {
+	var input CreateRequest
+	if err := apierror.BindJSON(c, &input); err != nil {
+		return err
+	}
+
+	row, err := h.service.CreateSportType(c.UserContext(), SportType(input))
+	if err != nil {
+		return mapSportTypeError(err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(response(row))
+}
+
+// UpdateSportType renames an administrator-managed entry without changing its ID.
+func (h *HTTPHandler) UpdateSportType(c *fiber.Ctx) error {
+	var input UpdateRequest
+	if err := apierror.BindJSON(c, &input); err != nil {
+		return err
+	}
+
+	row, err := h.service.UpdateSportType(c.UserContext(), c.Params("id"), input.Title)
+	if err != nil {
+		return mapSportTypeError(err)
+	}
+
+	return c.JSON(response(row))
+}
+
+// DeleteSportType removes an unused entry while preserving referenced records.
+func (h *HTTPHandler) DeleteSportType(c *fiber.Ctx) error {
+	if err := h.service.DeleteSportType(c.UserContext(), c.Params("id")); err != nil {
+		return mapSportTypeError(err)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
 }

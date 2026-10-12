@@ -1,230 +1,198 @@
 package match
 
 import (
-	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
 )
 
-type MatchHttpHandler struct {
-	matchService MatchService
+// HTTPHandler translates HTTP requests into match application use cases.
+type HTTPHandler struct {
+	matchService HTTPService
 }
 
-func NewMatchHttpHandler(matchService MatchService) *MatchHttpHandler {
-	return &MatchHttpHandler{matchService}
+// NewHTTPHandler constructs the match HTTP adapter.
+func NewHTTPHandler(s HTTPService) *HTTPHandler {
+	return &HTTPHandler{matchService: s}
 }
 
-func (h *MatchHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/matches", mid.AuthMiddleware)
+// RegisterRoutes exposes fixture reads and protects administrator mutations.
+func (h *HTTPHandler) RegisterRoutes(r fiber.Router, auth, admin fiber.Handler) {
+	matches := r.Group("/matches")
+	matches.Get("/", h.GetAllMatches)
+	matches.Get("/current/time", h.GetTime)
+	matches.Get("/:id", h.GetMatch)
 
-	router.Get("/", h.GetAllMatches)
-	router.Get("/:id", h.GetMatch)
-	router.Get("/current/time", h.GetTime)
-
-	adminRouter := router.Group("", mid.AdminMiddleware)
-	adminRouter.Post("/", h.CreateMatch)
-	adminRouter.Put("/:id", h.UpdateMatch)
-	adminRouter.Patch("/:id/winner/:winner_id", h.UpdateMatchWinner)
-	adminRouter.Patch("/:id/score", h.UpdateMatchScore)
-	adminRouter.Patch("/:id/draw", h.UpdateMatchDraw)
-	adminRouter.Delete("/:id", h.DeleteMatch)
+	matches.Post("/", auth, admin, h.CreateMatch)
+	matches.Put("/:id", auth, admin, h.UpdateMatch)
+	matches.Patch("/:id/score", auth, admin, h.UpdateMatchScore)
+	matches.Put("/:id/result", auth, admin, h.SetResult)
+	matches.Delete("/:id", auth, admin, h.DeleteMatch)
 }
 
-// CreateMatch @Summary      Create a new match
-// @Summary      Creates a new match
-// @Description  Creates a new match and stores it in the system
-// @Tags         Match
-// @Accept       json
-// @Produce      json
-// @Param        match  body      model.MatchDto  true  "Match information"
-// @Success      201    {object}  map[string]string  "Created match successful"
-// @Failure      400    {object}  map[string]string  "Invalid request payload"
-// @Failure      500    {object}  map[string]string  "Failed to create match"
-// @Router       /matches [post]
-func (h *MatchHttpHandler) CreateMatch(c *fiber.Ctx) error {
-	matchDto := new(model.MatchDto)
+// CreateMatch validates match details and creates an administrator-managed fixture.
+func (h *HTTPHandler) CreateMatch(c *fiber.Ctx) error {
+	var request CreateMatchRequest
 
-	if err := c.BodyParser(&matchDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	if e := apierror.BindJSON(c, &request); e != nil {
+		return e
+	}
+	v := Input{
+		TeamAID:    request.TeamAID,
+		TeamBID:    request.TeamBID,
+		TypeID:     request.TypeID,
+		LocationID: request.LocationID,
+		StartTime:  request.StartTime,
+		EndTime:    request.EndTime,
 	}
 
-	err := h.matchService.CreateMatch(matchDto)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create match"})
+	if e := h.matchService.CreateMatch(c.UserContext(), &v); e != nil {
+		return mapMatchError(e)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Created match successful"})
 }
 
-// GetMatch @Summary      Get match by ID
-// @Summary      Retrieves a single match by its ID
-// @Description  Retrieves a single match by its ID
-// @Tags         Match
-// @Produce      json
-// @Param        id     path      string  true  "Match ID"
-// @Success      200    {object}  model.MatchDto
-// @Failure      404    {object}  map[string]string  "Match not found"
-// @Router       /matches/{id} [get]
-func (h *MatchHttpHandler) GetMatch(c *fiber.Ctx) error {
-	match, err := h.matchService.GetMatch(c.Params("id"))
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Match not found"})
+// GetMatch returns one fixture with its current authoritative betting rates.
+func (h *HTTPHandler) GetMatch(c *fiber.Ctx) error {
+	if strings.TrimSpace(c.Params("id")) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
+	v, e := h.matchService.GetMatch(c.UserContext(), c.Params("id"))
+	if e != nil {
+		return mapMatchError(e)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(match)
+	return c.JSON(matchResultDTO(v))
 }
 
-// GetAllMatches @Summary      Get all matches
-// @Summary      Retrieves a list of matches, optionally filtered by type and schedule
-// @Description  Retrieves a list of matches, optionally filtered by type and schedule
-// @Tags         Match
-// @Produce      json
-// @Param        typeId     query     string  false  "Filter by sport type ID"
-// @Param        schedule   query     string  false  "Filter by schedule (schedule or result)"
-// @Success      200    {object}  []model.MatchesByDate  "List of matches grouped by date and sport type"
-// @Failure      400    {object}  map[string]string  "Invalid schedule parameter"
-// @Failure      500    {object}  map[string]string  "Failed to fetch matches"
-// @Router       /matches [get]
-func (h *MatchHttpHandler) GetAllMatches(c *fiber.Ctx) error {
-	filter := &model.MatchFilter{}
+// GetAllMatches validates filters and groups matching fixtures by date and sport type.
+func (h *HTTPHandler) GetAllMatches(c *fiber.Ctx) error {
+	f := &Filter{TypeID: c.Query("typeId")}
+	switch c.Query("schedule") {
+	case "schedule":
+		f.Schedule = Schedule
+	case "result":
+		f.Schedule = ScheduleResult
 
-	if typeId := c.Query("typeId"); typeId != "" {
-		filter.TypeId = typeId
+	case "":
+	default:
+		return apierror.Invalid(map[string]string{"schedule": "must be schedule or result"})
 	}
 
-	if schedule := c.Query("schedule"); schedule != "" {
-		switch schedule {
-		case "schedule":
-			filter.Schedule = model.Schedule
-		case "result":
-			filter.Schedule = model.Result
-		default:
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid schedule parameter"})
-		}
+	v, e := h.matchService.GetAllMatches(c.UserContext(), f)
+	if e != nil {
+		return apierror.Wrap(e, fiber.StatusInternalServerError, "INTERNAL_ERROR", "Unable to fetch matches")
 	}
 
-	matches, err := h.matchService.GetAllMatches(filter)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch matches"})
-	}
-
-	// Group matches by date and sport type
-	groupedMatches := groupMatchesByDateAndType(matches)
-
-	return c.Status(fiber.StatusOK).JSON(groupedMatches)
+	return c.JSON(groupMatchesByDateAndType(matchResultsDTO(v)))
 }
 
-// UpdateMatchScore @Summary      Update match score
-// @Summary  Updates the score of a match
-// @Description  Updates the score of a match
-// @Tags         Match
-// @Accept       json
-// @Produce      json
-// @Param        id     path      string          true  "Match ID"
-// @Param        score  body      model.ScoreDto  true  "Score information"
-// @Success      200    {object}  map[string]string  "Updated match score successfully"
-// @Failure      400    {object}  map[string]string  "Invalid request payload"
-// @Failure      500    {object}  map[string]string  "Failed to update match score"
-// @Router       /matches/{id}/score [patch]
-func (h *MatchHttpHandler) UpdateMatchScore(c *fiber.Ctx) error {
-	matchId := c.Params("id")
-	scoreDto := new(model.ScoreDto)
+// UpdateMatchScore accepts explicitly supplied nonnegative team scores, including zero.
+func (h *HTTPHandler) UpdateMatchScore(c *fiber.Ctx) error {
+	if strings.TrimSpace(c.Params("id")) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
+	var v ScoreDTO
 
-	if err := c.BodyParser(&scoreDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	if e := apierror.BindJSON(c, &v); e != nil {
+		return e
 	}
 
-	err := h.matchService.UpdateMatchScore(matchId, scoreDto)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update match score"})
+	if e := h.matchService.UpdateMatchScore(c.UserContext(), c.Params("id"), &ScoreInput{
+		TeamAScore: v.TeamAScore,
+		TeamBScore: v.TeamBScore,
+	}); e != nil {
+		return mapMatchError(e)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Updated match score successfully"})
+	return c.JSON(fiber.Map{"message": "Updated match score successfully"})
 }
 
-// UpdateMatchWinner @Summary      Update match winner
-// @Summary Updates the winner of a match
-// @Description  Updates the winner of a match
-// @Tags         Match
-// @Produce      json
-// @Param        id          path      string  true  "Match ID"
-// @Param        winner_id   path      string  true  "Winner Team ID"
-// @Success      200    {object}  map[string]string  "Updated match winner successfully"
-// @Failure      500    {object}  map[string]string  "Failed to update match winner"
-// @Router       /matches/{id}/winner/{winner_id} [patch]
-func (h *MatchHttpHandler) UpdateMatchWinner(c *fiber.Ctx) error {
-	matchId := c.Params("id")
-	winnerId := c.Params("winner_id")
+// UpdateMatch applies the supplied fixture fields through the administrator use case.
+func (h *HTTPHandler) UpdateMatch(c *fiber.Ctx) error {
+	if strings.TrimSpace(c.Params("id")) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
+	var request UpdateMatchRequest
 
-	err := h.matchService.UpdateMatchWinner(matchId, winnerId)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update match winner"})
+	if e := apierror.BindJSON(c, &request); e != nil {
+		return e
+	}
+	v := Input{}
+	if request.TeamAID != nil {
+		v.TeamAID = *request.TeamAID
+	}
+	if request.TeamBID != nil {
+		v.TeamBID = *request.TeamBID
+	}
+	if request.TypeID != nil {
+		v.TypeID = *request.TypeID
+	}
+	if request.LocationID != nil {
+		v.LocationID = *request.LocationID
+	}
+	if request.StartTime != nil {
+		v.StartTime = *request.StartTime
+	}
+	if request.EndTime != nil {
+		v.EndTime = *request.EndTime
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Updated match winner successfully"})
+	if e := h.matchService.UpdateMatch(c.UserContext(), c.Params("id"), &v); e != nil {
+		return mapMatchError(e)
+	}
+
+	return c.JSON(fiber.Map{"message": "Updated match successfully"})
 }
 
-// DeleteMatch @Summary      Delete match
-// @Summary      Deletes a match by its ID
-// @Description  Deletes a match by its ID
-// @Tags         Match
-// @Param        id     path      string  true  "Match ID"
-// @Success      200    {object}  map[string]string  "Deleted match successful"
-// @Failure      500    {object}  map[string]string  "Failed to delete match"
-// @Router       /matches/{id} [delete]
-func (h *MatchHttpHandler) DeleteMatch(c *fiber.Ctx) error {
-	err := h.matchService.DeleteMatch(c.Params("id"))
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete match"})
+// DeleteMatch removes the selected fixture after the administrator route guard.
+func (h *HTTPHandler) DeleteMatch(c *fiber.Ctx) error {
+	if strings.TrimSpace(c.Params("id")) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
+	if e := h.matchService.DeleteMatch(c.UserContext(), c.Params("id")); e != nil {
+		return mapMatchError(e)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Deleted match successful"})
+	return c.JSON(fiber.Map{"message": "Deleted match successful"})
 }
 
-func (h *MatchHttpHandler) GetTime(c *fiber.Ctx) error {
-	time, err := h.matchService.GetTime()
+// GetTime returns the server's current UTC time.
+func (h *HTTPHandler) GetTime(c *fiber.Ctx) error {
+	v, err := h.matchService.GetTime()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get time"})
+		return err
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"currentTime": time})
+	return c.JSON(fiber.Map{"currentTime": v})
 }
 
-func (h *MatchHttpHandler) UpdateMatchDraw(c *fiber.Ctx) error {
-	matchId := c.Params("id")
+// SetResult validates a terminal winner or draw result and requests atomic settlement.
+func (h *HTTPHandler) SetResult(c *fiber.Ctx) error {
+	if strings.TrimSpace(c.Params("id")) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
+	var v ResultRequest
 
-	err := h.matchService.UpdateMatchDraw(matchId)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update match as draw"})
+	if e := apierror.BindJSON(c, &v); e != nil {
+		return e
+	}
+	if details := v.ValidateRequest(); len(details) > 0 {
+		return apierror.Invalid(details)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Updated match as draw successfully"})
-}
+	e := h.matchService.SetResult(c.UserContext(), c.Params("id"), &ResultInput{
+		Outcome:  v.Outcome,
+		WinnerID: v.WinnerID,
+	})
 
-// UpdateMatch @Summary      Update match details
-// @Summary Updates match details (teams, type, times)
-// @Description  Updates match details including teams, sport type, start time, and end time
-// @Tags         Match
-// @Accept       json
-// @Produce      json
-// @Param        id     path      string          true  "Match ID"
-// @Param        match  body      model.MatchDto  true  "Match information"
-// @Success      200    {object}  map[string]string  "Updated match successfully"
-// @Failure      400    {object}  map[string]string  "Invalid request payload"
-// @Failure      500    {object}  map[string]string  "Failed to update match"
-// @Router       /matches/{id} [put]
-func (h *MatchHttpHandler) UpdateMatch(c *fiber.Ctx) error {
-	matchId := c.Params("id")
-	matchDto := new(model.MatchDto)
-
-	if err := c.BodyParser(&matchDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	switch {
+	case e != nil:
+		return mapMatchError(e)
+	default:
+		return c.JSON(fiber.Map{"message": "result accepted"})
 	}
-
-	err := h.matchService.UpdateMatch(matchId, matchDto)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update match"})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Updated match successfully"})
 }

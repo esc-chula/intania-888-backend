@@ -1,200 +1,233 @@
 package user
 
 import (
-	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
-	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/esc-chula/intania-888-backend/utils"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
-type UserHttpHandler struct {
-	service UserService
+// HTTPHandler serves account HTTP endpoints.
+type HTTPHandler struct {
+	service ServicePort
 }
 
-func NewUserHttpHandler(service UserService) *UserHttpHandler {
-	return &UserHttpHandler{service: service}
+// NewHTTPHandler constructs account HTTP handlers.
+func NewHTTPHandler(service ServicePort) *HTTPHandler {
+	return &HTTPHandler{service: service}
 }
 
-func (h *UserHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/users", mid.AuthMiddleware)
+// RegisterRoutes installs browser account routes using the supplied authorization middleware.
+func (h *HTTPHandler) RegisterRoutes(router fiber.Router, auth, admin fiber.Handler) {
+	router = router.Group("/users", auth)
 
 	router.Get("/", h.GetAllUsers)
-	router.Get("/:id", h.GetUser)
-	router.Patch("/:id", h.UpdateUser)
-
-	// Admin routes
-	adminRouter := router.Group("/admin", mid.AdminMiddleware)
+	adminRouter := router.Group("/admin", admin)
+	adminRouter.Get("/all", h.GetAllAccounts)
 	adminRouter.Patch("/:id", h.AdminUpdateUser)
+
+	router.Get("/:id", h.GetUser)
+	router.Post("/me/registration", h.RegisterProfile)
+	router.Patch("/me", h.UpdateOwnProfile)
+	router.Patch("/:id", h.UpdateUser)
 }
 
-// @Summary Create a new user
-// @Description Creates a new user and stores it in the system
-// @Tags User
-// @Accept  json
-// @Produce  json
-// @Param   user  body      model.UserDto  true  "User information"
-// @Success 201    {object} model.UserDto
-// @Failure 400    {object} map[string]string  "cannot parse body"
-// @Failure 500    {object} map[string]string  "internal server error"
-// @Router  /users [post]
-func (h *UserHttpHandler) CreateUser(c *fiber.Ctx) error {
-	user := new(model.UserDto)
-	if err := c.BodyParser(user); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
+// CreateUser parses and creates a user account.
+func (h *HTTPHandler) CreateUser(c *fiber.Ctx) error {
+	user := new(CreateUserRequest)
+
+	if err := apierror.BindJSON(c, user); err != nil {
+		return err
 	}
-	if err := h.service.CreateUser(user); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+
+	created, err := h.service.CreateUser(c.UserContext(), CreateInput{
+		ID:        user.ID,
+		Email:     user.Email,
+		Name:      user.Name,
+		NickName:  user.NickName,
+		RoleID:    user.RoleID,
+		GroupID:   user.GroupID,
+		CreatedAt: user.CreatedAt,
+	})
+	if err != nil {
+		return err
 	}
-	return c.Status(fiber.StatusCreated).JSON(user)
+
+	return c.Status(fiber.StatusCreated).JSON(httpidentity.Response(created))
 }
 
-// @Summary Get user by ID
-// @Description Retrieves a single user by their ID
-// @Tags User
-// @Produce  json
-// @Param   id    path      string  true  "User ID"
-// @Success 200    {object} model.UserDto
-// @Failure 404    {object} map[string]string  "user not found"
-// @Router  /users/{id} [get]
-func (h *UserHttpHandler) GetUser(c *fiber.Ctx) error {
+// GetUser serves one account profile.
+func (h *HTTPHandler) GetUser(c *fiber.Ctx) error {
 	id := c.Params("id")
-	user, err := h.service.GetUser(id)
+	if strings.TrimSpace(id) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
+
+	user, err := h.service.GetUser(c.UserContext(), id)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
+		return mapUserError(err)
 	}
-	return c.JSON(user)
+
+	return c.JSON(httpidentity.Response(user))
 }
 
-// @Summary Get all users
-// @Description Retrieves a list of all users
-// @Tags User
-// @Produce  json
-// @Success 200    {array}  model.UserDto
-// @Failure 500    {object} map[string]string  "internal server error"
-// @Router  /users [get]
-func (h *UserHttpHandler) GetAllUsers(c *fiber.Ctx) error {
-	users, err := h.service.GetAllUsers()
+// GetAllUsers serves account profiles with an assigned group.
+func (h *HTTPHandler) GetAllUsers(c *fiber.Ctx) error {
+	users, err := h.service.GetAllUsers(c.UserContext())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
-	return c.JSON(users)
+
+	responses := make([]*httpidentity.ProfileResponse, len(users))
+	for i, profile := range users {
+		responses[i] = httpidentity.Response(profile)
+	}
+
+	return c.JSON(responses)
 }
 
-// @Summary Update user
-// @Description Updates an existing user
-// @Tags User
-// @Accept  json
-// @Produce  json
-// @Param   id    path      string  true  "User ID"
-// @Param   user  body      model.UserDto  true  "Updated user information"
-// @Success 200    {object} model.UserDto
-// @Failure 400    {object} map[string]string  "cannot parse body"
-// @Failure 500    {object} map[string]string  "internal server error"
-// @Router  /users/{id} [patch]
-func (h *UserHttpHandler) UpdateUser(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
+// GetAllAccounts serves every account profile to administrators.
+func (h *HTTPHandler) GetAllAccounts(c *fiber.Ctx) error {
+	users, err := h.service.GetAllAccounts(c.UserContext())
+	if err != nil {
+		return err
+	}
 
-	updateUserDto := new(model.UpdateUserDto)
-	if err := c.BodyParser(updateUserDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
+	responses := make([]*httpidentity.ProfileResponse, len(users))
+	for i, profile := range users {
+		responses[i] = httpidentity.Response(profile)
 	}
-	user := model.UserDto{
-		Id:            profile.Id,
-		Email:         profile.Email,
-		Name:          updateUserDto.Name,
-		NickName:      updateUserDto.NickName,
-		RoleId:        profile.RoleId,
-		GroupId:       updateUserDto.GroupId,
-		RemainingCoin: 0.00,
-	}
-	if err := h.service.UpdateUser(&user); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(user)
+
+	return c.JSON(responses)
 }
 
-// @Summary Admin update user
-// @Description Allows admin to update any user including role and coins
-// @Tags User
-// @Accept  json
-// @Produce  json
-// @Param   id    path      string  true  "User ID"
-// @Param   user  body      model.UserDto  true  "Updated user information"
-// @Success 200    {object} model.UserDto
-// @Failure 400    {object} map[string]string  "cannot parse body"
-// @Failure 500    {object} map[string]string  "internal server error"
-// @Router  /users/admin/{id} [patch]
-func (h *UserHttpHandler) AdminUpdateUser(c *fiber.Ctx) error {
-	userId := c.Params("id")
-
-	userDto := new(model.UserDto)
-	if err := c.BodyParser(userDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot parse body"})
+// UpdateOwnProfile applies a partial update to the signed-in user's profile.
+func (h *HTTPHandler) UpdateOwnProfile(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
+	if profile == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	if err := h.service.AdminUpdateUser(userId, userDto); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	var request UpdateOwnProfileRequest
+	if err := apierror.BindJSON(c, &request); err != nil {
+		return err
+	}
+
+	user, err := h.service.UpdateOwnProfile(c.UserContext(), profile.ID, ProfilePatch{
+		Name:        request.Name,
+		NickName:    request.NickName,
+		NickNameSet: request.nickNameSet,
+	})
+	if err != nil {
+		return mapUserError(err)
+	}
+
+	return c.JSON(httpidentity.Response(user))
+}
+
+// RegisterProfile lets an authenticated account choose its group while unassigned.
+func (h *HTTPHandler) RegisterProfile(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
+	if profile == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+
+	var request RegisterProfileRequest
+	if err := apierror.BindJSON(c, &request); err != nil {
+		return err
+	}
+
+	user, err := h.service.RegisterProfile(c.UserContext(), profile.ID, ProfileRegistrationInput(request))
+	if err != nil {
+		return mapUserError(err)
+	}
+
+	return c.JSON(httpidentity.Response(user))
+}
+
+// UpdateUser checks the legacy path ID and delegates to UpdateOwnProfile.
+//
+// Deprecated: use PATCH /users/me through UpdateOwnProfile.
+func (h *HTTPHandler) UpdateUser(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
+	if profile == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+	if c.Params("id") != profile.ID {
+		return apierror.New(fiber.StatusForbidden, "FORBIDDEN", "You can only update your own profile")
+	}
+
+	return h.UpdateOwnProfile(c)
+}
+
+// AdminUpdateUser updates administrator-editable account fields.
+func (h *HTTPHandler) AdminUpdateUser(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	if strings.TrimSpace(userID) == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
+	}
+
+	userDto := new(AdminUpdateUserRequest)
+	if err := apierror.BindJSON(c, userDto); err != nil {
+		return err
+	}
+
+	if err := h.service.AdminUpdateUser(c.UserContext(), userID, AdminUpdateInput{
+		Name:          userDto.Name,
+		NickName:      userDto.NickName,
+		GroupID:       userDto.GroupID,
+		GroupIDSet:    userDto.groupIDSet,
+		RemainingCoin: userDto.RemainingCoin,
+	}); err != nil {
+		return mapUserError(err)
 	}
 
 	// Return updated user
-	updatedUser, err := h.service.GetUser(userId)
+	updatedUser, err := h.service.GetUser(c.UserContext(), userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return mapUserError(err)
 	}
 
-	return c.JSON(updatedUser)
+	return c.JSON(httpidentity.Response(updatedUser))
 }
 
-// RegisterExternalRoutes registers external API routes
-func (h *UserHttpHandler) RegisterExternalRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router.Post("/deduct-coin", mid.ExternalAPIMiddleware, h.DeductCoin)
+// RegisterExternalRoutes declares the delegated permission and user limit for coin deductions.
+func (h *HTTPHandler) RegisterExternalRoutes(
+	router fiber.Router,
+	requireScope func(string, ...httplimit.Check) fiber.Handler,
+	transactionRateLimit httplimit.Check,
+) {
+	router.Post(
+		"/deduct-coin",
+		requireScope(config.ScopeCoinsSpend, transactionRateLimit),
+		h.DeductCoin,
+	)
 }
 
-// @Summary Deduct coins from user balance (External API)
-// @Description External API endpoint to deduct coins from authenticated user's balance. Bypasses browser-only validation but requires JWT authentication.
-// @Tags External
-// @Accept json
-// @Produce json
-// @Param request body model.DeductCoinRequest true "Deduction request"
-// @Success 200 {object} model.DeductCoinResponse
-// @Failure 400 {object} map[string]interface{} "Invalid amount or parse error"
-// @Failure 401 {object} map[string]interface{} "Missing or invalid token"
-// @Failure 403 {object} map[string]interface{} "Insufficient balance or blacklisted"
-// @Failure 500 {object} map[string]interface{} "Internal server error"
-// @Router /external/deduct-coin [post]
-// @Security BearerAuth
-func (h *UserHttpHandler) DeductCoin(c *fiber.Ctx) error {
-	profile := utils.GetUserProfileFromCtx(c)
-
-	var req model.DeductCoinRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "cannot parse body",
-		})
+// DeductCoin deducts coins for an authenticated external client.
+func (h *HTTPHandler) DeductCoin(c *fiber.Ctx) error {
+	profile := httpidentity.GetProfile(c)
+	if profile == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	// Validate amount range
-	if req.Amount < 1 || req.Amount > 1000000 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "amount must be between 1 and 1,000,000 coins",
-		})
+	var req DeductCoinRequest
+	if err := apierror.BindJSON(c, &req); err != nil {
+		return err
 	}
 
 	// Call service to deduct coins
-	remainingBalance, err := h.service.DeductCoin(profile.Id, req.Amount)
+	remainingBalance, err := h.service.DeductCoin(c.UserContext(), profile.ID, req.Amount)
 	if err != nil {
-		if err.Error() == "insufficient balance" {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "insufficient balance",
-			})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return mapUserError(err)
 	}
 
 	// Return success response
-	return c.Status(fiber.StatusOK).JSON(model.DeductCoinResponse{
+	return c.Status(fiber.StatusOK).JSON(DeductCoinResponse{
 		Success:          true,
 		DeductedAmount:   req.Amount,
 		RemainingBalance: remainingBalance,

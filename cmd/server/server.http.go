@@ -9,34 +9,80 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/esc-chula/intania-888-backend/docs"
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/httplimit"
 
 	"github.com/esc-chula/intania-888-backend/pkg/config"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/basicauth"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"go.uber.org/zap"
-
-	swagger "github.com/arsmn/fiber-swagger/v2"
 )
 
-type FiberHttpServer struct {
-	app    *fiber.App
-	cfg    config.Config
-	logger *zap.Logger
+const (
+	shutdownTimeout  = 10 * time.Second
+	readinessTimeout = time.Second
+)
+
+// ReadinessCheck verifies that one application dependency can serve requests.
+type ReadinessCheck func(context.Context) error
+
+// FiberHTTPServer owns the HTTP application, shared middleware, and route composition.
+type FiberHTTPServer struct {
+	app               *fiber.App
+	cfg               config.Config
+	logger            *zap.Logger
+	allowedOrigins    map[string]struct{}
+	readinessChecks   []ReadinessCheck
+	openAPIDocument   []byte
+	swaggerAPIBaseURL string
+	swaggerAPIOrigin  string
 }
 
-func NewFiberHttpServer(cfg config.Config, logger *zap.Logger) *FiberHttpServer {
-	return &FiberHttpServer{
-		app:    fiber.New(),
-		cfg:    cfg,
-		logger: logger,
+// NewFiberHTTPServer constructs the HTTP application after validating origins and documentation settings.
+func NewFiberHTTPServer(cfg config.Config, logger *zap.Logger, readinessChecks ...ReadinessCheck) (*FiberHTTPServer, error) {
+	if err := cfg.GetRateLimits().Validate(); err != nil {
+		return nil, err
 	}
+	if err := httplimit.ValidateClientIPMode(cfg.GetServer().ClientIPMode); err != nil {
+		return nil, err
+	}
+	allowedOrigins, err := parseAllowedOrigins(cfg.GetCORS().AllowOrigins)
+	if err != nil {
+		return nil, err
+	}
+	openAPIDocument, swaggerAPIBaseURL, swaggerAPIOrigin, err := configureOpenAPIDocument(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if swaggerAPIOrigin != "" {
+		allowedOrigins[swaggerAPIOrigin] = struct{}{}
+	}
+
+	if cfg.GetSwagger().Enabled && cfg.GetSwagger().RequireAuth &&
+		(strings.TrimSpace(cfg.GetSwagger().Username) == "" ||
+			strings.TrimSpace(cfg.GetSwagger().Password) == "") {
+		return nil, fmt.Errorf("swagger Basic Auth requires both SWAGGER_USERNAME and SWAGGER_PASSWORD")
+	}
+
+	return &FiberHTTPServer{
+		app: fiber.New(fiber.Config{
+			ErrorHandler: apierror.ErrorHandler(logger),
+		}),
+		cfg:               cfg,
+		logger:            logger,
+		allowedOrigins:    allowedOrigins,
+		readinessChecks:   readinessChecks,
+		openAPIDocument:   openAPIDocument,
+		swaggerAPIBaseURL: swaggerAPIBaseURL,
+		swaggerAPIOrigin:  swaggerAPIOrigin,
+	}, nil
 }
 
-func (s *FiberHttpServer) Start() {
+// Start listens on the configured address and blocks until an interrupt or termination signal.
+// Listener and shutdown errors are returned so callers can close their dependencies.
+func (s *FiberHTTPServer) Start() error {
 	url := fmt.Sprintf("%v:%d", s.cfg.GetServer().Host, s.cfg.GetServer().Port)
 
 	// init modules
@@ -44,119 +90,117 @@ func (s *FiberHttpServer) Start() {
 	// Setup signal capturing for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+	listenErr := make(chan error, 1)
 
 	// Run the server in a goroutine so it doesn't block
 	go func() {
 		s.logger.Sugar().Infof("SUCU Backend is starting on %v", url)
-		if err := s.app.Listen(url); err != nil {
-			s.logger.Sugar().Fatalf("Error while starting server: %v", err)
-		}
+		listenErr <- s.app.Listen(url)
 	}()
 
-	// Wait for a termination signal
-	<-quit
+	select {
+	case err := <-listenErr:
+		if err != nil {
+			return fmt.Errorf("listen on %s: %w", url, err)
+		}
+
+		return nil
+	case <-quit:
+	}
 	s.logger.Sugar().Info("Gracefully shutting down server...")
 
 	// Create a deadline for shutdown
-	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	// Shut down the server
-	if err := s.app.Shutdown(); err != nil {
-		s.logger.Sugar().Fatalf("Error during server shutdown: %v", err)
+	if err := s.shutdown(ctx); err != nil {
+		return fmt.Errorf("shutdown HTTP server: %w", err)
 	}
 
 	s.logger.Sugar().Info("Server shutdown complete.")
+
+	return nil
 }
 
-func (s *FiberHttpServer) InitHttpServer() fiber.Router {
-	// set global prefix
-	router := s.app.Group("/api/v1")
+func (s *FiberHTTPServer) shutdown(ctx context.Context) error {
+	return s.app.ShutdownWithContext(ctx)
+}
 
+// InitHTTPServer installs request IDs, documentation routes, and shared API middleware.
+// It returns the /api/v1 router for feature registration and should be called once at startup.
+func (s *FiberHTTPServer) InitHTTPServer() fiber.Router {
+	s.registerRootHTTPFeatures()
+
+	router := s.app.Group("/api/v1")
+	s.registerAPIMiddleware(router)
+	s.registerAPIRoutes(router)
+
+	return router
+}
+
+func (s *FiberHTTPServer) registerRootHTTPFeatures() {
+	s.app.Use(apierror.RequestID())
+
+	// Register health/readiness Checks
+	s.app.Get("/healthz", s.healthcheckHandler())
+	s.app.Get("/readyz", s.readinessHandler())
+
+	s.registerSwagger()
+}
+
+func (s *FiberHTTPServer) registerAPIMiddleware(router fiber.Router) {
 	// apply origin guard
 	router.Use(s.OriginGuard())
 
 	// enable cors
+	corsAllowOrigins := s.cfg.GetCORS().AllowOrigins
+	if s.swaggerAPIOrigin != "" {
+		corsAllowOrigins = strings.Trim(strings.Join([]string{corsAllowOrigins, s.swaggerAPIOrigin}, ","), ",")
+	}
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     s.cfg.GetCors().AllowOrigins,
+		AllowOrigins:     corsAllowOrigins,
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
 		AllowHeaders:     "Origin,X-PINGOTHER,Accept,Authorization,Content-Type,X-CSRF-Token",
-		ExposeHeaders:    "Link",
+		ExposeHeaders:    "Link,X-Request-ID",
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
 	// init logger
 	router.Use(logger.New(logger.Config{
-		Format:     "${time} ${status} - ${method} ${path}\n",
+		Format:     "${time} request_id=${locals:request_id} ${status} - ${method} ${path}\n",
 		TimeFormat: "2006/01/02 15:04:05",
 		TimeZone:   "Asia/Bangkok",
 	}))
 
-	router.Use(limiter.New(limiter.Config{
-		Max:        200,
-		Expiration: 60 * time.Second,
-		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP()
-		},
-		LimitReached: func(c *fiber.Ctx) error {
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"message": "Too many requests, please try again later.",
-			})
-		},
-	}))
+	registerRateLimiters(router, s.cfg, s.logger)
+}
 
-	// basic authentication for swagger
-	router.Use("/swagger/*", basicauth.New(basicauth.Config{
-		Users: map[string]string{
-			s.cfg.GetSwagger().Username: s.cfg.GetSwagger().Password,
-		},
-		Unauthorized: func(c *fiber.Ctx) error {
-			c.Set(fiber.HeaderWWWAuthenticate, `Basic realm="Restricted"`)
-			return c.Status(fiber.StatusUnauthorized).SendString("Unauthorized")
-		},
-	}))
-
-	// swagger
-	router.Get("/swagger/*", swagger.HandlerDefault)
-
-	// healthcheck
+func (s *FiberHTTPServer) registerAPIRoutes(router fiber.Router) {
 	router.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("server is running !")
 	})
-
-	return router
 }
 
-func (s *FiberHttpServer) OriginGuard() fiber.Handler {
+func (s *FiberHTTPServer) healthcheckHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error { return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"}) }
+}
+
+func (s *FiberHTTPServer) readinessHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if strings.HasPrefix(c.Path(), "/api/v1/external/") {
-			return c.Next()
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), readinessTimeout)
+		defer cancel()
 
-		if c.Path() == "/api/v1/auth/callback" {
-			return c.Next()
-		}
+		for _, check := range s.readinessChecks {
+			if err := check(ctx); err != nil {
+				s.logger.Warn("Readiness check failed", zap.Error(err))
 
-		origin := c.Get("Origin")
-		s.logger.Info("OriginGuard", zap.String("origin", origin))
-
-		//todo: remove this redundanct shit, have fun
-		allowedOrigins := strings.Split(s.cfg.GetCors().AllowOrigins, ",")
-		isAllowed := false
-		for _, allowed := range allowedOrigins {
-			if origin == strings.TrimSpace(allowed) {
-				isAllowed = true
-				break
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"status": "not_ready"})
 			}
 		}
 
-		if !isAllowed {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Unauthorized",
-			})
-		}
-
-		return c.Next()
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ready"})
 	}
 }

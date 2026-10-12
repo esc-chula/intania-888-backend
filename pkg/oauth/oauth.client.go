@@ -4,42 +4,57 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"time"
 
-	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
+// GoogleOAuthClient is the Google authorization boundary consumed by authentication.
 type GoogleOAuthClient interface {
-	GetUserInfo(code string) (*GoogleUserInfo, error)
+	// GetUserInfo exchanges an authorization code with its PKCE verifier and loads the identity.
+	GetUserInfo(ctx context.Context, code, codeVerifier string) (*GoogleUserInfo, error)
+	// OAuthConfig returns the shared client configuration; callers must not mutate it during requests.
 	OAuthConfig() *oauth2.Config
 }
 
-type googleOAuthClientImpl struct {
+// GoogleClient exchanges Google OAuth codes and retrieves the provider identity.
+// The OAuth configuration is retained by reference.
+type GoogleClient struct {
 	oauthConfig *oauth2.Config
 	log         *zap.Logger
 }
 
-func NewGoogleOAuthClient(oauthConfig *oauth2.Config, log *zap.Logger) GoogleOAuthClient {
-	return &googleOAuthClientImpl{
-		oauthConfig,
-		log,
+// NewGoogleOAuthClient constructs the Google adapter from its configuration and logger.
+// It performs no network request and retains the supplied configuration by reference.
+func NewGoogleOAuthClient(oauthConfig *oauth2.Config, log *zap.Logger) *GoogleClient {
+	return &GoogleClient{
+		oauthConfig: oauthConfig,
+		log:         log,
 	}
 }
 
 var (
-	InvalidCode   = errors.New("invalid code")
-	HttpError     = errors.New("unable to get user info")
-	IOError       = errors.New("unable to read google response")
-	InvalidFormat = errors.New("google sent unexpected format")
+	// ErrInvalidCode indicates missing authorization inputs or a failed code exchange.
+	ErrInvalidCode = errors.New("invalid code")
+	// ErrHTTP indicates a userinfo request failure or unsuccessful HTTP status.
+	ErrHTTP = errors.New("unable to get user info")
+	// ErrIO indicates failure to read the Google userinfo response.
+	ErrIO = errors.New("unable to read google response")
+	// ErrInvalidFormat indicates that the userinfo response is not the expected JSON shape.
+	ErrInvalidFormat = errors.New("google sent unexpected format")
 )
 
+// GoogleUserInfo is the Google userinfo wire record returned after code exchange.
+// VerifiedEmail is provider evidence; authentication decides whether the account may log in.
 type GoogleUserInfo struct {
-	Id            string `json:"id"`
+	ID            string `json:"id"`
 	Email         string `json:"email"`
 	VerifiedEmail bool   `json:"verified_email"`
 	Name          string `json:"name"`
@@ -49,45 +64,73 @@ type GoogleUserInfo struct {
 	Locale        string `json:"locale"`
 }
 
-func (c *googleOAuthClientImpl) GetUserInfo(code string) (*GoogleUserInfo, error) {
-	token, err := c.oauthConfig.Exchange(context.TODO(), code)
-	if err != nil {
-		c.log.Named("GetUserEmail").Error("Exchange: ", zap.Error(err))
-		return nil, InvalidCode
+// GetUserInfo exchanges code with its PKCE verifier and fetches the Google identity.
+// Caller cancellation is preserved within a ten-second timeout covering both requests.
+// Provider failures are translated into the exported OAuth errors.
+func (c *GoogleClient) GetUserInfo(ctx context.Context, code, codeVerifier string) (*GoogleUserInfo, error) {
+	if c.oauthConfig == nil || code == "" || codeVerifier == "" {
+		return nil, ErrInvalidCode
 	}
 
-	resp, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + url.QueryEscape(token.AccessToken))
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	token, err := c.oauthConfig.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {
-		c.log.Named("GetUserEmail").Error("Get: ", zap.Error(err))
-		return nil, HttpError
+		return nil, fmt.Errorf("%w: %w", ErrInvalidCode, err)
 	}
-	defer resp.Body.Close()
+
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		"https://www.googleapis.com/oauth2/v2/userinfo",
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrHTTP, err)
+	}
+	request.Header.Set("Authorization", "Bearer "+token.AccessToken)
+
+	resp, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrHTTP, err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			c.log.Named("GetUserEmail").Warn("Close Google userinfo response failed", zap.Error(closeErr))
+		}
+	}()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("%w: status %d", ErrHTTP, resp.StatusCode)
+	}
 
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.log.Named("GetUserEmail").Error("ReadAll: ", zap.Error(err))
-		return nil, IOError
+		return nil, fmt.Errorf("%w: %w", ErrIO, err)
 	}
 
 	// var parsedResponse dto.GoogleUserEmailResponse
 	var parsedResponse GoogleUserInfo
 	if err = json.Unmarshal(response, &parsedResponse); err != nil {
-		c.log.Named("GetUserEmail").Error("Unmarshal: ", zap.Error(err))
-		return nil, InvalidFormat
+		return nil, fmt.Errorf("%w: %w", ErrInvalidFormat, err)
 	}
 
 	return &parsedResponse, nil
 }
 
-func (c *googleOAuthClientImpl) OAuthConfig() *oauth2.Config {
+// OAuthConfig returns the shared client configuration, not a defensive copy.
+// Callers must not mutate the configuration while requests are in flight.
+func (c *GoogleClient) OAuthConfig() *oauth2.Config {
 	return c.oauthConfig
 }
 
+// LoadOAuthConfig builds the Google OAuth settings and email/profile scopes.
+// The configured redirect URL is the backend callback destination.
 func LoadOAuthConfig(cfg config.Config) *oauth2.Config {
 	return &oauth2.Config{
-		ClientID:     cfg.GetOAuth().ClientId,
+		ClientID:     cfg.GetOAuth().ClientID,
 		ClientSecret: cfg.GetOAuth().ClientSecret,
-		RedirectURL:  cfg.GetOAuth().RedirectUrl,
+		RedirectURL:  cfg.GetOAuth().Registry.Google.CallbackURI,
 		Endpoint:     google.Endpoint,
 		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
 	}

@@ -1,73 +1,144 @@
 package middleware
 
 import (
+	"context"
+	"encoding/base64"
 	"errors"
+	"slices"
+	"time"
 
-	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/esc-chula/intania-888-backend/pkg/cache"
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+	"github.com/esc-chula/intania-888-backend/internal/security"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
-	"github.com/esc-chula/intania-888-backend/utils"
-	"go.uber.org/zap"
 )
 
-type middlewareServiceImpl struct {
-	repo  MiddlewareRepository
-	cache *cache.RedisClient
-	log   *zap.Logger
-	cfg   config.Config
+// Service verifies request identities using account and session persistence.
+type Service struct {
+	repo   Repository
+	cache  SessionStore
+	policy security.AccessPolicyChecker
+	cfg    config.Config
+	grants DelegationReader
 }
 
-func NewMiddlewareService(repo MiddlewareRepository, cache *cache.RedisClient, log *zap.Logger, cfg config.Config) MiddlewareService {
-	return &middlewareServiceImpl{
-		repo:  repo,
-		cache: cache,
-		log:   log,
-		cfg:   cfg,
+// NewService binds the required account, session, configuration and policy dependencies.
+func NewService(repo Repository, sessions SessionStore, cfg config.Config, policy security.AccessPolicyChecker) *Service {
+	reader, _ := sessions.(DelegationReader)
+
+	return &Service{
+		repo:   repo,
+		cache:  sessions,
+		cfg:    cfg,
+		policy: policy,
+		grants: reader,
 	}
 }
 
-func (u *middlewareServiceImpl) VerifyToken(token string) (*string, error) {
-	claim, err := utils.JwtParseToken(token, u.cfg.GetJwt().AccessTokenSecret)
+// GetSession validates the opaque session ID and retrieves its renewed server-side record.
+// Malformed IDs or incomplete and expired records return ErrSessionMissing.
+func (s *Service) GetSession(ctx context.Context, id string) (*security.Session, error) {
+	decoded, decodeErr := base64.RawURLEncoding.DecodeString(id)
+	if decodeErr != nil || len(decoded) != security.OpaqueTokenBytes {
+		return nil, ErrSessionMissing
+	}
+
+	record, err := s.cache.ReadAndRenewSession(ctx, security.ToSessionCacheKey(id), time.Now().Unix(), s.cfg.GetSession().IdleTTLSeconds)
 	if err != nil {
-		u.log.Named("VerifyToken").Error("Parsing token: ", zap.Error(err))
-		return nil, errors.New("invalid token")
-	}
-
-	// get userId in token
-	userId, ok := claim["sub"].(string)
-	if !ok {
-		u.log.Named("VerifyToken").Error("Getting user_id from claim: ", zap.Error(errors.New("error while getting user_id from claim")))
-		return nil, errors.New("user id not found in token")
-	}
-
-	var credential model.CredentialDto
-	err = u.cache.GetValue(utils.ToAccessCacheKey(userId), &credential)
-	if err != nil {
-		u.log.Named("ValidateToken").Error("GetValue: ", zap.Error(err))
-		return nil, err
-	}
-	if token != credential.AccessToken {
-		return nil, errors.New("invalid token")
-	}
-
-	u.log.Named("VerifyToken").Info("Success: ", zap.String("user_id", userId))
-	return &userId, nil
-}
-
-func (s *middlewareServiceImpl) GetMe(userId string) (*model.UserDto, error) {
-	user, err := s.repo.GetById(userId)
-	if err != nil {
-		s.log.Named("GetMe").Error("Get user by id: ", zap.Error(err))
 		return nil, err
 	}
 
-	return &model.UserDto{
-		Id:            user.Id,
+	if record.UserID == "" || record.CSRFToken == "" || record.ExpiresAt <= time.Now().Unix() {
+		return nil, ErrSessionMissing
+	}
+
+	return record, nil
+}
+
+// GetMe loads the account and converts its minor-unit balance to the shared profile value.
+func (s *Service) GetMe(ctx context.Context, id string) (*identity.Profile, error) {
+	user, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, identity.ErrUserNotFound
+	}
+
+	return &identity.Profile{
+		ID:            user.ID,
 		Name:          user.Name,
 		Email:         user.Email,
-		RoleId:        user.RoleId,
-		RemainingCoin: user.RemainingCoin,
-		GroupId:       user.GroupId,
+		RoleID:        user.RoleID,
+		RemainingCoin: value.MustMoneyFromMinor(user.RemainingCoin),
+		GroupID:       user.GroupID,
 		NickName:      user.NickName,
 	}, nil
+}
+
+// IsBlacklisted delegates current email and account identity checks to the shared access policy.
+func (s *Service) IsBlacklisted(ctx context.Context, email, userID string) (bool, error) {
+	return s.policy.IsBlacklisted(ctx, email, userID)
+}
+
+// ErrExternalScope indicates that a delegated credential lacks a required permission.
+var ErrExternalScope = errors.New("external scope missing")
+
+// VerifyExternalToken verifies the signed credential before selecting a client budget.
+func (s *Service) VerifyExternalToken(token string) (*security.DelegatedClaims, error) {
+	claims, err := security.ParseDelegatedToken(token, s.cfg.GetJWT().AccessTokenSecret, s.cfg.GetServer().Name)
+	if err != nil {
+		return nil, ErrExternalMissing
+	}
+
+	return claims, nil
+}
+
+// VerifyExternalGrant checks an already verified credential's active grant and scope before account queries.
+func (s *Service) VerifyExternalGrant(ctx context.Context, claims *security.DelegatedClaims, scope string) (string, error) {
+	if claims == nil || s.grants == nil || s.cfg.GetOAuth().Registry == nil {
+		return "", ErrExternalMissing
+	}
+	registry := s.cfg.GetOAuth().Registry
+	app, ok := registry.Application(claims.ClientID)
+	if !ok || app.Mode != config.CodeApplication {
+		return "", ErrExternalMissing
+	}
+	grant, err := s.grants.ReadDelegation(ctx, claims.DelegationID, registry.Lifetimes.Idle)
+	if err != nil {
+		return "", err
+	}
+	if grant == nil || grant.UserID != claims.Subject || grant.ClientID != claims.ClientID {
+		return "", ErrExternalMissing
+	}
+	if scope == "" ||
+		!slices.Contains(app.AllowedScopes, scope) ||
+		!slices.Contains(grant.Scopes, scope) ||
+		!slices.Contains(claims.Scopes, scope) {
+		return "", ErrExternalScope
+	}
+
+	return claims.Subject, nil
+}
+
+// GetExternalProfile loads the account and applies the current admission policy.
+func (s *Service) GetExternalProfile(ctx context.Context, id string) (*identity.Profile, error) {
+	user, err := s.GetMe(ctx, id)
+	if errors.Is(err, identity.ErrUserNotFound) {
+		return nil, ErrExternalMissing
+	}
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrExternalMissing
+	}
+	decision, err := s.policy.EvaluateLogin(ctx, user.Email, user.ID, user.RoleID)
+	if err != nil {
+		return nil, err
+	}
+	if !decision.Allowed || decision.Blacklisted {
+		return nil, ErrExternalMissing
+	}
+	return user, nil
 }

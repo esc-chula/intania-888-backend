@@ -1,250 +1,218 @@
 package auth
 
 import (
+	"context"
+	"crypto/subtle"
+	"errors"
 	"net/url"
-	"strings"
+	"time"
 
-	"github.com/esc-chula/intania-888-backend/internal/domain/user"
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+
+	"github.com/esc-chula/intania-888-backend/internal/security"
 	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"github.com/esc-chula/intania-888-backend/pkg/oauth"
-	"github.com/esc-chula/intania-888-backend/utils"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
+
+	"golang.org/x/oauth2"
 )
 
-type authServiceImpl struct {
-	authRepo    AuthRepository
-	userRepo    user.UserRepository
+// Service coordinates OAuth state, account admission, browser sessions, and external credentials.
+type Service struct {
+	authRepo    Repository
+	userRepo    Users
+	policy      security.AccessPolicyChecker
 	cfg         config.Config
-	log         *zap.Logger
 	oauthClient oauth.GoogleOAuthClient
 }
 
-func NewAuthService(authRepo AuthRepository, userRepo user.UserRepository, cfg config.Config, log *zap.Logger, oauthClient oauth.GoogleOAuthClient) AuthService {
-	return &authServiceImpl{
-		authRepo:    authRepo,
-		userRepo:    userRepo,
+// NewService binds authentication persistence, accounts, configuration, Google OAuth, and access policy.
+// A nil policy uses the default checker; production wiring supplies the persisted policy service.
+func NewService(
+	repo Repository,
+	users Users,
+	cfg config.Config,
+	client oauth.GoogleOAuthClient,
+	policy security.AccessPolicyChecker,
+) *Service {
+	if policy == nil {
+		policy = security.DefaultPolicyChecker{}
+	}
+
+	return &Service{
+		authRepo:    repo,
+		userRepo:    users,
+		policy:      policy,
 		cfg:         cfg,
-		log:         log,
-		oauthClient: oauthClient,
+		oauthClient: client,
 	}
 }
 
-func (s *authServiceImpl) GetOAuthUrl(redirectTo string) (string, error) {
-	URL, err := url.Parse(s.oauthClient.OAuthConfig().Endpoint.AuthURL)
+// StartOAuthLogin creates browser-bound state and a PKCE verifier before returning the Google authorization URL.
+func (s *Service) StartOAuthLogin(ctx context.Context) (*OAuthLogin, error) {
+	if s.oauthClient == nil {
+		return nil, errors.New("OAuth client is not configured")
+	}
+
+	cfg := s.oauthClient.OAuthConfig()
+	if cfg == nil || cfg.ClientID == "" || cfg.RedirectURL == "" || cfg.Endpoint.AuthURL == "" {
+		return nil, errors.New("OAuth client is not configured")
+	}
+
+	parsed, err := url.Parse(cfg.Endpoint.AuthURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil {
+		return nil, errors.New("invalid OAuth authorization URL")
+	}
+
+	state, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
 	if err != nil {
-		s.log.Named("GetGoogleLoginUrl").Error("Parse: ", zap.Error(err))
-		return "", err
-	}
-	parameters := url.Values{}
-	parameters.Add("client_id", s.oauthClient.OAuthConfig().ClientID)
-	parameters.Add("scope", strings.Join(s.oauthClient.OAuthConfig().Scopes, " "))
-	parameters.Add("redirect_uri", s.oauthClient.OAuthConfig().RedirectURL)
-	parameters.Add("response_type", "code")
-	parameters.Add("hd", "student.chula.ac.th")
-
-	if redirectTo != "" {
-		parameters.Add("state", redirectTo)
+		return nil, err
 	}
 
-	URL.RawQuery = parameters.Encode()
-	urlString := URL.String()
+	verifier, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
+	if err != nil {
+		return nil, err
+	}
 
-	s.log.Named("GetGoogleLoginUrl").Info("Success: ", zap.String("url", urlString), zap.String("redirect_to", redirectTo))
-	return urlString, nil
+	registry := s.cfg.GetOAuth().Registry
+	if registry == nil || registry.Lifetimes.Login <= 0 {
+		return nil, errors.New("login transaction lifetime is not configured")
+	}
+
+	ttl := registry.Lifetimes.Login
+
+	if err = s.authRepo.StoreOAuthState(
+		ctx,
+		security.ToOAuthStateCacheKey(state),
+		OAuthState{CodeVerifier: verifier},
+		ttl,
+	); err != nil {
+		return nil, err
+	}
+
+	return &OAuthLogin{
+		URL: cfg.AuthCodeURL(
+			state,
+			oauth2.S256ChallengeOption(verifier),
+			oauth2.SetAuthURLParam("hd", "student.chula.ac.th"),
+			oauth2.SetAuthURLParam("prompt", "select_account"),
+		),
+		State: state,
+	}, nil
 }
 
-func (s *authServiceImpl) VerifyOAuthLogin(code string) (*model.CredentialDto, error) {
-	userInfo, err := s.oauthClient.GetUserInfo(code)
+// VerifyOAuthLogin checks the browser state and consumes its PKCE verifier before exchanging the code.
+// It applies access policy, creates an admitted account when needed, and replaces the prior browser session.
+func (s *Service) VerifyOAuthLogin(
+	ctx context.Context,
+	code, state, cookieState, previousSessionID string,
+) (*SessionCredentials, error) {
+	if code == "" || state == "" || cookieState == "" ||
+		subtle.ConstantTimeCompare([]byte(state), []byte(cookieState)) != 1 {
+		return nil, ErrInvalidOAuthState
+	}
+
+	record, err := s.authRepo.ConsumeOAuthState(ctx, security.ToOAuthStateCacheKey(state))
 	if err != nil {
-		s.log.Named("VerifyOAuthLogin").Error("Get user info: ", zap.Error(err))
 		return nil, err
 	}
-
-	allowedEmails := []string{
-		"phanthawasjira@gmail.com",
-		"bububiib@gmail.com",
-		"pear.nataya49@gmail.com",
+	if record.CodeVerifier == "" {
+		return nil, ErrInvalidOAuthState
 	}
 
-	isAllowed := false
-	if strings.HasSuffix(userInfo.Email, "@student.chula.ac.th") {
-		isAllowed = true
-	}
-	for _, email := range allowedEmails {
-		if userInfo.Email == email {
-			isAllowed = true
-			break
-		}
-	}
-
-	if !isAllowed {
-		s.log.Named("VerifyOAuthLogin").Warn("Please login with Chula student email",
-			zap.String("email", userInfo.Email))
-		return nil, gorm.ErrInvalidData
-	}
-
-	blacklistedEmails := []string{
-		"6530162621@student.chula.ac.th",
-		"6633129621@student.chula.ac.th",
-		"6733023821@student.chula.ac.th",
-		"6630054621@student.chula.ac.th",
-		"6538004621@student.chula.ac.th",
-		"6733291621@student.chula.ac.th",
-		"6430039021@student.chula.ac.th",
-	}
-
-	for _, email := range blacklistedEmails {
-		if userInfo.Email == email {
-			s.log.Named("VerifyOAuthLogin").Warn("Idiot",
-				zap.String("email", userInfo.Email))
-			return nil, gorm.ErrInvalidData
-		}
-	}
-
-	existedUser, err := s.userRepo.GetByEmail(userInfo.Email)
-	if err != nil && err == gorm.ErrRecordNotFound {
-		s.log.Named("VerifyOAuthLogin").Info("User not found, creating new user")
-
-		role := "USER"
-		userToCreate := model.User{
-			Id:            userInfo.Id,
-			Email:         userInfo.Email,
-			Name:          userInfo.Name,
-			RoleId:        role,
-			RemainingCoin: 888.88,
-		}
-
-		if err := s.userRepo.Create(&userToCreate); err != nil {
-			s.log.Named("VerifyOAuthLogin").Error("Create user: ", zap.Error(err))
-			return nil, err
-		}
-
-		accessToken, err := utils.JwtSignAccessToken(userInfo.Id, role, s.cfg.GetJwt().AccessTokenSecret, s.cfg.GetJwt().AccessTokenExpiration)
-		if err != nil {
-			s.log.Named("VerifyOAuthLogin").Error("Jwt sign access token: ", zap.Error(err))
-			return nil, err
-		}
-
-		refreshToken, err := utils.JwtSignRefreshToken(s.cfg.GetJwt().RefreshTokenExpiration)
-		if err != nil {
-			s.log.Named("VerifyOAuthLogin").Error("Jwt sign refresh token: ", zap.Error(err))
-			return nil, err
-		}
-
-		credential := utils.NewCredentials(*accessToken, *refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration), true)
-
-		if err := s.authRepo.SetCacheValue(utils.ToAccessCacheKey(userToCreate.Id), credential, s.cfg.GetJwt().AccessTokenExpiration); err != nil {
-			s.log.Named("VerifyOAuthLogin").Error("Set access cache value: ", zap.Error(err))
-			return nil, err
-		}
-
-		if err := s.authRepo.SetCacheValue(utils.ToRefreshCacheKey(*refreshToken), model.RefreshCacheDto{UserId: userToCreate.Id, Role: role}, s.cfg.GetJwt().RefreshTokenExpiration); err != nil {
-			s.log.Named("VerifyOAuthLogin").Error("Set access cache value: ", zap.Error(err))
-			return nil, err
-		}
-
-		return credential, nil
-	}
-
-	accessToken, err := utils.JwtSignAccessToken(existedUser.Id, existedUser.RoleId, s.cfg.GetJwt().AccessTokenSecret, s.cfg.GetJwt().AccessTokenExpiration)
+	info, err := s.oauthClient.GetUserInfo(ctx, code, record.CodeVerifier)
 	if err != nil {
-		s.log.Named("VerifyOAuthLogin").Error("Jwt sign access token: ", zap.Error(err))
+		return nil, err
+	}
+	if info == nil || !info.VerifiedEmail {
+		return nil, ErrUnverifiedEmail
+	}
+	if info.ID == "" {
+		return nil, errors.New("google user ID is empty")
+	}
+
+	email := security.NormalizeEmail(info.Email)
+	existing, err := s.userRepo.GetByEmail(ctx, email)
+	isNew := false
+
+	switch {
+	case err == nil:
+	case errors.Is(err, identity.ErrUserNotFound):
+		existing = nil
+	default:
 		return nil, err
 	}
 
-	refreshToken, err := utils.JwtSignRefreshToken(s.cfg.GetJwt().RefreshTokenExpiration)
+	role := ""
+	if existing != nil {
+		role = existing.RoleID
+	}
+
+	decision, err := s.policy.EvaluateLogin(ctx, email, info.ID, role)
 	if err != nil {
-		s.log.Named("VerifyOAuthLogin").Error("Jwt sign refresh token: ", zap.Error(err))
+		return nil, err
+	}
+	if decision.Blacklisted || !decision.Allowed {
+		return nil, ErrEmailNotAllowed
+	}
+
+	if existing == nil {
+		isNew = true
+		existing = &identity.User{
+			ID:            info.ID,
+			Email:         email,
+			Name:          info.Name,
+			RoleID:        security.RoleUser,
+			RemainingCoin: 888_88,
+		}
+
+		if err := s.userRepo.Create(ctx, existing); err != nil {
+			return nil, err
+		}
+	}
+
+	id, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
+	if err != nil {
 		return nil, err
 	}
 
-	credential := utils.NewCredentials(*accessToken, *refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration), false)
-
-	if err := s.authRepo.SetCacheValue(utils.ToAccessCacheKey(existedUser.Id), credential, s.cfg.GetJwt().AccessTokenExpiration); err != nil {
-		s.log.Named("VerifyOAuthLogin").Error("Set access cache value: ", zap.Error(err))
+	csrf, err := security.NewOpaqueToken(security.OpaqueTokenBytes)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := s.authRepo.SetCacheValue(utils.ToRefreshCacheKey(*refreshToken), model.RefreshCacheDto{UserId: existedUser.Id, Role: existedUser.RoleId}, s.cfg.GetJwt().RefreshTokenExpiration); err != nil {
-		s.log.Named("VerifyOAuthLogin").Error("Set access cache value: ", zap.Error(err))
+	now := time.Now().Unix()
+	sessionConfig := s.cfg.GetSession()
+	session := security.Session{
+		UserID:    existing.ID,
+		CreatedAt: now,
+		ExpiresAt: now + int64(sessionConfig.AbsoluteTTLSeconds),
+		CSRFToken: csrf,
+	}
+
+	if err := s.authRepo.RotateSession(
+		ctx,
+		security.ToUserSessionCacheKey(existing.ID),
+		security.ToSessionCacheKey(id),
+		security.ToSessionCacheKey(previousSessionID),
+		session,
+		sessionConfig.IdleTTLSeconds,
+		sessionConfig.AbsoluteTTLSeconds,
+	); err != nil {
 		return nil, err
 	}
 
-	return credential, nil
+	return &SessionCredentials{
+		SessionID: id,
+		UserID:    existing.ID,
+		IsNewUser: isNew,
+	}, nil
 }
 
-func (s *authServiceImpl) RefreshToken(refreshToken string) (*model.CredentialDto, error) {
-	// find in cache
-	var refreshCacheDto model.RefreshCacheDto
-	var emptyCache model.RefreshCacheDto
-	if err := s.authRepo.GetCacheValue(utils.ToRefreshCacheKey(refreshToken), &refreshCacheDto); err != nil {
-		s.log.Named("RefreshToken").Error("Get cache value: ", zap.Error(err))
-		return nil, err
-	} else if refreshCacheDto == emptyCache {
-		s.log.Named("RefreshToken").Info("Get cache value: refresh token not found")
-		return nil, err
+// Logout revokes a browser session. An empty ID or already absent session succeeds.
+func (s *Service) Logout(ctx context.Context, sessionID string) error {
+	if sessionID == "" {
+		return nil
 	}
 
-	accessToken, err := utils.JwtSignAccessToken(refreshCacheDto.UserId, refreshCacheDto.Role, s.cfg.GetJwt().AccessTokenSecret, s.cfg.GetJwt().AccessTokenExpiration)
-	if err != nil {
-		s.log.Named("RefreshToken").Error("Jwt sign access token: ", zap.Error(err))
-		return nil, err
-	}
-
-	newCredential := utils.NewCredentials(*accessToken, refreshToken, int32(s.cfg.GetJwt().AccessTokenExpiration), false)
-	if err := s.authRepo.SetCacheValue(utils.ToAccessCacheKey(refreshCacheDto.UserId), newCredential, s.cfg.GetJwt().AccessTokenExpiration); err != nil {
-		s.log.Named("RefreshToken").Error("Set access cache value: ", zap.Error(err))
-		return nil, err
-	}
-
-	return newCredential, nil
-}
-
-func (s *authServiceImpl) IsAllowedRedirect(redirectUrl string) bool {
-	parsedUrl, err := url.Parse(redirectUrl)
-	if err != nil {
-		s.log.Named("IsAllowedRedirect").Warn("Invalid URL format", zap.String("url", redirectUrl), zap.Error(err))
-		return false
-	}
-
-	if parsedUrl.Scheme != "http" && parsedUrl.Scheme != "https" {
-		s.log.Named("IsAllowedRedirect").Warn("Invalid scheme", zap.String("url", redirectUrl))
-		return false
-	}
-
-	hostname := parsedUrl.Hostname()
-
-	allowedDomains := []string{
-		"localhost",
-		"127.0.0.1",
-		"888.intania.org",
-		"intaniagames2025-project.vercel.app",
-	}
-
-	isAllowed := false
-	for _, allowed := range allowedDomains {
-		if hostname == allowed {
-			isAllowed = true
-			break
-		}
-	}
-
-	if !isAllowed {
-		s.log.Named("IsAllowedRedirect").Warn("Domain not in whitelist", zap.String("domain", hostname))
-		return false
-	}
-
-	if hostname == "888.intania.org" && parsedUrl.Scheme != "https" {
-		s.log.Named("IsAllowedRedirect").Error("Production domain must use HTTPS", zap.String("url", redirectUrl))
-		return false
-	}
-
-	s.log.Named("IsAllowedRedirect").Info("Redirect allowed", zap.String("url", redirectUrl))
-	return true
-}
-
-func (s *authServiceImpl) GetFrontendUrl() string {
-	return s.cfg.GetOAuth().FrontendUrl
+	return s.authRepo.DeleteSession(ctx, security.ToSessionCacheKey(sessionID))
 }

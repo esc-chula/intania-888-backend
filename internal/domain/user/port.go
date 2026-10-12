@@ -1,20 +1,64 @@
 package user
 
-import "github.com/esc-chula/intania-888-backend/internal/model"
+import (
+	"context"
 
-type UserRepository interface {
-	Create(user *model.User) error
-	GetById(id string) (*model.User, error)
-	GetByEmail(email string) (*model.User, error)
-	GetAll() ([]*model.User, error)
-	Update(user *model.User) error
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+	"github.com/esc-chula/intania-888-backend/internal/value"
+)
+
+// Repository provides account snapshots and transaction boundaries.
+// Missing accounts return ErrUserNotFound; other errors retain their underlying cause.
+type Repository interface {
+	// Create persists an account and updates its generated timestamps.
+	Create(context.Context, *identity.User) error
+	// GetByID retrieves an account by its identifier.
+	GetByID(context.Context, string) (*identity.User, error)
+	// GetByEmail retrieves an account by its email address.
+	GetByEmail(context.Context, string) (*identity.User, error)
+	// GetAll retrieves all account snapshots.
+	GetAll(context.Context) ([]*identity.User, error)
+	// GetAllWithGroup retrieves account snapshots for users with an assigned group.
+	GetAllWithGroup(context.Context) ([]*identity.User, error)
+	// PatchProfile updates only supplied name and nickname fields for the actor.
+	// Explicitly supplied nil nickname values clear the stored column.
+	// Missing accounts return ErrUserNotFound.
+	PatchProfile(context.Context, string, ProfilePatch) error
+	// RegisterProfileIfGroupUnset atomically assigns nickname and group only when group_id is null.
+	// It returns false when the account exists but already has a group.
+	RegisterProfileIfGroupUnset(context.Context, string, ProfileRegistrationInput) (bool, error)
+	// UpdateByAdmin applies explicitly supplied administrator fields without
+	// overwriting concurrent changes to fields omitted from the request.
+	UpdateByAdmin(context.Context, string, AdminUpdateInput) error
+	// WithinTransaction commits the callback's writes together or rolls them back.
+	WithinTransaction(context.Context, func(Transaction) error) error
 }
 
-type UserService interface {
-	CreateUser(userDto *model.UserDto) error
-	GetUser(id string) (*model.UserDto, error)
-	GetAllUsers() ([]*model.UserDto, error)
-	UpdateUser(userDto *model.UserDto) error
-	AdminUpdateUser(userId string, userDto *model.UserDto) error
-	DeductCoin(userId string, amount float64) (float64, error)
+// Transaction provides balance operations bound to one account transaction.
+// Callbacks must not retain this repository after returning.
+type Transaction interface {
+	// LockByID locks the account until the transaction completes.
+	LockByID(context.Context, string) (*identity.User, error)
+	// DeductBalance subtracts minor units from the locked account atomically.
+	DeductBalance(context.Context, string, int64) error
+}
+
+// ServicePort describes the account use cases consumed by HTTP handlers.
+type ServicePort interface {
+	// CreateUser creates an account with the default balance.
+	CreateUser(context.Context, CreateInput) (*identity.Profile, error)
+	// GetUser retrieves one account profile.
+	GetUser(context.Context, string) (*identity.Profile, error)
+	// GetAllUsers retrieves account profiles with an assigned group.
+	GetAllUsers(context.Context) ([]*identity.Profile, error)
+	// GetAllAccounts retrieves every account profile for administrator use.
+	GetAllAccounts(context.Context) ([]*identity.Profile, error)
+	// UpdateOwnProfile applies a partial update to the authenticated actor's profile.
+	UpdateOwnProfile(context.Context, string, ProfilePatch) (*identity.Profile, error)
+	// RegisterProfile assigns nickname and group while the authenticated actor is unassigned.
+	RegisterProfile(context.Context, string, ProfileRegistrationInput) (*identity.Profile, error)
+	// AdminUpdateUser updates administrator-editable fields.
+	AdminUpdateUser(context.Context, string, AdminUpdateInput) error
+	// DeductCoin subtracts a balance under a row lock and returns the remaining amount.
+	DeductCoin(context.Context, string, value.Money) (value.Money, error)
 }

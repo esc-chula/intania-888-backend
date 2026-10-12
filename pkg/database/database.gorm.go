@@ -6,22 +6,32 @@ import (
 	"os"
 	"time"
 
-	"github.com/esc-chula/intania-888-backend/pkg/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"github.com/esc-chula/intania-888-backend/pkg/config"
 )
 
-func NewGormDatabase(cfg config.Config) *gorm.DB {
+// NewGORMDatabase opens PostgreSQL using the configured credentials and SQL logger.
+// It preserves the existing startup contract and panics if the connection cannot open.
+func NewGORMDatabase(cfg config.DatabaseConfig) *gorm.DB {
+	settings := cfg.GetDB()
+	if settings.MaxOpenConns <= 0 || settings.MaxIdleConns < 0 ||
+		settings.MaxIdleConns > settings.MaxOpenConns ||
+		settings.ConnMaxLifetimeSeconds < 0 || settings.ConnMaxIdleTimeSeconds < 0 {
+		panic("invalid database connection pool settings")
+	}
+
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
-		cfg.GetDb().Host,
-		cfg.GetDb().User,
-		cfg.GetDb().Password,
-		cfg.GetDb().Name,
-		cfg.GetDb().Port,
-		cfg.GetDb().SSLMode,
-		cfg.GetDb().Timezone,
+		settings.Host,
+		settings.User,
+		settings.Password,
+		settings.Name,
+		settings.Port,
+		settings.SSLMode,
+		settings.Timezone,
 	)
 
 	logger := logger.New(
@@ -40,6 +50,16 @@ func NewGormDatabase(cfg config.Config) *gorm.DB {
 	if err != nil {
 		panic("failed to connect database")
 	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		panic("failed to configure database connection pool")
+	}
+
+	sqlDB.SetMaxOpenConns(settings.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(settings.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(time.Duration(settings.ConnMaxLifetimeSeconds) * time.Second)
+	sqlDB.SetConnMaxIdleTime(time.Duration(settings.ConnMaxIdleTimeSeconds) * time.Second)
 
 	return db
 }

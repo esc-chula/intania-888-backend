@@ -1,46 +1,226 @@
 package user
 
 import (
-	"github.com/esc-chula/intania-888-backend/internal/model"
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+	persistence "github.com/esc-chula/intania-888-backend/internal/persistence/model"
 )
 
-type userRepositoryImpl struct {
-	db *gorm.DB
+type gormRepository struct{ db *gorm.DB }
+
+// NewGORMRepository constructs an account repository backed by PostgreSQL/GORM.
+func NewGORMRepository(db *gorm.DB) *gormRepository {
+	return &gormRepository{db: db}
 }
 
-func NewUserRepository(db *gorm.DB) UserRepository {
-	return &userRepositoryImpl{db: db}
-}
-
-func (r *userRepositoryImpl) Create(user *model.User) error {
-	return r.db.Create(user).Error
-}
-
-func (r *userRepositoryImpl) GetById(id string) (*model.User, error) {
-	var user model.User
-	if err := r.db.Preload("Role").Where("id = ?", id).First(&user).Error; err != nil {
-		return nil, err
+// Create persists an account snapshot and generated timestamps.
+func (r *gormRepository) Create(ctx context.Context, user *identity.User) error {
+	row := userRow(user)
+	if err := r.db.WithContext(ctx).Create(row).Error; err != nil {
+		return fmt.Errorf("create user: %w", err)
 	}
-	return &user, nil
+	*user = *userSnapshot(row)
+
+	return nil
 }
 
-func (r *userRepositoryImpl) GetByEmail(email string) (*model.User, error) {
-	var user model.User
-	if err := r.db.Preload("Role").Where("email = ?", email).First(&user).Error; err != nil {
-		return nil, err
+// GetByID retrieves an account snapshot by identifier.
+func (r *gormRepository) GetByID(ctx context.Context, id string) (*identity.User, error) {
+	var row persistence.User
+	if err := r.db.WithContext(ctx).Preload("Role").Where("id = ?", id).First(&row).Error; err != nil {
+		return nil, fmt.Errorf("get user by id: %w", mapUserLookupError(err))
 	}
-	return &user, nil
+
+	return userSnapshot(&row), nil
 }
 
-func (r *userRepositoryImpl) GetAll() ([]*model.User, error) {
-	var users []*model.User
-	if err := r.db.Preload("Role").Find(&users).Error; err != nil {
-		return nil, err
+// GetByEmail retrieves an account snapshot by email.
+func (r *gormRepository) GetByEmail(ctx context.Context, email string) (*identity.User, error) {
+	var row persistence.User
+	if err := r.db.WithContext(ctx).Preload("Role").Where("email = ?", email).First(&row).Error; err != nil {
+		return nil, fmt.Errorf("get user by email: %w", mapUserLookupError(err))
 	}
+
+	return userSnapshot(&row), nil
+}
+
+// GetAll retrieves all account snapshots.
+func (r *gormRepository) GetAll(ctx context.Context) ([]*identity.User, error) {
+	return r.listUsers(ctx, false)
+}
+
+// GetAllWithGroup retrieves account snapshots for users with an assigned group.
+func (r *gormRepository) GetAllWithGroup(ctx context.Context) ([]*identity.User, error) {
+	return r.listUsers(ctx, true)
+}
+
+func (r *gormRepository) listUsers(ctx context.Context, requireGroup bool) ([]*identity.User, error) {
+	var rows []*persistence.User
+	query := r.db.WithContext(ctx)
+	if requireGroup {
+		query = query.Where("group_id IS NOT NULL")
+	}
+	if err := query.Preload("Role").Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+
+	users := make([]*identity.User, len(rows))
+	for i, row := range rows {
+		users[i] = userSnapshot(row)
+	}
+
 	return users, nil
 }
 
-func (r *userRepositoryImpl) Update(user *model.User) error {
-	return r.db.Model(user).Where("id = ?", user.Id).Updates(user).Error
+// PatchProfile applies only supplied editable fields, including explicit nullable clears.
+// It never writes the account identity, email, role, or balance.
+func (r *gormRepository) PatchProfile(ctx context.Context, actorID string, input ProfilePatch) error {
+	updates := make(map[string]any, 2)
+
+	if input.Name != nil {
+		updates["name"] = *input.Name
+	}
+	if input.NickNameSet {
+		updates["nick_name"] = input.NickName
+	}
+	result := r.db.WithContext(ctx).Model(&persistence.User{}).
+		Where("id = ?", actorID).Updates(updates)
+	if result.Error != nil {
+		var constraintError *pgconn.PgError
+		if errors.As(result.Error, &constraintError) && constraintError.Code == "23503" {
+			return fmt.Errorf("patch user profile: %w", errors.Join(ErrProfileGroupNotFound, result.Error))
+		}
+
+		return fmt.Errorf("patch user profile: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
+}
+
+// RegisterProfileIfGroupUnset atomically saves registration fields only for an unassigned account.
+func (r *gormRepository) RegisterProfileIfGroupUnset(
+	ctx context.Context,
+	actorID string,
+	input ProfileRegistrationInput,
+) (bool, error) {
+	result := r.db.WithContext(ctx).Model(&persistence.User{}).
+		Where("id = ? AND group_id IS NULL", actorID).
+		Updates(map[string]any{
+			"nick_name": input.NickName,
+			"group_id":  input.GroupID,
+		})
+	if result.Error != nil {
+		var constraintError *pgconn.PgError
+		if errors.As(result.Error, &constraintError) && constraintError.Code == "23503" {
+			return false, fmt.Errorf("register user profile: %w", errors.Join(ErrProfileGroupNotFound, result.Error))
+		}
+
+		return false, fmt.Errorf("register user profile: %w", result.Error)
+	}
+
+	return result.RowsAffected > 0, nil
+}
+
+// UpdateByAdmin applies only supplied administrator fields without replaying a
+// stale user snapshot over fields changed by another transaction.
+func (r *gormRepository) UpdateByAdmin(ctx context.Context, userID string, input AdminUpdateInput) error {
+	updates := map[string]any{
+		"name":           input.Name,
+		"remaining_coin": input.RemainingCoin.MinorUnits(),
+	}
+	if input.NickName != nil {
+		updates["nick_name"] = input.NickName
+	}
+	if input.GroupIDSet {
+		updates["group_id"] = input.GroupID
+	}
+
+	result := r.db.WithContext(ctx).Model(&persistence.User{}).Where("id = ?", userID).Updates(updates)
+	if result.Error != nil {
+		var constraintError *pgconn.PgError
+		if input.GroupIDSet && errors.As(result.Error, &constraintError) && constraintError.Code == "23503" {
+			return fmt.Errorf("update user by admin: %w", errors.Join(ErrProfileGroupNotFound, result.Error))
+		}
+		return fmt.Errorf("update user by admin: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
+}
+
+// WithinTransaction provides account operations on one database transaction.
+func (r *gormRepository) WithinTransaction(ctx context.Context, fn func(Transaction) error) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(&gormRepository{db: tx})
+	})
+}
+
+// LockByID locks an account row until the transaction completes.
+func (r *gormRepository) LockByID(ctx context.Context, id string) (*identity.User, error) {
+	var row persistence.User
+	if err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", id).First(&row).Error; err != nil {
+		return nil, fmt.Errorf("lock user: %w", mapUserLookupError(err))
+	}
+
+	return userSnapshot(&row), nil
+}
+
+// DeductBalance subtracts minor units from the locked account atomically.
+func (r *gormRepository) DeductBalance(ctx context.Context, id string, amount int64) error {
+	if err := r.db.WithContext(ctx).Model(&persistence.User{}).
+		Where("id = ?", id).
+		Update("remaining_coin", gorm.Expr("remaining_coin - ?", amount)).Error; err != nil {
+		return fmt.Errorf("deduct coins: %w", err)
+	}
+
+	return nil
+}
+
+func mapUserLookupError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return errors.Join(ErrUserNotFound, err)
+	}
+
+	return err
+}
+
+func userRow(user *identity.User) *persistence.User {
+	return &persistence.User{
+		ID:            user.ID,
+		Email:         user.Email,
+		Name:          user.Name,
+		NickName:      user.NickName,
+		RoleID:        user.RoleID,
+		GroupID:       user.GroupID,
+		RemainingCoin: user.RemainingCoin,
+		CreatedAt:     user.CreatedAt,
+		UpdatedAt:     user.UpdatedAt,
+	}
+}
+
+func userSnapshot(row *persistence.User) *identity.User {
+	return &identity.User{
+		ID:            row.ID,
+		Email:         row.Email,
+		Name:          row.Name,
+		NickName:      row.NickName,
+		RoleID:        row.RoleID,
+		GroupID:       row.GroupID,
+		RemainingCoin: row.RemainingCoin,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
+	}
 }

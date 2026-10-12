@@ -1,194 +1,129 @@
 package bill
 
 import (
-	"errors"
-
-	"github.com/esc-chula/intania-888-backend/internal/domain/middleware"
-	"github.com/esc-chula/intania-888-backend/internal/model"
-	"github.com/esc-chula/intania-888-backend/utils"
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/esc-chula/intania-888-backend/internal/apierror"
+	"github.com/esc-chula/intania-888-backend/internal/httpidentity"
 )
 
-type BillHttpHandler struct {
-	service BillService
+// HTTPHandler translates HTTP requests into bill application use cases.
+type HTTPHandler struct {
+	service HTTPService
 }
 
-func NewBillHttpHandler(service BillService) *BillHttpHandler {
-	return &BillHttpHandler{service}
+// NewHTTPHandler constructs the bill HTTP adapter.
+func NewHTTPHandler(s HTTPService) *HTTPHandler {
+	return &HTTPHandler{service: s}
 }
 
-func (h *BillHttpHandler) RegisterRoutes(router fiber.Router, mid *middleware.MiddlewareHttpHandler) {
-	router = router.Group("/bills", mid.AuthMiddleware)
+// RegisterRoutes registers the existing bill routes and authentication guards.
+func (h *HTTPHandler) RegisterRoutes(r fiber.Router, auth, admin fiber.Handler) {
+	r = r.Group("/bills", auth)
 
-	router.Post("/", h.CreateBill)
-	router.Get("/", h.GetAllBills)
-	router.Get("/:id", h.GetBill)
-	router.Patch("/:id", h.UpdateBill)
-	router.Delete("/:id", h.DeleteBill)
+	r.Post("/", h.CreateBill)
+	r.Get("/", h.GetAllBills)
+	r.Get("/:id", h.GetBill)
 
-	adminRouter := router.Group("/admin", mid.AdminMiddleware)
-	adminRouter.Get("/all", h.GetAllBillsAdmin)
+	a := r.Group("/admin", admin)
+
+	a.Get("/all", h.GetAllBillsAdmin)
+	a.Put("/:id/void", h.VoidBill)
 }
 
-// CreateBill godoc
-// @Summary Create a new bill
-// @Description Create a new bill with the input payload
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Param bill body model.BillHeadDto true "Create bill"
-// @Success 201 {object} model.BillHeadDto
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /bills [post]
-func (h *BillHttpHandler) CreateBill(c *fiber.Ctx) error {
-	// get user from context
-	userProfile := utils.GetUserProfileFromCtx(c)
-	if userProfile == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+// CreateBill validates a browser stake and creates a bill for the authenticated actor.
+func (h *HTTPHandler) CreateBill(c *fiber.Ctx) error {
+	u := httpidentity.GetProfile(c)
+
+	if u == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	var billDto model.BillHeadDto
-	if err := c.BodyParser(&billDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
+	var req CreateBillRequest
+
+	if err := apierror.BindJSON(c, &req); err != nil {
+		return err
 	}
 
-	if billDto.Total <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
-	}
+	v, err := h.service.CreateBill(c.UserContext(), u.ID, createInput(req))
 
-	billDto.UserId = userProfile.Id
-	err := h.service.CreateBill(userProfile, &billDto)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to create bill"})
+		return mapBillError(err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "created bill successful"})
+	return c.Status(fiber.StatusCreated).JSON(billResultDTO(v))
 }
 
-// GetBill godoc
-// @Summary Get a bill by ID
-// @Description Get a bill by its ID
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Param id path string true "Bill ID"
-// @Success 200 {object} model.BillHeadDto
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /bills/{id} [get]
-func (h *BillHttpHandler) GetBill(c *fiber.Ctx) error {
-	userProfile := utils.GetUserProfileFromCtx(c)
-	if userProfile == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+// GetBill returns one bill belonging to the authenticated actor.
+func (h *HTTPHandler) GetBill(c *fiber.Ctx) error {
+	u := httpidentity.GetProfile(c)
+
+	if u == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+	if c.Params("id") == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
 
-	bill, err := h.service.GetBill(c.Params("id"), userProfile.Id)
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse{Message: "Bill not found"})
+	v, e := h.service.GetBill(c.UserContext(), c.Params("id"), u.ID)
+
+	if e != nil {
+		return mapBillError(e)
 	}
 
-	return c.JSON(bill)
+	return c.JSON(billResultDTO(v))
 }
 
-// GetAllBills godoc
-// @Summary Get all bills
-// @Description Get all bills
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Success 200 {array} model.BillHeadDto
-// @Failure 500 {object} ErrorResponse
-// @Router /bills [get]
-func (h *BillHttpHandler) GetAllBills(c *fiber.Ctx) error {
-	userProfile := utils.GetUserProfileFromCtx(c)
-	if userProfile == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+// GetAllBills lists the authenticated actor's bills in their existing order.
+func (h *HTTPHandler) GetAllBills(c *fiber.Ctx) error {
+	u := httpidentity.GetProfile(c)
+
+	if u == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 	}
 
-	bills, err := h.service.GetAllBills(userProfile.Id)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get bills"})
+	v, e := h.service.GetAllBills(c.UserContext(), u.ID)
+
+	if e != nil {
+		return mapBillError(e)
 	}
 
-	return c.JSON(bills)
+	return c.JSON(billResultsDTO(v))
 }
 
-// UpdateBill godoc
-// @Summary Update a bill
-// @Description Update a bill with the input payload
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Param id path string true "Bill ID"
-// @Param bill body model.BillHeadDto true "Update bill"
-// @Success 200 {object} model.BillHeadDto
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /bills/{id} [put]
-func (h *BillHttpHandler) UpdateBill(c *fiber.Ctx) error {
-	userProfile := utils.GetUserProfileFromCtx(c)
-	if userProfile == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errors.New("not found user profile in context").Error()})
+// GetAllBillsAdmin lists every bill after the administrator route guard.
+func (h *HTTPHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
+	v, e := h.service.GetAllBillsAdmin(c.UserContext())
+
+	if e != nil {
+		return mapBillError(e)
 	}
 
-	var billDto model.BillHeadDto
-	if err := c.BodyParser(&billDto); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{Message: "Invalid request payload"})
-	}
-	if billDto.UserId != userProfile.Id || billDto.Id != c.Params("id") {
-		return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{Message: "User is not allowed to access this bill"})
-	}
-
-	err := h.service.UpdateBill(&billDto)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to update bill"})
-	}
-
-	return c.JSON(billDto)
+	return c.JSON(billResultsDTO(v))
 }
 
-// DeleteBill godoc
-// @Summary Delete a bill
-// @Description Delete a bill by its ID
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Param id path string true "Bill ID"
-// @Success 204 "No Content"
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /bills/{id} [delete]
-func (h *BillHttpHandler) DeleteBill(c *fiber.Ctx) error {
-	id := c.Params("id")
+// VoidBill validates an audit reason and refunds a pending bill for an administrator.
+func (h *HTTPHandler) VoidBill(c *fiber.Ctx) error {
+	u := httpidentity.GetProfile(c)
 
-	err := h.service.DeleteBill(id)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to delete bill"})
+	if u == nil {
+		return apierror.New(fiber.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+	}
+	if c.Params("id") == "" {
+		return apierror.Invalid(map[string]string{"id": "is required"})
 	}
 
-	return c.SendStatus(fiber.StatusNoContent)
-}
+	var req VoidBillRequest
 
-// GetAllBillsAdmin godoc
-// @Summary Get all bills (admin)
-// @Description Get all bills from all users (admin only)
-// @Tags Bill
-// @Accept json
-// @Produce json
-// @Success 200 {array} model.BillHeadDto
-// @Failure 500 {object} ErrorResponse
-// @Router /bills/admin/all [get]
-func (h *BillHttpHandler) GetAllBillsAdmin(c *fiber.Ctx) error {
-	bills, err := h.service.GetAllBillsAdmin()
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Message: "Failed to get bills"})
+	if e := apierror.BindJSON(c, &req); e != nil {
+		return e
 	}
 
-	return c.JSON(bills)
-}
+	v, e := h.service.VoidBill(c.UserContext(), c.Params("id"), u.ID, req.Reason)
 
-type ErrorResponse struct {
-	Message string `json:"message"`
+	if e != nil {
+		return mapBillError(e)
+	}
+
+	return c.JSON(billResultDTO(v))
 }

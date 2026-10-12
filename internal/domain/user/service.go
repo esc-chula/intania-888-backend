@@ -1,174 +1,208 @@
 package user
 
 import (
-	"errors"
+	"context"
+	"strings"
 
-	"github.com/esc-chula/intania-888-backend/internal/model"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+
+	"github.com/esc-chula/intania-888-backend/internal/identity"
+	"github.com/esc-chula/intania-888-backend/internal/value"
 )
 
-type userServiceImpl struct {
-	repo UserRepository
-	db   *gorm.DB
+// Service implements account use cases independently of HTTP and database details.
+type Service struct {
+	repo Repository
 	log  *zap.Logger
 }
 
-func NewUserService(repo UserRepository, db *gorm.DB, log *zap.Logger) UserService {
-	return &userServiceImpl{
+// NewService constructs account use cases using the supplied repository.
+func NewService(repo Repository, log *zap.Logger) *Service {
+	return &Service{
 		repo: repo,
-		db:   db,
 		log:  log,
 	}
 }
 
-func (s *userServiceImpl) CreateUser(userDto *model.UserDto) error {
-	userDto.RemainingCoin = 888.00
-	err := s.repo.Create(ToUserEntity(userDto))
-	if err != nil {
-		s.log.Named("CreateUser").Error("Failed to create user", zap.Error(err))
-		return err
+// CreateUser creates an account with the default 888 coin balance.
+func (s *Service) CreateUser(ctx context.Context, input CreateInput) (*identity.Profile, error) {
+	user := &identity.User{
+		ID:            input.ID,
+		Email:         input.Email,
+		Name:          input.Name,
+		NickName:      input.NickName,
+		RoleID:        input.RoleID,
+		GroupID:       input.GroupID,
+		RemainingCoin: 888_00,
 	}
-
-	s.log.Named("CreateUser").Info("User created successfully", zap.String("email", userDto.Email))
-	return nil
-}
-
-func (s *userServiceImpl) GetUser(id string) (*model.UserDto, error) {
-	user, err := s.repo.GetById(id)
-	if err != nil {
-		s.log.Named("GetUser").Error("Get by id", zap.Error(err))
+	if err := s.repo.Create(ctx, user); err != nil {
 		return nil, err
 	}
 
-	s.log.Named("GetUser").Info("Successfully fetched user by id", zap.String("user_id", user.Id))
-	return &model.UserDto{
-		Id:            user.Id,
-		Email:         user.Email,
-		Name:          user.Name,
-		RoleId:        user.RoleId,
-		RemainingCoin: user.RemainingCoin,
-		NickName:      user.NickName,
-		GroupId:       user.GroupId,
-	}, nil
+	s.log.Info("User created successfully", zap.String("user_id", user.ID))
+	result := profileFromUser(user)
+	// Preserve the existing create response, which reflects the supplied timestamp.
+	result.CreatedAt = input.CreatedAt
+
+	return result, nil
 }
 
-func (s *userServiceImpl) GetAllUsers() ([]*model.UserDto, error) {
-	users, err := s.repo.GetAll()
+// GetUser retrieves a profile while preserving the existing single-user response timestamp.
+func (s *Service) GetUser(ctx context.Context, id string) (*identity.Profile, error) {
+	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		s.log.Named("GetAllUsers").Error("Failed to fetch users", zap.Error(err))
 		return nil, err
 	}
 
-	usersDto := make([]*model.UserDto, len(users))
+	result := profileFromUser(user)
+	result.CreatedAt = zeroTime
+
+	return result, nil
+}
+
+// GetAllUsers retrieves group-registered account profiles including their creation timestamps.
+func (s *Service) GetAllUsers(ctx context.Context) ([]*identity.Profile, error) {
+	users, err := s.repo.GetAllWithGroup(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return profileListFromUsers(users), nil
+}
+
+// GetAllAccounts retrieves every account profile for the administrator user list.
+func (s *Service) GetAllAccounts(ctx context.Context) ([]*identity.Profile, error) {
+	users, err := s.repo.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return profileListFromUsers(users), nil
+}
+
+func profileListFromUsers(users []*identity.User) []*identity.Profile {
+	profiles := make([]*identity.Profile, len(users))
 	for i, user := range users {
-		usersDto[i] = &model.UserDto{
-			Id:            user.Id,
-			Email:         user.Email,
-			Name:          user.Name,
-			RoleId:        user.RoleId,
-			RemainingCoin: user.RemainingCoin,
-			NickName:      user.NickName,
-			GroupId:       user.GroupId,
-			CreatedAt:     user.CreatedAt,
+		profiles[i] = profileFromUser(user)
+	}
+
+	return profiles
+}
+
+// UpdateOwnProfile applies supplied profile fields to the authenticated account.
+// actorID must come from trusted authentication. Identity, email, role, and balance
+// cannot be changed through this use case. The result is read after the update.
+func (s *Service) UpdateOwnProfile(ctx context.Context, actorID string, input ProfilePatch) (*identity.Profile, error) {
+	if strings.TrimSpace(actorID) == "" || (input.Name == nil && !input.NickNameSet) {
+		return nil, ErrInvalidProfileUpdate
+	}
+	if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
+		return nil, ErrInvalidProfileUpdate
+	}
+	if input.NickName != nil && !input.NickNameSet {
+		return nil, ErrInvalidProfileUpdate
+	}
+
+	if err := s.repo.PatchProfile(ctx, actorID, input); err != nil {
+		return nil, err
+	}
+
+	s.log.Info("User profile updated successfully", zap.String("user_id", actorID))
+
+	return s.GetUser(ctx, actorID)
+}
+
+// RegisterProfile assigns a group only while the authenticated account has none.
+// Repeating the same group is an idempotent success; a different assigned group conflicts.
+func (s *Service) RegisterProfile(
+	ctx context.Context,
+	actorID string,
+	input ProfileRegistrationInput,
+) (*identity.Profile, error) {
+	if strings.TrimSpace(actorID) == "" || strings.TrimSpace(input.NickName) == "" ||
+		strings.TrimSpace(input.GroupID) == "" {
+		return nil, ErrInvalidProfileRegistration
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		registered, err := s.repo.RegisterProfileIfGroupUnset(ctx, actorID, input)
+		if err != nil {
+			return nil, err
+		}
+		if registered {
+			s.log.Info("User registered profile successfully", zap.String("user_id", actorID))
+			return s.GetUser(ctx, actorID)
+		}
+
+		current, err := s.repo.GetByID(ctx, actorID)
+		if err != nil {
+			return nil, err
+		}
+		if current.GroupID != nil {
+			if *current.GroupID == input.GroupID {
+				result := profileFromUser(current)
+				result.CreatedAt = zeroTime
+				return result, nil
+			}
+
+			return nil, ErrGroupAlreadyAssigned
 		}
 	}
 
-	s.log.Named("GetAllUsers").Info("Successfully fetched all users", zap.Int("count", len(users)))
-	return usersDto, nil
+	return nil, ErrGroupRegistrationConflict
 }
 
-func (s *userServiceImpl) UpdateUser(userDto *model.UserDto) error {
-	existed, err := s.repo.GetById(userDto.Id)
-	if err != nil {
-		s.log.Named("UpdateUser").Error("Failed to get existed user", zap.Error(err))
-		return err
+// AdminUpdateUser updates profile fields and balance while preserving role ownership.
+func (s *Service) AdminUpdateUser(ctx context.Context, userID string, input AdminUpdateInput) error {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(input.Name) == "" ||
+		(input.GroupIDSet && input.GroupID != nil && strings.TrimSpace(*input.GroupID) == "") {
+		return ErrInvalidProfileUpdate
 	}
-	userDto.RemainingCoin = existed.RemainingCoin
 
-	err = s.repo.Update(ToUserEntity(userDto))
-	if err != nil {
-		s.log.Named("UpdateUser").Error("Failed to update user", zap.Error(err))
+	if err := s.repo.UpdateByAdmin(ctx, userID, input); err != nil {
 		return err
 	}
 
-	s.log.Named("UpdateUser").Info("User updated successfully", zap.String("user_id", userDto.Id))
+	s.log.Info("User updated by admin successfully", zap.String("user_id", userID))
+
 	return nil
 }
 
-func (s *userServiceImpl) AdminUpdateUser(userId string, userDto *model.UserDto) error {
-	existed, err := s.repo.GetById(userId)
-	if err != nil {
-		s.log.Named("AdminUpdateUser").Error("Failed to get existed user", zap.Error(err))
-		return err
-	}
+// DeductCoin deducts coins from user balance atomically with transaction safety.
+func (s *Service) DeductCoin(ctx context.Context, userID string, amount value.Money) (value.Money, error) {
+	var remainingBalance value.Money
 
-	// Admin can update all fields including role and coins
-	existed.Name = userDto.Name
-	existed.NickName = userDto.NickName
-	existed.RoleId = userDto.RoleId
-	existed.RemainingCoin = userDto.RemainingCoin
-	if userDto.GroupId != nil {
-		existed.GroupId = userDto.GroupId
-	}
-
-	err = s.repo.Update(existed)
-	if err != nil {
-		s.log.Named("AdminUpdateUser").Error("Failed to update user", zap.Error(err))
-		return err
-	}
-
-	s.log.Named("AdminUpdateUser").Info("User updated by admin successfully", zap.String("user_id", userId))
-	return nil
-}
-
-// DeductCoin deducts coins from user balance atomically with transaction safety
-func (s *userServiceImpl) DeductCoin(userId string, amount float64) (float64, error) {
-	var remainingBalance float64
-
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// 1. Lock user row for update
-		var user model.User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", userId).
-			First(&user).Error; err != nil {
-			s.log.Named("DeductCoin").Error("User not found", zap.Error(err))
-			return errors.New("user not found")
+	err := s.repo.WithinTransaction(ctx, func(tx Transaction) error {
+		// 1. Lock user row for update.
+		user, err := tx.LockByID(ctx, userID)
+		if err != nil {
+			return err
 		}
 
-		// 2. Validate balance (allow exactly 0, reject negative)
-		if user.RemainingCoin < amount {
-			s.log.Named("DeductCoin").Warn("Insufficient balance",
-				zap.String("userId", userId),
-				zap.Float64("balance", user.RemainingCoin),
-				zap.Float64("amount", amount))
-			return errors.New("insufficient balance")
+		// 2. Validate balance (allow exactly 0, reject negative).
+		if user.RemainingCoin < amount.MinorUnits() {
+			return ErrInsufficientBalance
 		}
 
-		// 3. Atomic deduction using SQL expression
-		if err := tx.Model(&model.User{}).
-			Where("id = ?", userId).
-			Update("remaining_coin", gorm.Expr("remaining_coin - ?", amount)).
-			Error; err != nil {
-			s.log.Named("DeductCoin").Error("Failed to deduct coins", zap.Error(err))
-			return errors.New("failed to deduct coins")
+		// 3. Atomic deduction using the transaction-bound repository.
+		if err := tx.DeductBalance(ctx, userID, amount.MinorUnits()); err != nil {
+			return err
 		}
 
-		// 4. Calculate remaining balance for response
-		remainingBalance = user.RemainingCoin - amount
-
-		s.log.Named("DeductCoin").Info("Coins deducted successfully",
-			zap.String("userId", userId),
-			zap.Float64("amount", amount),
-			zap.Float64("remaining", remainingBalance))
+		// 4. Calculate remaining balance for response.
+		remainingBalance = value.MustMoneyFromMinor(user.RemainingCoin - amount.MinorUnits())
 
 		return nil
 	})
-
 	if err != nil {
-		return 0, err
+		return value.Money{}, err
 	}
 
+	s.log.Info("Coins deducted successfully",
+		zap.String("user_id", userID),
+		zap.Int64("amount_minor", amount.MinorUnits()),
+		zap.Int64("remaining_minor", remainingBalance.MinorUnits()))
+
+	// Return the balance computed while the locked row was updated.
 	return remainingBalance, nil
 }

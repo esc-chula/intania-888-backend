@@ -1,0 +1,35 @@
+# Public environment variables for the Cloud Run API service.
+# Supply credentials and the mounted auth registry through Secret Manager.
+APP_ENV: "prod"
+SERVER_NAME: "intania-888-backend"
+SERVER_ENV: "production"
+SERVER_URL: "https://888-api.intania.org/api/v1"
+SERVER_HOST: "0.0.0.0"
+SERVER_PORT: "8080"
+# Keep forwarding-header trust disabled until the deployed ingress is verified.
+SERVER_CLIENT_IP_MODE: "direct"
+CORS_ALLOW_ORIGINS: "https://888.intania.org,https://888-api.intania.org"
+AUTH_CONFIG_FILE: "/secrets/auth/registry.yaml"
+SESSION_IDLE_TTL_SECONDS: "604800"
+SESSION_ABSOLUTE_TTL_SECONDS: "2592000"
+DAILY_REWARD_DEFAULT_AMOUNT: "300.00"
+TEAM_COIN_PER_MATCH_WIN: "1000.00"
+
+DB_HOST: "10.75.1.3"
+DB_PORT: "5432"
+DB_USER: "intania888_app"
+DB_NAME: "intania888_db"
+DB_SSL_MODE: "require"
+DB_TIMEZONE: "Asia/Bangkok"
+DB_MAX_OPEN_CONNS: "10"
+DB_MAX_IDLE_CONNS: "5"
+DB_CONN_MAX_LIFETIME_SECONDS: "1800"
+DB_CONN_MAX_IDLE_TIME_SECONDS: "300"
+
+CACHE_HOST: "10.75.43.203"
+CACHE_PORT: "6378"
+CACHE_TLS_ENABLED: "true"
+CACHE_TLS_CA_FILE: "/secrets/redis/ca.pem"
+
+SWAGGER_ENABLED: "false"
+SWAGGER_REQUIRE_AUTH: "true"
