@@ -76,7 +76,7 @@ gcloud run deploy "$service_name" \
   --cpu=1 \
   --memory=512Mi \
   --min=0 \
-  --max=10 \
+  --max=6 \
   --concurrency=40 \
   --timeout=60s \
   --startup-probe='httpGet.path=/readyz,httpGet.port=8080,initialDelaySeconds=0,periodSeconds=10,timeoutSeconds=3,failureThreshold=24' \

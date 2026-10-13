@@ -103,6 +103,14 @@ Public runtime settings are in `config/api.production.yaml`; database job settin
 are in `config/database-jobs.production.yaml`. Both target `asia-southeast1` private
 endpoints and keep the application's `Asia/Bangkok` business timezone.
 
+The production API pool allows six open and three idle database connections per
+instance. The deployment script sets the Cloud Run service maximum to six
+instances, for a steady-state budget of 36 API connections. Database jobs retain
+two open and one idle connection per task. Rollouts, scaling transitions, other
+clients, and additional job tasks can increase the total connection count.
+These limits do not establish peak workload capacity; the Cloud SQL machine tier
+is configured separately from application deployment.
+
 `scripts/deploy-production.sh` pins these Secret Manager versions:
 
 | Reference | Version |
