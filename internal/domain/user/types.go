@@ -32,13 +32,16 @@ type ProfileRegistrationInput struct {
 	GroupID  string
 }
 
-// AdminUpdateInput describes editable profile fields and the explicit balance.
+// AdminUpdateInput describes editable profile fields and an optional balance.
 // Role changes are performed by the operator database workflow.
 type AdminUpdateInput struct {
 	Name     string
 	NickName *string
 	GroupID  *string
 	// GroupIDSet distinguishes an omitted group from an explicit nil that clears it.
-	GroupIDSet    bool
-	RemainingCoin value.Money
+	GroupIDSet bool
+
+	// RemainingCoinSet distinguishes an omitted balance from explicit zero.
+	RemainingCoinSet bool
+	RemainingCoin    value.Money
 }

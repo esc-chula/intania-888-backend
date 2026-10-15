@@ -80,10 +80,11 @@ type AdminUpdateUserRequest struct {
 	GroupID       *string     `json:"group_id"`
 	RemainingCoin value.Money `json:"remaining_coin"`
 
-	groupIDSet bool
+	groupIDSet       bool
+	remainingCoinSet bool
 }
 
-// UnmarshalJSON records whether group_id was supplied so null can clear it.
+// UnmarshalJSON tracks supplied group and balance fields.
 func (r *AdminUpdateUserRequest) UnmarshalJSON(data []byte) error {
 	type wire AdminUpdateUserRequest
 	var decoded wire
@@ -97,6 +98,7 @@ func (r *AdminUpdateUserRequest) UnmarshalJSON(data []byte) error {
 	}
 	*r = AdminUpdateUserRequest(decoded)
 	_, r.groupIDSet = fields["group_id"]
+	_, r.remainingCoinSet = fields["remaining_coin"]
 
 	return nil
 }

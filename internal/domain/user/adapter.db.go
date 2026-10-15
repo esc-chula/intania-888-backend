@@ -135,8 +135,10 @@ func (r *gormRepository) RegisterProfileIfGroupUnset(
 // stale user snapshot over fields changed by another transaction.
 func (r *gormRepository) UpdateByAdmin(ctx context.Context, userID string, input AdminUpdateInput) error {
 	updates := map[string]any{
-		"name":           input.Name,
-		"remaining_coin": input.RemainingCoin.MinorUnits(),
+		"name": input.Name,
+	}
+	if input.RemainingCoinSet {
+		updates["remaining_coin"] = input.RemainingCoin.MinorUnits()
 	}
 	if input.NickName != nil {
 		updates["nick_name"] = input.NickName
