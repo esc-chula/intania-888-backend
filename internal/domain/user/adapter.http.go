@@ -177,11 +177,12 @@ func (h *HTTPHandler) AdminUpdateUser(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.AdminUpdateUser(c.UserContext(), userID, AdminUpdateInput{
-		Name:          userDto.Name,
-		NickName:      userDto.NickName,
-		GroupID:       userDto.GroupID,
-		GroupIDSet:    userDto.groupIDSet,
-		RemainingCoin: userDto.RemainingCoin,
+		Name:             userDto.Name,
+		NickName:         userDto.NickName,
+		GroupID:          userDto.GroupID,
+		GroupIDSet:       userDto.groupIDSet,
+		RemainingCoin:    userDto.RemainingCoin,
+		RemainingCoinSet: userDto.remainingCoinSet,
 	}); err != nil {
 		return mapUserError(err)
 	}

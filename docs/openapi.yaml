@@ -6567,8 +6567,8 @@ components:
           maxLength: 100
           type: string
         remaining_coin:
-          description: New account balance as a decimal JSON string; the handler writes 0.00 when this field is
-            omitted. Include the intended balance on every update. Numeric JSON tokens are rejected.
+          description: New account balance as a decimal JSON string; omission preserves the existing balance.
+            Explicit '0.00' sets the balance to zero. Numeric JSON tokens are rejected.
           example: '888.88'
           type: string
       required:

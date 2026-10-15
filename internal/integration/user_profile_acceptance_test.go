@@ -111,6 +111,57 @@ func TestAdminUserAPIAssignsAndClearsGroup(t *testing.T) {
 	}
 }
 
+func TestAdminUserAPIBalancePresence(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		wantBalance string
+		wantMinor   int64
+	}{
+		{
+			name:        "omitted balance is preserved",
+			body:        `{"name":"Admin changed"}`,
+			wantBalance: "123.45",
+			wantMinor:   123_45,
+		},
+		{
+			name:        "explicit zero clears balance",
+			body:        `{"name":"Admin changed","remaining_coin":"0.00"}`,
+			wantBalance: "0.00",
+		},
+		{
+			name:        "explicit nonzero replaces balance",
+			body:        `{"name":"Admin changed","remaining_coin":"100.00"}`,
+			wantBalance: "100.00",
+			wantMinor:   100_00,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			postgres := openStakeMinePostgres(t)
+			seedProfileUsers(t, postgres)
+
+			repository := userdomain.NewGORMRepository(postgres.DB)
+			service := userdomain.NewService(repository, zap.NewNop())
+			app := newProfileTestAppForRole(t, service, "profile-admin", "ADMIN")
+
+			status, body := patchProfileRequest(t, app, "/api/v1/users/admin/"+profileTestActorID, test.body)
+			if status != http.StatusOK || body["name"] != "Admin changed" || body["remaining_coin"] != test.wantBalance {
+				t.Fatalf("admin balance update = %d %v, want 200 and balance %s", status, body, test.wantBalance)
+			}
+
+			var balance int64
+			if err := postgres.SQL.QueryRow(`SELECT remaining_coin FROM users WHERE id = $1`, profileTestActorID).Scan(&balance); err != nil {
+				t.Fatal(err)
+			}
+			if balance != test.wantMinor {
+				t.Fatalf("persisted balance = %d, want %d", balance, test.wantMinor)
+			}
+		})
+	}
+}
+
 func TestOwnProfilePatchPreservesInterleavedBalanceChange(t *testing.T) {
 	postgres := openStakeMinePostgres(t)
 	seedStakeMineUser(t, postgres, "profile-balance-user", 100_00)

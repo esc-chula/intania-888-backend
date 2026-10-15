@@ -53,7 +53,9 @@ func (r *fakeAccountRepository) UpdateByAdmin(ctx context.Context, userID string
 	r.savedActorID = userID
 	r.savedAdmin = &input
 	r.user.Name = input.Name
-	r.user.RemainingCoin = input.RemainingCoin.MinorUnits()
+	if input.RemainingCoinSet {
+		r.user.RemainingCoin = input.RemainingCoin.MinorUnits()
+	}
 	if input.NickName != nil {
 		r.user.NickName = input.NickName
 	}
@@ -202,8 +204,9 @@ func TestAdminUpdateUserPreservesOmittedGroupAndTracksExplicitClear(t *testing.T
 	service := NewService(repo, zap.NewNop())
 
 	if err := service.AdminUpdateUser(context.Background(), "actor", AdminUpdateInput{
-		Name:          "Changed",
-		RemainingCoin: value.MustMoneyFromMinor(20000),
+		Name:             "Changed",
+		RemainingCoin:    value.MustMoneyFromMinor(20000),
+		RemainingCoinSet: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -212,9 +215,10 @@ func TestAdminUpdateUserPreservesOmittedGroupAndTracksExplicitClear(t *testing.T
 	}
 
 	if err := service.AdminUpdateUser(context.Background(), "actor", AdminUpdateInput{
-		Name:          "Changed",
-		GroupIDSet:    true,
-		RemainingCoin: value.MustMoneyFromMinor(20000),
+		Name:             "Changed",
+		GroupIDSet:       true,
+		RemainingCoin:    value.MustMoneyFromMinor(20000),
+		RemainingCoinSet: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
